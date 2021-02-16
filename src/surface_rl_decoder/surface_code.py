@@ -144,9 +144,9 @@ class SurfaceCode(gym.Env):
         add_operator = action[3]
 
         # TODO: need to alter this piece of code for one action to be performed throughout the stack
-        old_operator = self.qubits[row, col]
-        new_operator = self.rule_table[old_operator, add_operator]
-        self.qubits[row, col] = new_operator
+        old_operator = self.qubits[:, row, col]
+        new_operator = [self.rule_table[old_op, add_operator] for old_op in old_operator]
+        self.qubits[:, row, col] = new_operator
         self.next_state = self.create_syndrome_output(self.qubits)
 
         reward = self.get_reward()
@@ -156,10 +156,56 @@ class SurfaceCode(gym.Env):
         return self.state, reward, terminal, {}
 
     def generate_qubit_error(self):
-        pass
+        """
+        Generate qubit errors on one slice in vectorized form.
 
-    def generate_qubit_error_stack(self):
-        pass
+        First, create a matrix with random values in [0, 1] and compare each element
+        to the error probability.
+        Then, the actual error operation out of the set (X, Y, Z) = (1, 2, 3) is chosen
+        for each element.
+        However, only in those elements where the random value was below p_error,
+        the operation is saved by multiplying the operaton matrix with the mask array. 
+
+        Returns
+        =======
+        error: (d, d) array containing error operations on a qubit grid
+        """
+        shape = (self.system_size, self.system_size)
+        uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
+        error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
+        
+        error_channel = np.random.randint(1, 4, shape, dtype=np.uint8)
+        error = np.multiply(error_mask, error_channel)
+        error = error.astype(np.uint8)
+
+        return error
+
+    def generate_qubit_error_stack(self, duration=None):
+        """
+        Note: quick sketch
+        """
+        # TODO: can extend this function to also support error stacks
+        # where errors occur only after a certain time
+        error_stack = np.zeros((self.stack_depth, self.system_size, self.system_size), dtype=np.uint8)
+        base_error = self.generate_qubit_error()
+
+        error_stack[0, :, :] = base_error
+        for h in range(1, self.stack_depth):
+            new_error = self.generate_qubit_error()
+            # TODO: need to multiply new error to the previous one
+            # so that the error chain can be continued
+
+            # Could also filter where errors have actually occured with np.where() 
+            nonzero_idx = np.where(base_error != 0)
+            for row in idx[0]:
+                for col in idx[1]:
+                    old_operator = base_error[row, col]
+                    new_error[row, col] = self.rule_table[old_operator, new_error[row, col]]
+
+            error_stack[h, :, :] = new_error
+            base_error = new_error
+            
+        return error_stack
 
     def generate_measurement_error(self):
         pass
