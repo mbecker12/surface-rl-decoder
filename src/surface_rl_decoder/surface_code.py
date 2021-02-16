@@ -85,7 +85,7 @@ class SurfaceCode(gym.Env):
         self.plaquette_mask = plaquette_mask
         assert vertex_mask.shape == (self.system_size + 1, self.system_size + 1)
         assert plaquette_mask.shape == (self.system_size + 1, self.system_size + 1)
-        
+
         # TODO:
         # How to define the surface code matrix?
         # Idea: define both plaquettes and vertices on a (d+1, d+1) matrix
@@ -213,9 +213,7 @@ class SurfaceCode(gym.Env):
         y_shifted_ul = np.roll(y_shifted_up, -1, axis=1)
 
         # X = shaded = vertex
-        syndrome = (
-            x + x_shifted_up + x_shifted_left + x_shifted_ul
-        ) * self.vertex_mask
+        syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * self.vertex_mask
         syndrome += (
             y + y_shifted_up + y_shifted_left + y_shifted_ul
         ) * self.vertex_mask
@@ -237,8 +235,6 @@ class SurfaceCode(gym.Env):
 
     def create_syndrome_output_stack(self):
         pass
-
-    def
 
     def get_reward(self):
         # TODO: What reward strategy are we choosing?
