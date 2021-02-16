@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from iniparser import Config
 import time, sys
-from syndrome_masks import vertex_mask, plaquette_mask
+from .syndrome_masks import vertex_mask, plaquette_mask
 
 
 class SurfaceCode(gym.Env):
@@ -43,7 +43,7 @@ class SurfaceCode(gym.Env):
         """
         Initialize Surface Code environment.
         Loads configuration via config-env-parsers, therefore we
-        need either config.ini file or constants saved as env variables.
+        need either a config.ini file or constants saved as env variables.
         """
 
         c = Config()
@@ -53,6 +53,7 @@ class SurfaceCode(gym.Env):
         env_config = self.config.get("env")
 
         self.system_size = int(env_config.get("size"))
+        self.syndrome_size = self.system_size + 1
         self.min_qbit_errors = int(env_config.get("min_qbit_err"))
         self.p_error = float(env_config.get("p_error"))
         self.p_msmt = float(env_config.get("p_msmt"))
@@ -75,14 +76,17 @@ class SurfaceCode(gym.Env):
             high=1,
             shape=(
                 self.stack_depth,
-                2 * self.system_size + 1,
-                2 * self.system_size + 1,
+                self.syndrome_size,
+                self.syndrome_size
             ),
             dtype=np.uint8,
         )
 
+        # imported from file
         self.vertex_mask = vertex_mask
+        self.vertex_mask_deep = np.tile(vertex_mask, (self.stack_depth, 1, 1))
         self.plaquette_mask = plaquette_mask
+        self.plaquette_mask_deep = np.tile(plaquette_mask, (self.stack_depth, 1, 1))
         assert vertex_mask.shape == (self.system_size + 1, self.system_size + 1)
         assert plaquette_mask.shape == (self.system_size + 1, self.system_size + 1)
 
@@ -92,10 +96,9 @@ class SurfaceCode(gym.Env):
         # https://app.diagrams.net/#G1Ppj6myKPwCny7QeFz9cNq2TC_h6fwkn6
 
         # Look at Sweke code, they worked on the same surface code representation
-        self.qubits = np.zeros((self.system_size, self.system_size), dtype=np.uint8)
+        self.qubits = np.zeros((self.stack_depth, self.system_size, self.system_size), dtype=np.uint8)
 
         # define syndrome matrix
-        self.syndrome_size = self.system_size + 1
         self.state = np.zeros(
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
@@ -122,7 +125,7 @@ class SurfaceCode(gym.Env):
 
     def step(self, action):
         """
-        Apply a pauli operator to a qubit on the surface code.
+        Apply a pauli operator to a qubit on the surface code with code distance d.
 
         Parameters
         ==========
@@ -152,6 +155,18 @@ class SurfaceCode(gym.Env):
 
         return self.state, reward, terminal, {}
 
+    def generate_qubit_error(self):
+        pass
+
+    def generate_qubit_error_stack(self):
+        pass
+
+    def generate_measurement_error(self):
+        pass
+
+    def generate_measurement_error_stack(self):
+        pass
+
     def reset(self, p_error=None, p_msmt=None):
         """
         Reset the environment and generate new qubit and syndrome stacks with errors.
@@ -163,7 +178,7 @@ class SurfaceCode(gym.Env):
 
         self.ground_state = True
 
-        self.qubits = np.zeros((self.system_size, self.system_size), dtype=np.uint8)
+        self.qubits = np.zeros((self.stack_depth, self.system_size, self.system_size), dtype=np.uint8)
         self.state = np.zeros(
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
@@ -189,8 +204,8 @@ class SurfaceCode(gym.Env):
         =======
         syndrome: (d+1, d+1) array embedding vertices and plaquettes
         """
-        syndrome = np.zeros_like(self.syndrome_matrix)
 
+        # pad with ((one row above, zero rows below), (one row to the left, zero rows to the right))
         qubits = np.pad(qubits, ((1, 0), (1, 0)), "constant", constant_values=0)
 
         x = (qubits == 1).astype(np.uint8)
@@ -233,8 +248,68 @@ class SurfaceCode(gym.Env):
         )  # we can only measure parity, hence only odd number of errors per syndrome
         return syndrome
 
-    def create_syndrome_output_stack(self):
-        pass
+    def create_syndrome_output_stack(self, qubits):
+        """
+        Infer the true syndrome output (w/o measurement errors)
+        from the qubit matrix.
+
+        d: code distance
+        h: stack depth/height
+
+        Parameters
+        ==========
+        qubits: (h, d, d) array containing the net operation performed on each qubit
+
+        Returns
+        =======
+        syndrome: (h, d+1, d+1) array embedding vertices and plaquettes
+        """
+        # regard this as pseudo code
+        # just writing down ideas
+
+        # pad with ((nothing along time axis), (one row above, zero rows below), (one row to the left, zero rows to the right))
+        qubits = np.pad(qubits, ((0, 0), (1, 0), (1, 0)), "constant", constant_values=0)
+
+        x = (qubits == 1).astype(np.uint8)
+        y = (qubits == 2).astype(np.uint8)
+        z = (qubits == 3).astype(np.uint8)
+        assert x.shape == qubits.shape
+        assert y.shape == qubits.shape
+        assert z.shape == qubits.shape
+
+        x_shifted_left = np.roll(x, -1, axis=2)
+        x_shifted_up = np.roll(x, -1, axis=1)
+        x_shifted_ul = np.roll(x_shifted_up, -1, axis=2)  # shifted up and left
+
+        z_shifted_left = np.roll(z, -1, axis=2)
+        z_shifted_up = np.roll(z, -1, axis=1)
+        z_shifted_ul = np.roll(z_shifted_up, -1, axis=2)
+
+        y_shifted_left = np.roll(y, -1, axis=2)
+        y_shifted_up = np.roll(y, -1, axis=1)
+        y_shifted_ul = np.roll(y_shifted_up, -1, axis=2)
+
+        # X = shaded = vertex
+        syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * self.vertex_mask
+        syndrome += (
+            y + y_shifted_up + y_shifted_left + y_shifted_ul
+        ) * self.vertex_mask
+
+        # Z = blank = plaquette
+        syndrome += (
+            z + z_shifted_up + z_shifted_left + z_shifted_ul
+        ) * self.plaquette_mask
+        syndrome += (
+            y + y_shifted_up + y_shifted_left + y_shifted_ul
+        ) * self.plaquette_mask
+
+
+        assert syndrome.shape == (self.stack_depth, self.system_size + 1, self.system_size + 1)
+
+        syndrome = (
+            syndrome % 2
+        )  # we can only measure parity, hence only odd number of errors per syndrome
+        return syndrome
 
     def get_reward(self):
         # TODO: What reward strategy are we choosing?

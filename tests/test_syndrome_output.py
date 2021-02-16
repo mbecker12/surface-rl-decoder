@@ -1,12 +1,12 @@
 import pytest
 import numpy as np
-from surface_code import SurfaceCode
+from src.surface_rl_decoder.surface_code import SurfaceCode
 
 
 def test_syndrome_output(v=False):
     sc = SurfaceCode()
 
-    sc.qubits[1, 1] = 1
+    sc.qubits[0, 1, 1] = 1
 
     expected_syndrome = np.zeros(
         (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
@@ -14,7 +14,7 @@ def test_syndrome_output(v=False):
     expected_syndrome[1, 1] = 1
     expected_syndrome[2, 2] = 1
 
-    syndrome = sc.create_syndrome_output(sc.qubits)
+    syndrome = sc.create_syndrome_output(sc.qubits[0])
 
     if v:
         print(f"{sc.qubits=}")
@@ -24,11 +24,11 @@ def test_syndrome_output(v=False):
         print(f"{expected_syndrome=}")
     assert np.all(syndrome == expected_syndrome)
 
-    sc.qubits[3, 2] = 1
+    sc.qubits[0, 3, 2] = 1
     expected_syndrome[3, 3] += 1
     expected_syndrome[4, 2] += 1
 
-    syndrome = sc.create_syndrome_output(sc.qubits)
+    syndrome = sc.create_syndrome_output(sc.qubits[0])
 
     if v:
         print(f"{sc.qubits=}")
@@ -39,11 +39,11 @@ def test_syndrome_output(v=False):
     assert np.all(syndrome == expected_syndrome % 2)
 
     # edge cases
-    sc.qubits[3, 4] = 1
+    sc.qubits[0, 3, 4] = 1
     expected_syndrome[3, 5] += 1
     expected_syndrome[4, 4] += 1
 
-    syndrome = sc.create_syndrome_output(sc.qubits)
+    syndrome = sc.create_syndrome_output(sc.qubits[0])
 
     if v:
         print(f"{sc.qubits=}")
@@ -53,11 +53,11 @@ def test_syndrome_output(v=False):
         print(f"{expected_syndrome=}")
     assert np.all(syndrome == expected_syndrome % 2)
 
-    sc.qubits[2, 2] = 3  # z error
+    sc.qubits[0, 2, 2] = 3  # z error
     expected_syndrome[2, 3] += 1
     expected_syndrome[3, 2] += 1
 
-    syndrome = sc.create_syndrome_output(sc.qubits)
+    syndrome = sc.create_syndrome_output(sc.qubits[0])
 
     if v:
         print(f"{sc.qubits=}")
@@ -67,13 +67,13 @@ def test_syndrome_output(v=False):
         print(f"{expected_syndrome=}")
     assert np.all(syndrome == expected_syndrome % 2)
 
-    sc.qubits[1, 3] = 2
+    sc.qubits[0, 1, 3] = 2
     expected_syndrome[1, 3] += 1
     expected_syndrome[1, 4] += 1
     expected_syndrome[2, 3] += 1
     expected_syndrome[2, 4] += 1
 
-    syndrome = sc.create_syndrome_output(sc.qubits)
+    syndrome = sc.create_syndrome_output(sc.qubits[0])
 
     if v:
         print(f"{sc.qubits=}")
@@ -90,12 +90,12 @@ def test_syndrome_output_edge(v=True):
         (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
     )
 
-    sc.qubits[0, 0] = 2
+    sc.qubits[0, 0, 0] = 2
 
     expected_syndrome[0, 1] += 1
     expected_syndrome[1, 1] += 1
 
-    syndrome = sc.create_syndrome_output(sc.qubits)
+    syndrome = sc.create_syndrome_output(sc.qubits[0])
 
     if v:
         print(f"{sc.qubits=}")
@@ -105,12 +105,12 @@ def test_syndrome_output_edge(v=True):
         print(f"{expected_syndrome=}")
     assert np.all(syndrome == expected_syndrome % 2)
 
-    sc.qubits[2, 0] = 2
+    sc.qubits[0, 2, 0] = 2
     expected_syndrome[2, 0] += 1
     expected_syndrome[2, 1] += 1
     expected_syndrome[3, 1] += 1
 
-    syndrome = sc.create_syndrome_output(sc.qubits)
+    syndrome = sc.create_syndrome_output(sc.qubits[0])
 
     if v:
         print(f"{sc.qubits=}")
