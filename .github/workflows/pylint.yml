@@ -19,8 +19,10 @@ jobs:
         pip install pylint
         pip install black
     - name: Blackened
+      run: |
         black src/ --check
         black tests/ --check
+      
     - name: Analysing the code with pylint
       run: |
         pylint `ls -R|grep .py$|xargs`
