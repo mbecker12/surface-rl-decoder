@@ -199,8 +199,8 @@ class SurfaceCode(gym.Env):
 
             # Could also filter where errors have actually occured with np.where()
             nonzero_idx = np.where(base_error != 0)
-            for row in idx[0]:
-                for col in idx[1]:
+            for row in nonzero_idx[0]:
+                for col in nonzero_idx[1]:
                     old_operator = base_error[row, col]
                     new_error[row, col] = self.rule_table[
                         old_operator, new_error[row, col]
