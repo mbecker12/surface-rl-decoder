@@ -74,11 +74,7 @@ class SurfaceCode(gym.Env):
         self.observation_space = gym.spaces.Box(
             low=0,
             high=1,
-            shape=(
-                self.stack_depth,
-                self.syndrome_size,
-                self.syndrome_size
-            ),
+            shape=(self.stack_depth, self.syndrome_size, self.syndrome_size),
             dtype=np.uint8,
         )
 
@@ -96,7 +92,9 @@ class SurfaceCode(gym.Env):
         # https://app.diagrams.net/#G1Ppj6myKPwCny7QeFz9cNq2TC_h6fwkn6
 
         # Look at Sweke code, they worked on the same surface code representation
-        self.qubits = np.zeros((self.stack_depth, self.system_size, self.system_size), dtype=np.uint8)
+        self.qubits = np.zeros(
+            (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
+        )
 
         # define syndrome matrix
         self.state = np.zeros(
@@ -145,7 +143,9 @@ class SurfaceCode(gym.Env):
 
         # TODO: need to alter this piece of code for one action to be performed throughout the stack
         old_operator = self.qubits[:, row, col]
-        new_operator = [self.rule_table[old_op, add_operator] for old_op in old_operator]
+        new_operator = [
+            self.rule_table[old_op, add_operator] for old_op in old_operator
+        ]
         self.qubits[:, row, col] = new_operator
         self.next_state = self.create_syndrome_output(self.qubits)
 
@@ -164,7 +164,7 @@ class SurfaceCode(gym.Env):
         Then, the actual error operation out of the set (X, Y, Z) = (1, 2, 3) is chosen
         for each element.
         However, only in those elements where the random value was below p_error,
-        the operation is saved by multiplying the operaton matrix with the mask array. 
+        the operation is saved by multiplying the operaton matrix with the mask array.
 
         Returns
         =======
@@ -173,7 +173,7 @@ class SurfaceCode(gym.Env):
         shape = (self.system_size, self.system_size)
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
-        
+
         error_channel = np.random.randint(1, 4, shape, dtype=np.uint8)
         error = np.multiply(error_mask, error_channel)
         error = error.astype(np.uint8)
@@ -186,7 +186,9 @@ class SurfaceCode(gym.Env):
         """
         # TODO: can extend this function to also support error stacks
         # where errors occur only after a certain time
-        error_stack = np.zeros((self.stack_depth, self.system_size, self.system_size), dtype=np.uint8)
+        error_stack = np.zeros(
+            (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
+        )
         base_error = self.generate_qubit_error()
 
         error_stack[0, :, :] = base_error
@@ -195,16 +197,18 @@ class SurfaceCode(gym.Env):
             # TODO: need to multiply new error to the previous one
             # so that the error chain can be continued
 
-            # Could also filter where errors have actually occured with np.where() 
+            # Could also filter where errors have actually occured with np.where()
             nonzero_idx = np.where(base_error != 0)
             for row in idx[0]:
                 for col in idx[1]:
                     old_operator = base_error[row, col]
-                    new_error[row, col] = self.rule_table[old_operator, new_error[row, col]]
+                    new_error[row, col] = self.rule_table[
+                        old_operator, new_error[row, col]
+                    ]
 
             error_stack[h, :, :] = new_error
             base_error = new_error
-            
+
         return error_stack
 
     def generate_measurement_error(self):
@@ -224,7 +228,9 @@ class SurfaceCode(gym.Env):
 
         self.ground_state = True
 
-        self.qubits = np.zeros((self.stack_depth, self.system_size, self.system_size), dtype=np.uint8)
+        self.qubits = np.zeros(
+            (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
+        )
         self.state = np.zeros(
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
@@ -349,8 +355,11 @@ class SurfaceCode(gym.Env):
             y + y_shifted_up + y_shifted_left + y_shifted_ul
         ) * self.plaquette_mask
 
-
-        assert syndrome.shape == (self.stack_depth, self.system_size + 1, self.system_size + 1)
+        assert syndrome.shape == (
+            self.stack_depth,
+            self.system_size + 1,
+            self.system_size + 1,
+        )
 
         syndrome = (
             syndrome % 2
