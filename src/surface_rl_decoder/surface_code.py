@@ -63,7 +63,7 @@ class SurfaceCode(gym.Env):
         self.action_space = gym.spaces.Discrete(self.num_actions)
         self.completed_actions = np.zeros(self.num_actions, np.uint8)
 
-        self.volume_depth = 3  # what is this? TODO
+        self.volume_depth = 3  # what is this? TODO # possibly deprecated
         self.n_action_layers = (
             3  # what is this? In the case with Y errors, this is 3 TODO
         )
@@ -85,24 +85,32 @@ class SurfaceCode(gym.Env):
         self.plaquette_mask = plaquette_mask
         assert vertex_mask.shape == (self.system_size + 1, self.system_size + 1)
         assert plaquette_mask.shape == (self.system_size + 1, self.system_size + 1)
-        # Lindeby definition
-        # low = np.array([0, 0, 0, 0])
-        # high = np.array([1, self.system_size, self.system_size, 3])
-        # self.action_space = gym.spaces.Box(low, high)
-        # self.observation_space = gym.spaces.Box(0, 1, [2, self.system_size, self.system_size])
-
+        
         # TODO:
         # How to define the surface code matrix?
+        # Idea: define both plaquettes and vertices on a (d+1, d+1) matrix
+        # https://app.diagrams.net/#G1Ppj6myKPwCny7QeFz9cNq2TC_h6fwkn6
 
         # Look at Sweke code, they worked on the same surface code representation
         self.qubits = np.zeros((self.system_size, self.system_size), dtype=np.uint8)
 
-        syndrome_size = self.system_size + 1
-        self.syndrome_matrix = np.zeros(
-            (2 * self.stack_depth, syndrome_size, syndrome_size), dtype=np.uint8
+        # define syndrome matrix
+        self.syndrome_size = self.system_size + 1
+        self.state = np.zeros(
+            (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
 
-        self.state = self.syndrome_matrix
+        self.observation_space = gym.spaces.Box(
+            low=0,
+            high=1,
+            shape=(
+                self.stack_depth,
+                self.syndrome_size,
+                self.syndrome_size,
+            ),
+            dtype=np.uint8,
+        )
+
         self.next_state = self.state
 
         # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
@@ -122,7 +130,7 @@ class SurfaceCode(gym.Env):
 
         Returns
         =======
-        state: (2, m, m) stacked syndrome arrays
+        state: (d+1, d+1) stacked syndrome arrays
         reward: int, reward for given action
         terminal: bool, determines if it is terminal state or not
         {}: empty dictionary, for conformity reasons #TODO or is it?
@@ -132,21 +140,40 @@ class SurfaceCode(gym.Env):
         col = action[2]
         add_operator = action[3]
 
+        # TODO: need to alter this piece of code for one action to be performed throughout the stack
         old_operator = self.qubits[row, col]
         new_operator = self.rule_table[old_operator, add_operator]
         self.qubits[row, col] = new_operator
-
         self.next_state = self.create_syndrome_output(self.qubits)
 
         reward = self.get_reward()
         self.state = self.next_state
-
         terminal = self.is_terminal(self.state)
 
         return self.state, reward, terminal, {}
 
     def reset(self, p_error=None, p_msmt=None):
-        pass
+        """
+        Reset the environment and generate new qubit and syndrome stacks with errors.
+
+        Returns
+        =======
+        state: (d+1, d+1) stacked syndrome arrays
+        """
+
+        self.ground_state = True
+
+        self.qubits = np.zeros((self.system_size, self.system_size), dtype=np.uint8)
+        self.state = np.zeros(
+            (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
+        )
+        self.next_state = np.zeros(
+            (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
+        )
+
+        # TODO: generate errors
+
+        return self.state
 
     def create_syndrome_output(self, qubits):
         """
@@ -164,7 +191,7 @@ class SurfaceCode(gym.Env):
         """
         syndrome = np.zeros_like(self.syndrome_matrix)
 
-        qubits = np.pad(qubits, ((1, 0), (1, 0)), 'constant', constant_values=0)
+        qubits = np.pad(qubits, ((1, 0), (1, 0)), "constant", constant_values=0)
 
         x = (qubits == 1).astype(np.uint8)
         y = (qubits == 2).astype(np.uint8)
@@ -175,7 +202,7 @@ class SurfaceCode(gym.Env):
 
         x_shifted_left = np.roll(x, -1, axis=1)
         x_shifted_up = np.roll(x, -1, axis=0)
-        x_shifted_ul = np.roll(x_shifted_up, -1, axis=1) # shifted up and left
+        x_shifted_ul = np.roll(x_shifted_up, -1, axis=1)  # shifted up and left
 
         z_shifted_left = np.roll(z, -1, axis=1)
         z_shifted_up = np.roll(z, -1, axis=0)
@@ -184,24 +211,42 @@ class SurfaceCode(gym.Env):
         y_shifted_left = np.roll(y, -1, axis=1)
         y_shifted_up = np.roll(y, -1, axis=0)
         y_shifted_ul = np.roll(y_shifted_up, -1, axis=1)
-        
+
         # X = shaded = vertex
-        syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * self.vertex_mask
-        syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * self.vertex_mask
+        syndrome = (
+            x + x_shifted_up + x_shifted_left + x_shifted_ul
+        ) * self.vertex_mask
+        syndrome += (
+            y + y_shifted_up + y_shifted_left + y_shifted_ul
+        ) * self.vertex_mask
 
         # Z = blank = plaquette
-        syndrome += (z + z_shifted_up + z_shifted_left + z_shifted_ul) * self.plaquette_mask
-        syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * self.plaquette_mask
+        syndrome += (
+            z + z_shifted_up + z_shifted_left + z_shifted_ul
+        ) * self.plaquette_mask
+        syndrome += (
+            y + y_shifted_up + y_shifted_left + y_shifted_ul
+        ) * self.plaquette_mask
 
         assert syndrome.shape == (self.system_size + 1, self.system_size + 1)
 
-        syndrome = syndrome % 2 # we can only measure parity, hence only odd number of errors per syndrome
+        syndrome = (
+            syndrome % 2
+        )  # we can only measure parity, hence only odd number of errors per syndrome
         return syndrome
 
+    def create_syndrome_output_stack(self):
+        pass
+
+    def
+
     def get_reward(self):
+        # TODO: What reward strategy are we choosing?
         pass
 
     def is_terminal(self, state):
+        # TODO: How do we determine if a state is terminal?
+        # The agent will have to decide that
         pass
 
 
