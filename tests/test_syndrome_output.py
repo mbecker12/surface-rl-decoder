@@ -96,33 +96,35 @@ def test_syndrome_output_edge(v=True):
 
     sc.qubits
 
-def test_all_syndromes(v=True):
-    def reset():
-        sc = SurfaceCode()
-        expected_syndrome = np.zeros((sc.system_size + 1, sc.system_size + 1), dtype=np.uint8)
-        return sc, expected_syndrome
+# TODO
+# def test_all_syndromes(v=True):
+#     def reset():
+#         sc = SurfaceCode()
+#         expected_syndrome = np.zeros((sc.system_size + 1, sc.system_size + 1), dtype=np.uint8)
+#         return sc, expected_syndrome
 
-    sc = SurfaceCode()
-    d = sc.system_size
+#     sc = SurfaceCode()
+#     d = sc.system_size
 
-    assert d == 5
+#     assert d == 5
 
-    # X errors
-    # 0,0
-    sc, expected_syndrome = reset()
-    sc.qubits[0, 0] = 1
-    expected_syndrome[]
+#     # X errors
+#     # 0,0
+#     sc, expected_syndrome = reset()
+#     sc.qubits[0, 0] = 1
+#     expected_syndrome[]
 
 
-    # X errors
-    for i in range(d):
-        for j in range(d):
-            sc = SurfaceCode()
-            expected_syndrome = np.zeros((sc.system_size + 1, sc.system_size + 1), dtype=np.uint8)
+#     # X errors
+#     for i in range(d):
+#         for j in range(d):
+#             sc = SurfaceCode()
+#             expected_syndrome = np.zeros((sc.system_size + 1, sc.system_size + 1), dtype=np.uint8)
 
-            sc.qubits[i, j] = 1
-            expected_syndrome[]
+#             sc.qubits[i, j] = 1
+#             expected_syndrome[]
             
 
 if __name__ == "__main__":
+    # for debugging purposes
     test_syndrome_output()
