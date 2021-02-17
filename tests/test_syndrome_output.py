@@ -1,5 +1,5 @@
 import numpy as np
-from surface_rl_decoder.surface_code import SurfaceCode
+from src.surface_rl_decoder.surface_code import SurfaceCode
 
 
 def test_syndrome_output(v=False):
