@@ -25,6 +25,10 @@ class SurfaceCode(gym.Env):
             Hence, it could happen that the latest slice contains errors of the measurement kind after the decoder
             has finished its job; this would be okay.
 
+            Define:
+            h = stack depth, i.e. number of time steps / time slices in the stack
+            d = code distance
+
 
             # TODO need to keep track of measurement errors separately, so that we know at prediction time
             # which errors are real.
@@ -79,12 +83,10 @@ class SurfaceCode(gym.Env):
         )
 
         # imported from file
-        self.vertex_mask = vertex_mask
-        self.vertex_mask_deep = np.tile(vertex_mask, (self.stack_depth, 1, 1))
-        self.plaquette_mask = plaquette_mask
-        self.plaquette_mask_deep = np.tile(plaquette_mask, (self.stack_depth, 1, 1))
-        assert vertex_mask.shape == (self.system_size + 1, self.system_size + 1)
-        assert plaquette_mask.shape == (self.system_size + 1, self.system_size + 1)
+        self.vertex_mask = np.tile(vertex_mask, (self.stack_depth, 1, 1))
+        self.plaquette_mask = np.tile(plaquette_mask, (self.stack_depth, 1, 1))
+        assert self.vertex_mask.shape == (self.stack_depth, self.system_size + 1, self.system_size + 1), vertex_mask.shape
+        assert self.plaquette_mask.shape == (self.stack_depth, self.system_size + 1, self.system_size + 1), plaquette_mask.shape
 
         # TODO:
         # How to define the surface code matrix?
@@ -155,9 +157,59 @@ class SurfaceCode(gym.Env):
 
         return self.state, reward, terminal, {}
 
-    def generate_qubit_error(self):
+    def generate_qubit_X_error(self):
         """
-        Generate qubit errors on one slice in vectorized form.
+        Generate only X errors on the ubit grid.
+
+        First, create a matrix with random values in [0, 1] and compare each element
+        to the error probability.
+        In those elements where the random value was below p_error, an X operation is performed.
+
+        Returns
+        =======
+        error: (d, d) array containing error operations on a qubit grid
+        """
+        shape = (self.system_size, self.system_size)
+        uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
+        error = (uniform_random_vector < self.p_error).astype(np.uint8)
+
+        return error
+
+    def generate_qubit_IIDXZ_error(self):
+        """
+        Generate X and Z qubit errors independent of each other on one slice in vectorized form.
+
+        First, create a matrix with random values in [0, 1] and compare each element
+        to the error probability.
+        Then, the actual error operation out of the set (X, Y, Z) = (1, 2, 3) is chosen
+        for each element.
+        However, only in those elements where the random value was below p_error,
+        the operation is saved by multiplying the operaton matrix with the mask array.
+
+        Returns
+        =======
+        error: (d, d) array containing error operations on a qubit grid
+        """
+        shape = (self.system_size, self.system_size)
+        uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
+        error_mask_x = (uniform_random_vector < self.p_error).astype(np.uint8)
+        x_err = np.ones(shape, dtype=np.uint8)
+        x_err = np.multiply(x_err, error_mask_x)
+
+        uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
+        error_mask_z = (uniform_random_vector < self.p_error).astype(np.uint8)
+        z_err = np.ones(shape, dtype=np.uint8) * 3
+        z_err = np.multiply(z_err, error_mask_z)
+
+        err = x_err + z_err
+        error = np.where(err > 3, 2, err) # where x and z errors add up, write a 2 instead
+
+        return error
+
+
+    def generate_qubit_DP_error(self):
+        """
+        Generate depolarizing qubit errors on one slice in vectorized form.
 
         First, create a matrix with random values in [0, 1] and compare each element
         to the error probability.
@@ -180,25 +232,61 @@ class SurfaceCode(gym.Env):
 
         return error
 
-    def generate_qubit_error_stack(self, duration=None):
+    def generate_qubit_error(self, error_channel="dp"):
         """
-        Note: quick sketch
+        Wrapper function to create qubit errors vis the corret error channel.
+
+        Parameters
+        ==========
+        error_channel: (optional) either "dp", "x", "iidxz" denoting the error channel of choice
+
+        Returns
+        =======
+        error: (d, d) array of qubits with occasional error operations
+        """
+
+        if error_channel == "x" or error_channel == "X":
+            error = self.generate_qubit_X_error()
+        elif error_channel == "dp" or error_channel == "DP":
+            error = self.generate_qubit_DP_error()
+        elif error_channel == "iidxz" or error_channel == "IIDXZ":
+            error = self.generate_qubit_IIDXZ_error()
+        else:
+            raise Exception(f"Error! error channel {error_channel} not supported.")
+            
+        return error
+
+    def generate_qubit_error_stack(self, error_channel="dp", duration=None):
+        """
+        Create a whole stack of qubits which act as the time evolution of the surface code through time.
+        Each higher layer in the stack is dependent on the layers below, carrying over
+        old errors and potentially introducing new errors proportional to the error probability.
+
+        Parameters
+        ==========
+        error_channel: (optional) either "dp", "x", "iidxz" denoting the error channel of choice
+        duration: (optional) (not supported yet)
+            gives the number of actual erroneous slices, if the error sequence shouldn't start at t=0
+
+        Returns
+        =======
+        error_stack: (h, d, d) array of qubits; qubit slices through time with occasional error operations
         """
         # TODO: can extend this function to also support error stacks
         # where errors occur only after a certain time
         error_stack = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
         )
-        base_error = self.generate_qubit_error()
+        base_error = self.generate_qubit_error(error_channel=error_channel)
 
         error_stack[0, :, :] = base_error
         for h in range(1, self.stack_depth):
-            new_error = self.generate_qubit_error()
-            # TODO: need to multiply new error to the previous one
-            # so that the error chain can be continued
+            new_error = self.generate_qubit_error(error_channel=error_channel)
 
-            # Could also filter where errors have actually occured with np.where()
+            # filter where errors have actually occured with np.where()
             nonzero_idx = np.where(base_error != 0)
+
+            # TODO: could possibly optimize this
             for row in nonzero_idx[0]:
                 for col in nonzero_idx[1]:
                     old_operator = base_error[row, col]
@@ -211,13 +299,37 @@ class SurfaceCode(gym.Env):
 
         return error_stack
 
-    def generate_measurement_error(self):
-        pass
+    def generate_measurement_error(self, true_syndrome):
+        """
+        Introduce random measurement errors on the syndrome.
 
-    def generate_measurement_error_stack(self):
-        pass
+        Works both on slices and on stacks.
 
-    def reset(self, p_error=None, p_msmt=None):
+        Parameters
+        ==========
+        true_syndrome: (d, d) or (h, d, d) array of syndrome embedding
+
+        Returns
+        =======
+        faulty_syndrome: (d, d) or (h, d, d) array of syndrome with occasional erroneous syndrome
+            measurements
+        """
+        shape = true_syndrome.shape
+
+        uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
+        error_mask = (uniform_random_vector < self.p_msmt).astype(np.uint8)
+
+        # take into account positions of vertices and plaquettes
+        error_mask = np.multiply(error_mask, np.add(plaquette_mask, vertex_mask))
+        #TODO: could just save the error_mask here to keep track of where real errors are and where msmt errors are
+        # Or one could save the error array, output from generate_qubit_error()
+
+        # where an error occurs, flip the true syndrome measurement
+        faulty_syndrome = np.where(error_mask > 0, 1 - true_syndrome, true_syndrome)
+
+        return faulty_syndrome
+
+    def reset(self, p_error=None, p_msmt=None, error_channel="dp"):
         """
         Reset the environment and generate new qubit and syndrome stacks with errors.
 
@@ -238,7 +350,11 @@ class SurfaceCode(gym.Env):
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
 
-        # TODO: generate errors
+        # TODO: implement function to generate minimum number of errors
+        while self.qubits.sum() == 0:
+            self.qubits = self.generate_qubit_error_stack(error_channel=error_channel)
+            self.state = self.create_syndrome_output_stack(self.qubits)
+
 
         return self.state
 
@@ -257,15 +373,20 @@ class SurfaceCode(gym.Env):
         syndrome: (d+1, d+1) array embedding vertices and plaquettes
         """
 
+        # make sure it is only one slice
+        if len(qubits.shape) != 2:
+            if len(qubits.shape) == 3:
+                assert qubits.shape[0] == 1
+
         # pad with ((one row above, zero rows below), (one row to the left, zero rows to the right))
         qubits = np.pad(qubits, ((1, 0), (1, 0)), "constant", constant_values=0)
 
         x = (qubits == 1).astype(np.uint8)
         y = (qubits == 2).astype(np.uint8)
         z = (qubits == 3).astype(np.uint8)
-        assert x.shape == qubits.shape
-        assert y.shape == qubits.shape
-        assert z.shape == qubits.shape
+        assert x.shape == qubits.shape, x.shape
+        assert y.shape == qubits.shape, y.shape
+        assert z.shape == qubits.shape, z.shape
 
         x_shifted_left = np.roll(x, -1, axis=1)
         x_shifted_up = np.roll(x, -1, axis=0)
@@ -280,20 +401,20 @@ class SurfaceCode(gym.Env):
         y_shifted_ul = np.roll(y_shifted_up, -1, axis=1)
 
         # X = shaded = vertex
-        syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * self.vertex_mask
+        syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * self.vertex_mask[0]
         syndrome += (
             y + y_shifted_up + y_shifted_left + y_shifted_ul
-        ) * self.vertex_mask
+        ) * self.vertex_mask[0]
 
         # Z = blank = plaquette
         syndrome += (
             z + z_shifted_up + z_shifted_left + z_shifted_ul
-        ) * self.plaquette_mask
+        ) * self.plaquette_mask[0]
         syndrome += (
             y + y_shifted_up + y_shifted_left + y_shifted_ul
-        ) * self.plaquette_mask
+        ) * self.plaquette_mask[0]
 
-        assert syndrome.shape == (self.system_size + 1, self.system_size + 1)
+        assert syndrome.shape == (self.system_size + 1, self.system_size + 1), syndrome.shape
 
         syndrome = (
             syndrome % 2
@@ -359,7 +480,7 @@ class SurfaceCode(gym.Env):
             self.stack_depth,
             self.system_size + 1,
             self.system_size + 1,
-        )
+        ), syndrome.shape
 
         syndrome = (
             syndrome % 2
