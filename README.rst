@@ -28,7 +28,8 @@ quantum computations.
 Code Environment
 ================
 
-The code was written in Python 3.8.5
+The code was written in Python 3.8.5.
+
 A virtual environment for this project can be setup via
 
     python3 -m venv ~/virtualenv/qec
@@ -78,6 +79,7 @@ Tests
 
 Unit tests are executed in the CI pipeline (under the section "Actions" in github)
 or can be run locally.
+
 You first need to install the test requirements:
 
     pip install -r test-requirements.txt
