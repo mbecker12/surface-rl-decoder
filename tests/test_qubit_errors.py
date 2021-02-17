@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from src.surface_rl_decoder.surface_code import SurfaceCode
+from surface_rl_decoder.surface_code import SurfaceCode
 
 
 def test_qubit_error_slice():
