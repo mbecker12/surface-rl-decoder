@@ -85,8 +85,16 @@ class SurfaceCode(gym.Env):
         # imported from file
         self.vertex_mask = np.tile(vertex_mask, (self.stack_depth, 1, 1))
         self.plaquette_mask = np.tile(plaquette_mask, (self.stack_depth, 1, 1))
-        assert self.vertex_mask.shape == (self.stack_depth, self.system_size + 1, self.system_size + 1), vertex_mask.shape
-        assert self.plaquette_mask.shape == (self.stack_depth, self.system_size + 1, self.system_size + 1), plaquette_mask.shape
+        assert self.vertex_mask.shape == (
+            self.stack_depth,
+            self.system_size + 1,
+            self.system_size + 1,
+        ), vertex_mask.shape
+        assert self.plaquette_mask.shape == (
+            self.stack_depth,
+            self.system_size + 1,
+            self.system_size + 1,
+        ), plaquette_mask.shape
 
         # TODO:
         # How to define the surface code matrix?
@@ -202,10 +210,11 @@ class SurfaceCode(gym.Env):
         z_err = np.multiply(z_err, error_mask_z)
 
         err = x_err + z_err
-        error = np.where(err > 3, 2, err) # where x and z errors add up, write a 2 instead
+        error = np.where(
+            err > 3, 2, err
+        )  # where x and z errors add up, write a 2 instead
 
         return error
-
 
     def generate_qubit_DP_error(self):
         """
@@ -253,7 +262,7 @@ class SurfaceCode(gym.Env):
             error = self.generate_qubit_IIDXZ_error()
         else:
             raise Exception(f"Error! error channel {error_channel} not supported.")
-            
+
         return error
 
     def generate_qubit_error_stack(self, error_channel="dp", duration=None):
@@ -321,7 +330,7 @@ class SurfaceCode(gym.Env):
 
         # take into account positions of vertices and plaquettes
         error_mask = np.multiply(error_mask, np.add(plaquette_mask, vertex_mask))
-        #TODO: could just save the error_mask here to keep track of where real errors are and where msmt errors are
+        # TODO: could just save the error_mask here to keep track of where real errors are and where msmt errors are
         # Or one could save the error array, output from generate_qubit_error()
 
         # where an error occurs, flip the true syndrome measurement
@@ -354,7 +363,6 @@ class SurfaceCode(gym.Env):
         while self.qubits.sum() == 0:
             self.qubits = self.generate_qubit_error_stack(error_channel=error_channel)
             self.state = self.create_syndrome_output_stack(self.qubits)
-
 
         return self.state
 
@@ -401,7 +409,9 @@ class SurfaceCode(gym.Env):
         y_shifted_ul = np.roll(y_shifted_up, -1, axis=1)
 
         # X = shaded = vertex
-        syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * self.vertex_mask[0]
+        syndrome = (
+            x + x_shifted_up + x_shifted_left + x_shifted_ul
+        ) * self.vertex_mask[0]
         syndrome += (
             y + y_shifted_up + y_shifted_left + y_shifted_ul
         ) * self.vertex_mask[0]
@@ -414,7 +424,10 @@ class SurfaceCode(gym.Env):
             y + y_shifted_up + y_shifted_left + y_shifted_ul
         ) * self.plaquette_mask[0]
 
-        assert syndrome.shape == (self.system_size + 1, self.system_size + 1), syndrome.shape
+        assert syndrome.shape == (
+            self.system_size + 1,
+            self.system_size + 1,
+        ), syndrome.shape
 
         syndrome = (
             syndrome % 2

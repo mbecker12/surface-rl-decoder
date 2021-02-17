@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
 
+
 def test_qubit_error_slice():
     sc = SurfaceCode()
     sc.p_error = 0.5
@@ -11,7 +12,6 @@ def test_qubit_error_slice():
         assert error_slice.shape == (sc.system_size, sc.system_size)
         assert np.any(error_slice != 0)
 
-        
 
 def test_qubit_error_stack():
     sc = SurfaceCode()
@@ -22,8 +22,8 @@ def test_qubit_error_stack():
         assert error_stack.shape == (sc.stack_depth, sc.system_size, sc.system_size)
         assert np.any(error_stack != 0)
 
-        #TODO: make sure that the number of errors in later layers is geq number of errors in lower layers
-    
+        # TODO: make sure that the number of errors in later layers is geq number of errors in lower layers
+
 
 def test_msmt_error_slice():
     sc = SurfaceCode()
@@ -38,6 +38,7 @@ def test_msmt_error_slice():
     assert faulty_syndrome.shape == true_syndrome.shape
     assert faulty_syndrome.shape == (sc.syndrome_size, sc.syndrome_size)
 
+
 def test_msmt_error_stack():
     sc = SurfaceCode()
     sc.p_msmt = 0.5
@@ -50,4 +51,3 @@ def test_msmt_error_stack():
     assert np.any(true_syndrome != faulty_syndrome)
     assert faulty_syndrome.shape == true_syndrome.shape
     assert faulty_syndrome.shape == (sc.stack_depth, sc.syndrome_size, sc.syndrome_size)
-    
