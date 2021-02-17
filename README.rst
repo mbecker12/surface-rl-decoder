@@ -32,7 +32,9 @@ The code was written in Python 3.8.5
 A virtual environment for this project can be setup via
 
     python3 -m venv ~/virtualenv/qec
+    
     source ~/virtualenv/qec/bin/activate
+    
     pip install -r requirements.txt
 
 You can leave the environment by executing
