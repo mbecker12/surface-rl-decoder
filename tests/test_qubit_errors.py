@@ -18,7 +18,11 @@ def test_qubit_error_stack():
     for err_channel in ("dp", "x", "iidxz"):
         error_stack = scode.generate_qubit_error_stack(error_channel=err_channel)
 
-        assert error_stack.shape == (scode.stack_depth, scode.system_size, scode.system_size)
+        assert error_stack.shape == (
+            scode.stack_depth,
+            scode.system_size,
+            scode.system_size,
+        )
         assert np.any(error_stack != 0)
 
         # make sure that the number of errors in later layers
@@ -52,4 +56,8 @@ def test_msmt_error_stack():
 
     assert np.any(true_syndrome != faulty_syndrome)
     assert faulty_syndrome.shape == true_syndrome.shape
-    assert faulty_syndrome.shape == (scode.stack_depth, scode.syndrome_size, scode.syndrome_size)
+    assert faulty_syndrome.shape == (
+        scode.stack_depth,
+        scode.syndrome_size,
+        scode.syndrome_size,
+    )

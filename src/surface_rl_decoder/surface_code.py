@@ -528,7 +528,7 @@ class SurfaceCode(gym.Env):
         # The agent will have to decide that
         pass
 
-    def render(self, mode='human'):
+    def render(self, mode="human"):
         """
         Not supported yet. Needed for conformity with abstract base class.
         """
