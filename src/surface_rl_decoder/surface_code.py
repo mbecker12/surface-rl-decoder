@@ -375,7 +375,8 @@ class SurfaceCode(gym.Env):
         # TODO: implement function to generate minimum number of errors
         while self.qubits.sum() == 0:
             self.qubits = self.generate_qubit_error_stack(error_channel=error_channel)
-            self.state = self.create_syndrome_output_stack(self.qubits)
+            true_syndrome = self.create_syndrome_output_stack(self.qubits)
+            self.state = self.generate_measurement_error(true_syndrome)
 
         return self.state
 
@@ -519,9 +520,44 @@ class SurfaceCode(gym.Env):
         )  # we can only measure parity, hence only odd number of errors per syndrome
         return syndrome
 
-    def get_reward(self):
+    def get_reward(self, action):
         # TODO: What reward strategy are we choosing?
+        row = action[1]
+        col = action[2]
+        operator = action[3]
+
+        if operator in (1, 2, 3):
+            return 0
+        else:
+            # assume action "terminal" was chosen
+            self.check_final_state()
         pass
+
+    def check_final_state(self):
+        # check for trivial loops
+        # check for logical operation
+        # check if still errors left
+
+        # TODO: need to subtract measurement errors
+        actual_errors = [None]
+        z_errors = (actual_errors[-1] == 3).astype(np.uint8)
+        y_errors = (actual_errors[-1] == 2).astype(np.uint8)
+        x_errors = (actual_errors[-1] == 1).astype(np.uint8)
+
+        x_matrix = x_errors + y_errors
+        z_matrix = y_errors + z_errors
+
+        x_loops = np.sum(np.sum(x_matrix, axis=0))
+        z_loops = np.sum(np.sum(z_matrix, axis=0))
+
+        if x_loops % 2 == 1:
+            self.ground_state = False
+        elif z_loops % 2 == 1:
+            self.ground_state = False
+        else:
+            self.ground_state = True
+
+        return self.ground_state
 
     def is_terminal(self, state):
         # TODO: How do we determine if a state is terminal?
