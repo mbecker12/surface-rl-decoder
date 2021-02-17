@@ -25,4 +25,5 @@ jobs:
       
     - name: Analysing the code with pylint
       run: |
-        pylint `ls -R|grep .py$|xargs`
+        pylint src --rcfile .pylint
+        pylint tests --rcfile ./tests/.pylintrc 
