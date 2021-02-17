@@ -11,7 +11,7 @@ def test_qubit_error_slice():
 
         assert error_slice.shape == (scode.system_size, scode.system_size)
         assert np.any(error_slice != 0)
-    
+
     with pytest.raises(Exception):
         scode.generate_qubit_error(error_channel="nonsense")
 
