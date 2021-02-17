@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
 
@@ -10,6 +11,9 @@ def test_qubit_error_slice():
 
         assert error_slice.shape == (scode.system_size, scode.system_size)
         assert np.any(error_slice != 0)
+    
+    with pytest.raises(Exception):
+        scode.generate_qubit_error(error_channel="nonsense")
 
 
 def test_qubit_error_stack():

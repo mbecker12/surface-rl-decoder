@@ -397,7 +397,7 @@ class SurfaceCode(gym.Env):
         # make sure it is only one slice
         if len(qubits.shape) != 2:
             if len(qubits.shape) == 3:
-                assert qubits.shape[0] == 1
+                assert qubits.shape[0] == 1, qubits.shape
 
         # pad with ((one row above, zero rows below), (one row to the left, zero rows to the right))
         qubits = np.pad(qubits, ((1, 0), (1, 0)), "constant", constant_values=0)
