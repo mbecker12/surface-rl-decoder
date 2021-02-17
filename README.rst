@@ -15,7 +15,7 @@ One such realization is the surface code, which is the base for our work.
 On the surface code, the different qubits can still be subject to physical errors
 (e.g. bit flip or phase flip).
 The errors themselves can't be measured as it would destroy the quantum nature of
-the system. Instead, local parity checks - so-called syndromes - are performed.
+the system. Instead, local parity checks - so-called syndrome measurements - are performed.
 Those can however be subject to noise themselves, which introduces measurement errors.
 This in turn makes the problem non-Markovian as the latest state isn't representative
 the whole time evolution of the system anymore.
@@ -28,11 +28,14 @@ quantum computations.
 Code Environment
 ================
 
-The code was written in Python 3.8.5
+The code was written in Python 3.8.5.
+
 A virtual environment for this project can be setup via
 
     python3 -m venv ~/virtualenv/qec
+    
     source ~/virtualenv/qec/bin/activate
+    
     pip install -r requirements.txt
 
 You can leave the environment by executing
@@ -55,27 +58,28 @@ This package will look for a .ini file in the src directory and extract the para
 If a parameter exists as an environment variable, the environment variable has higher priority
 and its value will be used.
 
-+-------------------------------------+--------------------------+---------------+
-| Configuration dict from .ini file   | Environment variable     | Default value |
-+=====================================+==========================+===============+
++---------------------------------------+--------------------------+---------------+
+| Configuration dict from .ini file     | Environment variable     | Default value |
++=======================================+==========================+===============+
 | cfg["config"]["env"]["size"]          | CONFIG_ENV_SIZE          | 5             |
-+-------------------------------------+--------------------------+---------------+
++---------------------------------------+--------------------------+---------------+
 | cfg["config"]["env"]["min_qbit_err"]  | CONFIG_ENV_MIN_QBIT_ERR  | 0             |
-+-------------------------------------+--------------------------+---------------+
++---------------------------------------+--------------------------+---------------+
 | cfg["config"]["env"]["p_error"]       | CONFIG_ENV_P_ERROR       | 0.1           |
-+-------------------------------------+--------------------------+---------------+
++---------------------------------------+--------------------------+---------------+
 | cfg["config"]["env"]["p_msmt"]        | CONFIG_ENV_P_MSMT        | 0.05          |
-+-------------------------------------+--------------------------+---------------+
++---------------------------------------+--------------------------+---------------+
 | cfg["config"]["env"]["stack_depth"]   | CONFIG_ENV_STACK_DEPTH   | 8             |
-+-------------------------------------+--------------------------+---------------+
++---------------------------------------+--------------------------+---------------+
 | cfg["config"]["env"]["error_channel"] | CONFIG_ENV_ERROR_CHANNEL | "dp"          |
-+-------------------------------------+--------------------------+---------------+
++---------------------------------------+--------------------------+---------------+
 
 Tests
 =====
 
 Unit tests are executed in the CI pipeline (under the section "Actions" in github)
 or can be run locally.
+
 You first need to install the test requirements:
 
     pip install -r test-requirements.txt
