@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=missing-module-docstring, invalid-name
 from pkg_resources import DistributionNotFound, get_distribution
 
 try:

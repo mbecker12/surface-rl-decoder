@@ -15,6 +15,7 @@ env_config = config.get("config").get("env")
 
 d = int(env_config.get("size"))
 
+# pylint: disable=pointless-string-statement
 """
 Need to cover the following indices in a d=7 surface code to denote vertices
 [

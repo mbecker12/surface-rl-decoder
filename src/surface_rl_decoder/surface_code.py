@@ -1,8 +1,10 @@
+"""
+Define the Environment for decoding of the quantum surface code
+to use it in reinforcement learning.
+"""
 import gym
 import numpy as np
-import matplotlib.pyplot as plt
 from iniparser import Config
-import time, sys
 from .syndrome_masks import vertex_mask, plaquette_mask
 
 
@@ -14,23 +16,28 @@ class SurfaceCode(gym.Env):
         New in this iteration of the project:
             The state now consists of multiple layers of syndrome slices.
             These layers correspond to different time steps, with the oldest time step at index 0.
-            The resulting syndrome stack has a fixed height h (i.e. a fixed number of time steps that we keep track of).
-            There might be the possibility that the actual error chain is shorter than the stack height. In this case,
-            say with k faulty time slices, where k < h, only the k latest slices possess non-zero entries.
-            Slices 0 up to h-k are all zero in this case.
+            The resulting syndrome stack has a fixed height h
+            (i.e. a fixed number of time steps that we keep track of).
+            There might be the possibility that the actual error chain is shorter than the
+            stack height.
+            In this case, say with k faulty time slices, where k < h, only the k latest slices
+            possess non-zero entries. Slices 0 up to h-k are all zero in this case.
 
             An action will act on one qubit throughout the whole stack.
-            The goal of the decoder should be to get rid of all qubit erros by the latest slice (i.e. at index h-1).
-            The decoder should learn to detect measurement errors and in such a case rightfully ignore those.
-            Hence, it could happen that the latest slice contains errors of the measurement kind after the decoder
-            has finished its job; this would be okay.
+            The goal of the decoder should be to get rid of all qubit erros by
+            the latest slice (i.e. at index h-1).
+            The decoder should learn to detect measurement errors and in such a case
+            rightfully ignore those.
+            Hence, it could happen that the latest slice contains errors of the
+            measurement kind after the decoder has finished its job; this would be okay.
 
             Define:
             h = stack depth, i.e. number of time steps / time slices in the stack
             d = code distance
 
 
-            # TODO need to keep track of measurement errors separately, so that we know at prediction time
+            # TODO need to keep track of measurement errors separately,
+            # so that we know at prediction time
             # which errors are real.
 
     Actions:
@@ -39,7 +46,8 @@ class SurfaceCode(gym.Env):
     Reward:
 
     Episode Termination:
-        #TODO Either if the agent decides that it is terminated or if the last remaining surface is error free.
+        #TODO Either if the agent decides that it is terminated or if the last remaining
+        # surface is error free.
 
     """
 
@@ -50,9 +58,9 @@ class SurfaceCode(gym.Env):
         need either a config.ini file or constants saved as env variables.
         """
 
-        c = Config()
-        _config = c.scan(".", True).read()
-        self.config = c.config_rendered.get("config")
+        cfg = Config()
+        _config = cfg.scan(".", True).read()
+        self.config = cfg.config_rendered.get("config")
 
         env_config = self.config.get("env")
 
@@ -62,6 +70,7 @@ class SurfaceCode(gym.Env):
         self.p_error = float(env_config.get("p_error"))
         self.p_msmt = float(env_config.get("p_msmt"))
         self.stack_depth = int(env_config.get("stack_depth"))
+        self.error_channel = env_config.get("error_channel")
 
         # Sweke definition
         self.num_actions = 3 * self.system_size ** 2 + 1
@@ -165,7 +174,7 @@ class SurfaceCode(gym.Env):
 
         return self.state, reward, terminal, {}
 
-    def generate_qubit_X_error(self):
+    def generate_qubit_x_error(self):
         """
         Generate only X errors on the ubit grid.
 
@@ -183,7 +192,7 @@ class SurfaceCode(gym.Env):
 
         return error
 
-    def generate_qubit_IIDXZ_error(self):
+    def generate_qubit_iidxz_error(self):
         """
         Generate X and Z qubit errors independent of each other on one slice in vectorized form.
 
@@ -216,7 +225,7 @@ class SurfaceCode(gym.Env):
 
         return error
 
-    def generate_qubit_DP_error(self):
+    def generate_qubit_dp_error(self):
         """
         Generate depolarizing qubit errors on one slice in vectorized form.
 
@@ -235,13 +244,13 @@ class SurfaceCode(gym.Env):
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
 
-        error_channel = np.random.randint(1, 4, shape, dtype=np.uint8)
-        error = np.multiply(error_mask, error_channel)
+        error_operation = np.random.randint(1, 4, shape, dtype=np.uint8)
+        error = np.multiply(error_mask, error_operation)
         error = error.astype(np.uint8)
 
         return error
 
-    def generate_qubit_error(self, error_channel="dp"):
+    def generate_qubit_error(self, error_channel=None):
         """
         Wrapper function to create qubit errors vis the corret error channel.
 
@@ -254,32 +263,35 @@ class SurfaceCode(gym.Env):
         error: (d, d) array of qubits with occasional error operations
         """
 
-        if error_channel == "x" or error_channel == "X":
-            error = self.generate_qubit_X_error()
-        elif error_channel == "dp" or error_channel == "DP":
-            error = self.generate_qubit_DP_error()
-        elif error_channel == "iidxz" or error_channel == "IIDXZ":
-            error = self.generate_qubit_IIDXZ_error()
+        if error_channel is None:
+            error_channel = self.error_channel
+
+        if error_channel in ("x", "X"):
+            error = self.generate_qubit_x_error()
+        elif error_channel in ("dp", "DP"):
+            error = self.generate_qubit_dp_error()
+        elif error_channel in ("iidxz", "IIDXZ"):
+            error = self.generate_qubit_iidxz_error()
         else:
             raise Exception(f"Error! error channel {error_channel} not supported.")
 
         return error
 
-    def generate_qubit_error_stack(self, error_channel="dp", duration=None):
+    def generate_qubit_error_stack(self, error_channel="dp"):
         """
-        Create a whole stack of qubits which act as the time evolution of the surface code through time.
+        Create a whole stack of qubits which act as the time evolution
+        of the surface code through time.
         Each higher layer in the stack is dependent on the layers below, carrying over
         old errors and potentially introducing new errors proportional to the error probability.
 
         Parameters
         ==========
         error_channel: (optional) either "dp", "x", "iidxz" denoting the error channel of choice
-        duration: (optional) (not supported yet)
-            gives the number of actual erroneous slices, if the error sequence shouldn't start at t=0
 
         Returns
         =======
-        error_stack: (h, d, d) array of qubits; qubit slices through time with occasional error operations
+        error_stack: (h, d, d) array of qubits; qubit slices through time
+            with occasional error operations
         """
         # TODO: can extend this function to also support error stacks
         # where errors occur only after a certain time
@@ -289,7 +301,7 @@ class SurfaceCode(gym.Env):
         base_error = self.generate_qubit_error(error_channel=error_channel)
 
         error_stack[0, :, :] = base_error
-        for h in range(1, self.stack_depth):
+        for height in range(1, self.stack_depth):
             new_error = self.generate_qubit_error(error_channel=error_channel)
 
             # filter where errors have actually occured with np.where()
@@ -303,7 +315,7 @@ class SurfaceCode(gym.Env):
                         old_operator, new_error[row, col]
                     ]
 
-            error_stack[h, :, :] = new_error
+            error_stack[height, :, :] = new_error
             base_error = new_error
 
         return error_stack
@@ -330,7 +342,8 @@ class SurfaceCode(gym.Env):
 
         # take into account positions of vertices and plaquettes
         error_mask = np.multiply(error_mask, np.add(plaquette_mask, vertex_mask))
-        # TODO: could just save the error_mask here to keep track of where real errors are and where msmt errors are
+        # TODO: could just save the error_mask here to keep track of
+        # where real errors are and where msmt errors are
         # Or one could save the error array, output from generate_qubit_error()
 
         # where an error occurs, flip the true syndrome measurement
@@ -338,7 +351,7 @@ class SurfaceCode(gym.Env):
 
         return faulty_syndrome
 
-    def reset(self, p_error=None, p_msmt=None, error_channel="dp"):
+    def reset(self, error_channel="dp"):
         """
         Reset the environment and generate new qubit and syndrome stacks with errors.
 
@@ -389,6 +402,7 @@ class SurfaceCode(gym.Env):
         # pad with ((one row above, zero rows below), (one row to the left, zero rows to the right))
         qubits = np.pad(qubits, ((1, 0), (1, 0)), "constant", constant_values=0)
 
+        # pylint: disable=invalid-name
         x = (qubits == 1).astype(np.uint8)
         y = (qubits == 2).astype(np.uint8)
         z = (qubits == 3).astype(np.uint8)
@@ -453,9 +467,14 @@ class SurfaceCode(gym.Env):
         # regard this as pseudo code
         # just writing down ideas
 
-        # pad with ((nothing along time axis), (one row above, zero rows below), (one row to the left, zero rows to the right))
+        # pad with (
+        #   (nothing along time axis),
+        #   (one row above, zero rows below),
+        #   (one row to the left, zero rows to the right)
+        # )
         qubits = np.pad(qubits, ((0, 0), (1, 0), (1, 0)), "constant", constant_values=0)
 
+        # pylint: disable=invalid-name
         x = (qubits == 1).astype(np.uint8)
         y = (qubits == 2).astype(np.uint8)
         z = (qubits == 3).astype(np.uint8)
@@ -507,6 +526,13 @@ class SurfaceCode(gym.Env):
     def is_terminal(self, state):
         # TODO: How do we determine if a state is terminal?
         # The agent will have to decide that
+        pass
+
+    def render(self, mode='human'):
+        """
+        Not supported yet. Needed for conformity with abstract base class.
+        """
+        # pylint: disable=unnecessary-pass
         pass
 
 
