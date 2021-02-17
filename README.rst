@@ -60,17 +60,17 @@ and its value will be used.
 +-------------------------------------+--------------------------+---------------+
 | Configuration dict from .ini file   | Environment variable     | Default value |
 +=====================================+==========================+===============+
-| cfg["config"]["env"]["size"]          | CONFIG_ENV_SIZE          | 5             |
+| cfg["config"]["env"]["size"]          | CONFIG_ENV_SIZE          | 5           |
 +-------------------------------------+--------------------------+---------------+
-| cfg["config"]["env"]["min_qbit_err"]  | CONFIG_ENV_MIN_QBIT_ERR  | 0             |
+| cfg["config"]["env"]["min_qbit_err"]  | CONFIG_ENV_MIN_QBIT_ERR  | 0           |
 +-------------------------------------+--------------------------+---------------+
-| cfg["config"]["env"]["p_error"]       | CONFIG_ENV_P_ERROR       | 0.1           |
+| cfg["config"]["env"]["p_error"]       | CONFIG_ENV_P_ERROR       | 0.1         |
 +-------------------------------------+--------------------------+---------------+
-| cfg["config"]["env"]["p_msmt"]        | CONFIG_ENV_P_MSMT        | 0.05          |
+| cfg["config"]["env"]["p_msmt"]        | CONFIG_ENV_P_MSMT        | 0.05        |
 +-------------------------------------+--------------------------+---------------+
-| cfg["config"]["env"]["stack_depth"]   | CONFIG_ENV_STACK_DEPTH   | 8             |
+| cfg["config"]["env"]["stack_depth"]   | CONFIG_ENV_STACK_DEPTH   | 8           |
 +-------------------------------------+--------------------------+---------------+
-| cfg["config"]["env"]["error_channel"] | CONFIG_ENV_ERROR_CHANNEL | "dp"          |
+| cfg["config"]["env"]["error_channel"] | CONFIG_ENV_ERROR_CHANNEL | "dp"        |
 +-------------------------------------+--------------------------+---------------+
 
 Tests
