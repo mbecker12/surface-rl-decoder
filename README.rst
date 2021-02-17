@@ -15,7 +15,7 @@ One such realization is the surface code, which is the base for our work.
 On the surface code, the different qubits can still be subject to physical errors
 (e.g. bit flip or phase flip).
 The errors themselves can't be measured as it would destroy the quantum nature of
-the system. Instead, local parity checks - so-called syndromes - are performed.
+the system. Instead, local parity checks - so-called syndrome measurements - are performed.
 Those can however be subject to noise themselves, which introduces measurement errors.
 This in turn makes the problem non-Markovian as the latest state isn't representative
 the whole time evolution of the system anymore.
