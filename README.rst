@@ -40,6 +40,37 @@ You can leave the environment by executing
     deactivate
 
 
+The Project was setup using PyScaffold; after setting up your environment, you should run
+
+    python setup.py develop
+
+to set up the project for development.
+
+
+Configurations
+==============
+
+This project uses the config-env-parser to define configuration parameters of all kinds.
+This package will look for a .ini file in the src directory and extract the parameters from there.
+If a parameter exists as an environment variable, the environment variable has higher priority
+and its value will be used.
+
++-------------------------------------+--------------------------+---------------+
+| Configuration dict from .ini file   | Environment variable     | Default value |
++=====================================+==========================+===============+
+| cfg["config"]["env"]["size"]          | CONFIG_ENV_SIZE          | 5             |
++-------------------------------------+--------------------------+---------------+
+| cfg["config"]["env"]["min_qbit_err"]  | CONFIG_ENV_MIN_QBIT_ERR  | 0             |
++-------------------------------------+--------------------------+---------------+
+| cfg["config"]["env"]["p_error"]       | CONFIG_ENV_P_ERROR       | 0.1           |
++-------------------------------------+--------------------------+---------------+
+| cfg["config"]["env"]["p_msmt"]        | CONFIG_ENV_P_MSMT        | 0.05          |
++-------------------------------------+--------------------------+---------------+
+| cfg["config"]["env"]["stack_depth"]   | CONFIG_ENV_STACK_DEPTH   | 8             |
++-------------------------------------+--------------------------+---------------+
+| cfg["config"]["env"]["error_channel"] | CONFIG_ENV_ERROR_CHANNEL | "dp"          |
++-------------------------------------+--------------------------+---------------+
+
 Tests
 =====
 
