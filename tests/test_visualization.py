@@ -1,4 +1,4 @@
-from surface_rl_decoder.surface_code import SurfaceCode
+from src.surface_rl_decoder.surface_code import SurfaceCode
 
 
 def test_qubit_grid():
@@ -6,7 +6,6 @@ def test_qubit_grid():
 
     sc.render(block=False)
 
-    print("Hallo")
 
 
 if __name__ == "__main__":
