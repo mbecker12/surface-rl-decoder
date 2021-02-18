@@ -6,6 +6,7 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+from matplotlib.patches import Wedge, Rectangle
 from iniparser import Config
 from .syndrome_masks import vertex_mask, plaquette_mask
 from .surface_code_util import (
@@ -476,9 +477,6 @@ class SurfaceCode(gym.Env):
         =======
         syndrome: (h, d+1, d+1) array embedding vertices and plaquettes
         """
-        # regard this as pseudo code
-        # just writing down ideas
-
         # pad with (
         #   (nothing along time axis),
         #   (one row above, zero rows below),
@@ -582,23 +580,221 @@ class SurfaceCode(gym.Env):
         # great success
         return 1000
 
-    def render(self, mode="human"):
+    def render(self, mode="human", block=True):
         """
-        Not supported yet. Needed for conformity with abstract base class.
+        Visualize the environment.
+
+        Creates a plot of the qubit grid with a slider
+        to visualize time evolution of qubits.
+
+        Parameters
+        ==========
+        mode: (str) render mode
+        block: (bool) whether or not pyplot should show the image
         """
-        # pylint: disable=unnecessary-pass
 
-        # slider location
-        location = plt.axes([])
-        slider = Slider(location, "Time", 0, self.stack_depth, valinit=0)
+        if mode == "human":
+            markersize_qubit = 15
+            markersize_excitation = 7
+            markersize_symbols = 7
+            linewidth = 2
 
-        def update_depth(val):
-            idx = int(round(slider.val))
-            img.set_data(self.qubits[idx, :, :])
+            vertex_matrix = np.multiply(self.state, self.vertex_mask)
+            plaquette_matrix = np.multiply(self.state, self.plaquette_mask)
 
-        slider.on_changed(update_depth)
+            self.setup_qubit_grid(
+                markersize_qubit=markersize_qubit,
+                linewidth=linewidth,
+            )
 
-        pass
+            # slider location
+            location = plt.axes([0.1, 0, 0.8, 0.05])
+            slider = Slider(
+                location,
+                "Layer",
+                0,
+                self.stack_depth - 1,
+                valinit=0,
+                valfmt="%i",
+            )
+
+            # pylint: disable=unused-argument
+            def update_slider(val):
+                idx = int(slider.val)
+
+                ax = self.setup_qubit_grid(
+                    markersize_qubit=markersize_qubit,
+                    linewidth=linewidth,
+                )
+
+                # proceed to draw faulty qubits and activated syndromes
+                x_error_idx = np.where(self.qubits[idx] == 1)
+                y_error_idx = np.where(self.qubits[idx] == 2)
+                z_error_idx = np.where(self.qubits[idx] == 3)
+
+                ax.plot(
+                    x_error_idx[1],
+                    -x_error_idx[0],
+                    "o",
+                    color="r",
+                    label="x error",
+                    markersize=markersize_qubit,
+                )
+                ax.plot(
+                    x_error_idx[1],
+                    -x_error_idx[0],
+                    "o",
+                    color="black",
+                    markersize=markersize_symbols,
+                    marker=r"$X$",
+                )
+                ax.plot(
+                    y_error_idx[1],
+                    -y_error_idx[0],
+                    "o",
+                    color="blueviolet",
+                    label="y error",
+                    markersize=markersize_qubit,
+                )
+                ax.plot(
+                    y_error_idx[1],
+                    -y_error_idx[0],
+                    "o",
+                    color="black",
+                    markersize=markersize_symbols,
+                    marker=r"$Y$",
+                )
+                ax.plot(
+                    z_error_idx[1],
+                    -z_error_idx[0],
+                    "o",
+                    color="b",
+                    label="z error",
+                    markersize=markersize_qubit,
+                )
+                ax.plot(
+                    z_error_idx[1],
+                    -z_error_idx[0],
+                    "o",
+                    color="black",
+                    markersize=markersize_symbols,
+                    marker=r"$Z$",
+                )
+
+                vertex_idx = np.where(vertex_matrix[idx])
+                plaquette_idx = np.where(plaquette_matrix[idx])
+                ax.plot(
+                    vertex_idx[1] - 0.5,
+                    -vertex_idx[0] + 0.5,
+                    "o",
+                    color="blue",
+                    label="charge",
+                    markersize=markersize_excitation,
+                )
+                ax.plot(
+                    plaquette_idx[1] - 0.5,
+                    -plaquette_idx[0] + 0.5,
+                    "o",
+                    color="red",
+                    label="flux",
+                    markersize=markersize_excitation,
+                )
+
+            slider.on_changed(update_slider)
+            plt.show(block=block)
+        else:
+            raise Exception(f"Error! Mode {mode} not supported!")
+
+    # pylint: disable=too-many-locals
+    def setup_qubit_grid(
+        self,
+        markersize_qubit=15,
+        linewidth=2,
+    ):
+        """
+        Prepare the visual representation of the qubit grid,
+        including qubits, vertex syndromes, plaquette syndromes.
+        """
+
+        x_line = np.linspace(0, self.system_size - 1, self.system_size - 1)
+        x_arr = range(self.system_size)
+        x_grid, y_grid = np.meshgrid(x_arr, x_arr)
+        x_line, y_line = np.meshgrid(x_arr, x_line)
+
+        # provide a new label everytime, to prevent pyplot from using
+        # the same instance of ax everytima
+        ax = plt.subplot(111, label=str(np.random.rand()))
+
+        # draw grid
+        ax.plot(x_line, -y_line, "black", linewidth=linewidth)
+        ax.plot(y_line, -x_line, "black", linewidth=linewidth)
+        # draw qubits
+        ax.plot(
+            x_grid,
+            -y_grid,
+            "o",
+            color="black",
+            markerfacecolor="white",
+            markersize=markersize_qubit + 1,
+        )
+        ax.plot(
+            x_grid,
+            -y_grid,
+            "o",
+            color="black",
+            markerfacecolor="white",
+            markersize=markersize_qubit + 1,
+        )
+
+        # draw vertex syndromes
+        for i in range(0, self.system_size - 1):
+            if i % 2 == 0:
+                for j in range(1, self.system_size - 1, 2):
+                    rect = Rectangle((i, -j), 1, 1, lw=linewidth, fc="orange")
+                    ax.add_artist(rect)
+
+            else:
+                for j in range(2, self.system_size, 2):
+                    rect = Rectangle((i, -j), 1, 1, lw=linewidth, fc="orange")
+                    ax.add_artist(rect)
+
+        # draw boundary syndromes
+        for i in range(0, self.system_size - 1, 2):
+            w_upper = Wedge(
+                (i + 0.5, 0.0), 0.5, 0, 180, fc="white", ec="black", lw=linewidth
+            )
+            w_lower = Wedge(
+                (i + 1.5, -self.system_size + 1),
+                0.5,
+                180,
+                0,
+                fc="white",
+                ec="black",
+                lw=linewidth,
+            )
+            ax.add_artist(w_lower)
+            ax.add_artist(w_upper)
+
+        for i in range(0, self.system_size - 1, 2):
+            w_right = Wedge(
+                (self.system_size - 1, -i - 0.5),
+                0.5,
+                270,
+                90,
+                fc="orange",
+                ec="black",
+                lw=linewidth,
+            )
+            w_left = Wedge(
+                (0.0, -i - 1.5), 0.5, 90, 270, fc="orange", ec="black", lw=linewidth
+            )
+            ax.add_artist(w_right)
+            ax.add_artist(w_left)
+
+        ax.set_ylim(-self.system_size, 1)
+        ax.set_xlim(-1, self.system_size)
+        ax.set_title(f"Surface Code, d={self.system_size}, h={self.stack_depth}")
+        return ax
 
 
 if __name__ == "__main__":
