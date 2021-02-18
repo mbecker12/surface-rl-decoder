@@ -3,7 +3,7 @@ Utility functions for the surface code environment
 """
 import numpy as np
 
-TERMINAL_ACTION = -1
+TERMINAL_ACTION = 4
 MAX_ACTIONS = 256
 
 # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
@@ -75,6 +75,8 @@ def perform_all_actions(qubits, actions):
         physical errors left.
     """
     for action in actions:
+        if action[-1] == TERMINAL_ACTION:
+            return qubits
         qubits = perform_action(qubits, action)
     return qubits
 
@@ -96,6 +98,8 @@ def perform_action(qubits, action):
         on all time slices in the stack.
     """
     row, col, add_operator = action[-3:]
+    if add_operator == TERMINAL_ACTION:
+        raise Exception("Error! Attempting to execute terminal operation.")
     old_operator = qubits[:, row, col]
     new_operator = [RULE_TABLE[old_op, add_operator] for old_op in old_operator]
     qubits[:, row, col] = new_operator

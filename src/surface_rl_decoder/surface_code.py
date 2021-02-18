@@ -173,13 +173,16 @@ class SurfaceCode(gym.Env):
         self.current_action_index += 1
 
         # execute operation throughout the stack
+        terminal = is_terminal(action)
+        reward = self.get_reward(action)
+
+        if terminal:
+            return self.state, reward, terminal, {}
+
         self.qubits = perform_action(self.qubits, action)
 
-        self.next_state = self.create_syndrome_output(self.qubits)
-
-        reward = self.get_reward(action)
+        self.next_state = self.create_syndrome_output_stack(self.qubits)
         self.state = self.next_state
-        terminal = is_terminal(action)
 
         return self.state, reward, terminal, {}
 
@@ -553,9 +556,7 @@ class SurfaceCode(gym.Env):
         =======
         reward (int)
         """
-        row = action[1]
-        col = action[2]
-        operator = action[3]
+        row, col, operator = action[-3:]
 
         if operator in (1, 2, 3):
             return 0
@@ -566,6 +567,7 @@ class SurfaceCode(gym.Env):
         final_state, is_ground_state = check_final_state(
             self.actual_errors, self.actions
         )
+        self.ground_state = is_ground_state
 
         # not in the ground state; meaning the agent
         # performed a logical operation by accident
