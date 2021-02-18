@@ -112,7 +112,7 @@ def test_multiple_syndromes_x(sc):
         (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
     )
 
-    original_size = os.environ.get("CONFIG_ENV_SIZE")
+    original_size = os.environ.get("CONFIG_ENV_SIZE", "")
     os.environ["CONFIG_ENV_SIZE"] = "5"
     sc = SurfaceCode()
     d = sc.system_size
@@ -154,7 +154,7 @@ def test_multiple_syndromes_z(sc):
         (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
     )
 
-    original_size = os.environ.get("CONFIG_ENV_SIZE")
+    original_size = os.environ.get("CONFIG_ENV_SIZE", "")
     os.environ["CONFIG_ENV_SIZE"] = "5"
     sc = SurfaceCode()
     d = sc.system_size
