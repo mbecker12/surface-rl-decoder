@@ -477,9 +477,6 @@ class SurfaceCode(gym.Env):
         =======
         syndrome: (h, d+1, d+1) array embedding vertices and plaquettes
         """
-        # regard this as pseudo code
-        # just writing down ideas
-
         # pad with (
         #   (nothing along time axis),
         #   (one row above, zero rows below),
