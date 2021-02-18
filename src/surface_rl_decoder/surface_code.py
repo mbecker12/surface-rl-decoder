@@ -16,6 +16,7 @@ from .surface_code_util import (
     MAX_ACTIONS,
 )
 
+
 class SurfaceCode(gym.Env):
     """
     Description:
