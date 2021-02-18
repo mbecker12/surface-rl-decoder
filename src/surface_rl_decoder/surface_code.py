@@ -585,7 +585,15 @@ class SurfaceCode(gym.Env):
 
     def render(self, mode="human", block=True):
         """
-        Not supported yet. Needed for conformity with abstract base class.
+        Visualize the environment.
+
+        Creates a plot of the qubit grid with a slider
+        to visualize time evolution of qubits.
+
+        Parameters
+        ==========
+        mode: (str) render mode
+        block: (bool) whether or not pyplot should show the image
         """
 
         if mode == "human":
@@ -700,11 +708,16 @@ class SurfaceCode(gym.Env):
         else:
             raise Exception(f"Error! Mode {mode} not supported!")
 
+    # pylint: disable=too-many-locals
     def setup_qubit_grid(
         self,
         markersize_qubit=15,
         linewidth=2,
     ):
+        """
+        Prepare the visual representation of the qubit grid,
+        including qubits, vertex syndromes, plaquette syndromes.
+        """
 
         x_line = np.linspace(0, self.system_size - 1, self.system_size - 1)
         x_arr = range(self.system_size)
