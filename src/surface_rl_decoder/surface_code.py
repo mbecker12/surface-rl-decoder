@@ -4,9 +4,17 @@ to use it in reinforcement learning.
 """
 import gym
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 from iniparser import Config
 from .syndrome_masks import vertex_mask, plaquette_mask
-
+from .surface_code_util import (
+    check_final_state,
+    perform_action,
+    is_terminal,
+    RULE_TABLE,
+    MAX_ACTIONS,
+)
 
 class SurfaceCode(gym.Env):
     """
@@ -131,12 +139,15 @@ class SurfaceCode(gym.Env):
             dtype=np.uint8,
         )
 
+        self.actual_errors = self.qubits
         self.next_state = self.state
 
         # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
-        self.rule_table = np.array(
-            ([0, 1, 2, 3], [1, 0, 3, 2], [2, 3, 0, 1], [3, 2, 1, 0]), dtype=np.uint8
-        )
+        self.rule_table = RULE_TABLE
+
+        # container to save action history
+        self.actions = np.zeros((MAX_ACTIONS, 3), dtype=np.uint8)
+        self.current_action_index = 0
 
         self.ground_state = True
 
@@ -146,7 +157,8 @@ class SurfaceCode(gym.Env):
 
         Parameters
         ==========
-        action: (1, d, d, # operators) array defining x- & y-coordinates and operator type
+        action: tuple containing (None, x-coordinate, y-coordinate, pauli operator),
+            defining x- & y-coordinates and operator type
 
         Returns
         =======
@@ -155,22 +167,17 @@ class SurfaceCode(gym.Env):
         terminal: bool, determines if it is terminal state or not
         {}: empty dictionary, for conformity reasons #TODO or is it?
         """
+        self.actions[self.current_action_index] = action[-3:]
+        self.current_action_index += 1
 
-        row = action[1]
-        col = action[2]
-        add_operator = action[3]
+        # execute operation throughout the stack
+        self.qubits = perform_action(self.qubits, action)
 
-        # TODO: need to alter this piece of code for one action to be performed throughout the stack
-        old_operator = self.qubits[:, row, col]
-        new_operator = [
-            self.rule_table[old_op, add_operator] for old_op in old_operator
-        ]
-        self.qubits[:, row, col] = new_operator
         self.next_state = self.create_syndrome_output(self.qubits)
 
-        reward = self.get_reward()
+        reward = self.get_reward(action)
         self.state = self.next_state
-        terminal = self.is_terminal(self.state)
+        terminal = is_terminal(action)
 
         return self.state, reward, terminal, {}
 
@@ -372,12 +379,15 @@ class SurfaceCode(gym.Env):
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
 
+        self.actions = np.zeros_like(self.actions)
+
         # TODO: implement function to generate minimum number of errors
         while self.qubits.sum() == 0:
             self.qubits = self.generate_qubit_error_stack(error_channel=error_channel)
             true_syndrome = self.create_syndrome_output_stack(self.qubits)
             self.state = self.generate_measurement_error(true_syndrome)
 
+        self.actual_errors = self.qubits
         return self.state
 
     def create_syndrome_output(self, qubits):
@@ -521,54 +531,72 @@ class SurfaceCode(gym.Env):
         return syndrome
 
     def get_reward(self, action):
-        # TODO: What reward strategy are we choosing?
+        """
+        Calculate reward for each action.
+
+        For regular operations, no reward is given.
+        Only when the agent declares the state to be terminal do
+        we distribute rewards or penalties.
+
+        The strategy is to give negative reward if the surface code
+        is not even in the ground state.
+        If there are still errors left on the surface, this gives a
+        negative reward as well, but of smaller magnitude.
+        If after the correction there are only trivial loops left on the surface,
+        the agent earns high positive reward.
+
+        Parameters
+        ==========
+        action: tuple containing (None, x-coordinate, y-coordinate, pauli operator),
+            defining x- & y-coordinates and operator type
+
+        Returns
+        =======
+        reward (int)
+        """
         row = action[1]
         col = action[2]
         operator = action[3]
 
         if operator in (1, 2, 3):
             return 0
-        else:
-            # assume action "terminal" was chosen
-            self.check_final_state()
-        pass
 
-    def check_final_state(self):
-        # check for trivial loops
-        # check for logical operation
-        # check if still errors left
+        # TODO: need to check for repeated actions
 
-        # TODO: need to subtract measurement errors
-        actual_errors = [None]
-        z_errors = (actual_errors[-1] == 3).astype(np.uint8)
-        y_errors = (actual_errors[-1] == 2).astype(np.uint8)
-        x_errors = (actual_errors[-1] == 1).astype(np.uint8)
+        # assume action "terminal" was chosen
+        final_state, is_ground_state = check_final_state(
+            self.actual_errors, self.actions
+        )
 
-        x_matrix = x_errors + y_errors
-        z_matrix = y_errors + z_errors
+        # not in the ground state; meaning the agent
+        # performed a logical operation by accident
+        if not is_ground_state:
+            return -1000
 
-        x_loops = np.sum(np.sum(x_matrix, axis=0))
-        z_loops = np.sum(np.sum(z_matrix, axis=0))
+        # ground state but still some qubit errors persist
+        if final_state.sum() != 0:
+            return -100
 
-        if x_loops % 2 == 1:
-            self.ground_state = False
-        elif z_loops % 2 == 1:
-            self.ground_state = False
-        else:
-            self.ground_state = True
-
-        return self.ground_state
-
-    def is_terminal(self, state):
-        # TODO: How do we determine if a state is terminal?
-        # The agent will have to decide that
-        pass
+        # ground state and all qubit errors have been corrected
+        # great success
+        return 1000
 
     def render(self, mode="human"):
         """
         Not supported yet. Needed for conformity with abstract base class.
         """
         # pylint: disable=unnecessary-pass
+
+        # slider location
+        location = plt.axes([])
+        slider = Slider(location, "Time", 0, self.stack_depth, valinit=0)
+
+        def update_depth(val):
+            idx = int(round(slider.val))
+            img.set_data(self.qubits[idx, :, :])
+
+        slider.on_changed(update_depth)
+
         pass
 
 
