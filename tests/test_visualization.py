@@ -7,6 +7,5 @@ def test_qubit_grid():
     sc.render(block=False)
 
 
-
 if __name__ == "__main__":
     test_qubit_grid()

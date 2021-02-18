@@ -8,4 +8,16 @@
     - https://docs.pytest.org/en/stable/writing_plugins.html
 """
 
-# import pytest
+import pytest
+import numpy as np
+from src.surface_rl_decoder.surface_code import SurfaceCode
+
+
+@pytest.fixture
+def sc():
+    return SurfaceCode()
+
+
+@pytest.fixture
+def qbs():
+    return np.zeros(shape=(8, 5, 5), dtype=np.uint8)
