@@ -45,11 +45,6 @@ class SurfaceCode(gym.Env):
             h = stack depth, i.e. number of time steps / time slices in the stack
             d = code distance
 
-
-            # TODO need to keep track of measurement errors separately,
-            # so that we know at prediction time
-            # which errors are real.
-
     Actions:
         An action can be a Pauli X, Y, Z, or Identity on any qubit on the surface.
 
@@ -58,6 +53,7 @@ class SurfaceCode(gym.Env):
     Episode Termination:
         #TODO Either if the agent decides that it is terminated or if the last remaining
         # surface is error free.
+        # Or possibly if the agent repeats an action.
 
     """
 
@@ -87,11 +83,6 @@ class SurfaceCode(gym.Env):
         self.action_space = gym.spaces.Discrete(self.num_actions)
         self.completed_actions = np.zeros(self.num_actions, np.uint8)
 
-        self.volume_depth = 3  # what is this? TODO # possibly deprecated
-        self.n_action_layers = (
-            3  # what is this? In the case with Y errors, this is 3 TODO
-        )
-
         # observation space should correspond to the shape
         # of vertex- and plaquette-representation
         self.observation_space = gym.spaces.Box(
@@ -115,12 +106,12 @@ class SurfaceCode(gym.Env):
             self.system_size + 1,
         ), plaquette_mask.shape
 
-        # TODO:
-        # How to define the surface code matrix?
+        # How we define the surface code matrix:
         # Idea: define both plaquettes and vertices on a (d+1, d+1) matrix
         # https://app.diagrams.net/#G1Ppj6myKPwCny7QeFz9cNq2TC_h6fwkn6
 
-        # Look at Sweke code, they worked on the same surface code representation
+        # implement rotated surface code
+        # from https://journals.aps.org/prx/pdf/10.1103/PhysRevX.9.041031 Fig. 4
         self.qubits = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
         )
@@ -305,8 +296,7 @@ class SurfaceCode(gym.Env):
         error_stack: (h, d, d) array of qubits; qubit slices through time
             with occasional error operations
         """
-        # TODO: can extend this function to also support error stacks
-        # where errors occur only after a certain time
+
         error_stack = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
         )
@@ -319,7 +309,6 @@ class SurfaceCode(gym.Env):
             # filter where errors have actually occured with np.where()
             nonzero_idx = np.where(base_error != 0)
 
-            # TODO: could possibly optimize this
             for row in nonzero_idx[0]:
                 for col in nonzero_idx[1]:
                     old_operator = base_error[row, col]
@@ -354,9 +343,6 @@ class SurfaceCode(gym.Env):
 
         # take into account positions of vertices and plaquettes
         error_mask = np.multiply(error_mask, np.add(plaquette_mask, vertex_mask))
-        # TODO: could just save the error_mask here to keep track of
-        # where real errors are and where msmt errors are
-        # Or one could save the error array, output from generate_qubit_error()
 
         # where an error occurs, flip the true syndrome measurement
         faulty_syndrome = np.where(error_mask > 0, 1 - true_syndrome, true_syndrome)
@@ -386,7 +372,6 @@ class SurfaceCode(gym.Env):
 
         self.actions = np.zeros_like(self.actions)
 
-        # TODO: implement function to generate minimum number of errors
         while self.qubits.sum() == 0:
             self.qubits = self.generate_qubit_error_stack(error_channel=error_channel)
             true_syndrome = self.create_syndrome_output_stack(self.qubits)
@@ -556,12 +541,10 @@ class SurfaceCode(gym.Env):
         =======
         reward (int)
         """
-        row, col, operator = action[-3:]
+        _, _, operator = action[-3:]
 
         if operator in (1, 2, 3):
             return 0
-
-        # TODO: need to check for repeated actions
 
         # assume action "terminal" was chosen
         final_state, is_ground_state = check_final_state(
