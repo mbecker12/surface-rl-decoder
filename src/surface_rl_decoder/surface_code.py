@@ -372,10 +372,13 @@ class SurfaceCode(gym.Env):
 
         self.actions = np.zeros_like(self.actions)
 
-        while self.qubits.sum() == 0:
-            self.qubits = self.generate_qubit_error_stack(error_channel=error_channel)
-            true_syndrome = self.create_syndrome_output_stack(self.qubits)
-            self.state = self.generate_measurement_error(true_syndrome)
+        if self.p_msmt > 0 and self.p_error > 0:
+            while self.qubits.sum() == 0:
+                self.qubits = self.generate_qubit_error_stack(
+                    error_channel=error_channel
+                )
+                true_syndrome = self.create_syndrome_output_stack(self.qubits)
+                self.state = self.generate_measurement_error(true_syndrome)
 
         self.actual_errors = self.qubits
         return self.state
