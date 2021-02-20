@@ -122,3 +122,33 @@ def is_terminal(action):
     is_terminal (bool)
     """
     return action[-1] == TERMINAL_ACTION
+
+
+def copy_array_values(source_array):
+    """
+    Copy an array to a new one, value by value
+    to avoid having to use deepcopy
+    and to avoid potential memory leaks.
+
+    Parameters
+    ==========
+    source_array: 3-dimensional array to copy values from
+    dimension: shape of source_array
+
+    Returns
+    =======
+    target_array: New array with same values and shape as source_array
+    """
+    dimension = source_array.shape
+    assert len(dimension) == 3
+
+    target_array = np.array(
+        [
+            [
+                [source_array[h, i, j] for j in range(dimension[2])]
+                for i in range(dimension[1])
+            ]
+            for h in range(dimension[0])
+        ]
+    )
+    return target_array

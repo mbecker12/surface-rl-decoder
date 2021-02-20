@@ -13,6 +13,7 @@ from .surface_code_util import (
     check_final_state,
     perform_action,
     is_terminal,
+    copy_array_values,
     RULE_TABLE,
     MAX_ACTIONS,
 )
@@ -121,6 +122,13 @@ class SurfaceCode(gym.Env):
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
 
+        # actual initial qubit configuration, physical errors
+        self.actual_errors = np.zeros_like(self.qubits)
+        self.next_state = np.zeros_like(self.state)
+
+        # syndrome measurement errors
+        self.syndrome_errors = np.zeros_like(self.state)
+
         self.observation_space = gym.spaces.Box(
             low=0,
             high=1,
@@ -131,9 +139,6 @@ class SurfaceCode(gym.Env):
             ),
             dtype=np.uint8,
         )
-
-        self.actual_errors = self.qubits
-        self.next_state = self.state
 
         # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
         self.rule_table = RULE_TABLE
@@ -172,7 +177,9 @@ class SurfaceCode(gym.Env):
 
         self.qubits = perform_action(self.qubits, action)
 
-        self.next_state = self.create_syndrome_output_stack(self.qubits)
+        syndrome = self.create_syndrome_output_stack(self.qubits)
+
+        self.next_state = np.logical_xor(syndrome, self.syndrome_errors)
         self.state = self.next_state
 
         return self.state, reward, terminal, {}
@@ -307,14 +314,11 @@ class SurfaceCode(gym.Env):
             new_error = self.generate_qubit_error(error_channel=error_channel)
 
             # filter where errors have actually occured with np.where()
-            nonzero_idx = np.where(base_error != 0)
+            nonzero_idx = np.where(np.logical_or(new_error, base_error))
 
-            for row in nonzero_idx[0]:
-                for col in nonzero_idx[1]:
-                    old_operator = base_error[row, col]
-                    new_error[row, col] = self.rule_table[
-                        old_operator, new_error[row, col]
-                    ]
+            for row, col in zip(*nonzero_idx):
+                old_operator = base_error[row, col]
+                new_error[row, col] = self.rule_table[old_operator, new_error[row, col]]
 
             error_stack[height, :, :] = new_error
             base_error = new_error
@@ -363,6 +367,7 @@ class SurfaceCode(gym.Env):
         self.qubits = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
         )
+        self.actual_errors = np.zeros_like(self.qubits)
         self.state = np.zeros(
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
@@ -371,16 +376,21 @@ class SurfaceCode(gym.Env):
         )
 
         self.actions = np.zeros_like(self.actions)
+        self.syndrome_errors = np.zeros_like(self.state)
 
         if self.p_msmt > 0 and self.p_error > 0:
-            while self.qubits.sum() == 0:
-                self.qubits = self.generate_qubit_error_stack(
+            while self.actual_errors.sum() == 0:
+                self.actual_errors = self.generate_qubit_error_stack(
                     error_channel=error_channel
                 )
-                true_syndrome = self.create_syndrome_output_stack(self.qubits)
+                true_syndrome = self.create_syndrome_output_stack(self.actual_errors)
                 self.state = self.generate_measurement_error(true_syndrome)
+                # save the introduced syndrome errors by checking the difference
+                # between the true syndrome from qubit errors
+                # and the updated syndrome with measurement errors
+                self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
 
-        self.actual_errors = self.qubits
+        self.qubits = copy_array_values(self.actual_errors)
         return self.state
 
     def create_syndrome_output(self, qubits):
@@ -550,14 +560,12 @@ class SurfaceCode(gym.Env):
             return 0
 
         # assume action "terminal" was chosen
-        final_state, is_ground_state = check_final_state(
-            self.actual_errors, self.actions
-        )
-        self.ground_state = is_ground_state
+        actual_errors = copy_array_values(self.actual_errors)
+        final_state, self.ground_state = check_final_state(actual_errors, self.actions)
 
         # not in the ground state; meaning the agent
         # performed a logical operation by accident
-        if not is_ground_state:
+        if not self.ground_state:
             return -1000
 
         # ground state but still some qubit errors persist
