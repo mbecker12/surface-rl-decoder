@@ -1,11 +1,15 @@
+import os
 from copy import deepcopy
 import numpy as np
-import os, sys
-
-sys.path.append(os.getcwd())
 from src.surface_rl_decoder.surface_code import SurfaceCode
 from src.surface_rl_decoder.surface_code_util import TERMINAL_ACTION
-from tests.data_episode_test import _actual_errors, _qubits, _state, _syndrome_errors
+from tests.data_episode_test import (
+    _actual_errors,
+    _qubits,
+    _state,
+    _syndrome_errors,
+    _actions,
+)
 
 
 def test_episode(sc):
@@ -150,6 +154,7 @@ def test_proper_episode():
     assert sc.stack_depth == 4
     assert sc.system_size == 5
 
+    # assure that arrays are the same after seeding the rng
     assert np.all(sc.qubits == _qubits), sc.qubits
     assert np.all(sc.syndrome_errors == _syndrome_errors), sc.syndrome_errors
     assert np.all(sc.actual_errors == _actual_errors), sc.actual_errors
@@ -159,9 +164,37 @@ def test_proper_episode():
     os.environ["CONFIG_ENV_SIZE"] = original_size
     os.environ["CONFIG_ENV_ERROR_CHANNEL"] = original_error_channel
 
+    for action in _actions:
+        sc.step(action)
+
+    for i, action in enumerate(_actions):
+        assert np.all(sc.actions[i] == action)
+
+    terminal_action = np.asarray((999, 999999, TERMINAL_ACTION), dtype=sc.actions.dtype)
+    sc.step(terminal_action)
+
+    assert np.all(sc.actions[len(_actions)] == terminal_action), sc.actions[:10]
+
+    assert sc.qubits[0, 1, 1] == 0
+    assert sc.qubits[0, 2, 0] == 0
+    assert sc.qubits[0, 0, 2] == 1
+    assert sc.qubits[0, 3, 2] == 2
+    assert sc.qubits[0, 1, 3] == 3
+    assert sc.qubits[-1].sum() == 0
+    assert sc.state[3, 1, 4] != 0
+    assert sc.state[3, 3, 3] != 0
+
+    # the base error arrays should not change by taking actions
+    assert np.all(sc.actual_errors == _actual_errors), sc.actual_errors
+    assert np.all(sc.syndrome_errors == _syndrome_errors), sc.syndrome_errors
+
+    # make sure that after the actions, only measurement errors are left in the
+    # topmost layer
+    assert np.all(sc.state[-1] == _syndrome_errors[-1]), _syndrome_errors[-1]
+    # ...and if we take away the measurement errors, no errors remain
+    assert np.all(np.logical_xor(sc.state[-1], _syndrome_errors[-1]) == 0)
+
 
 if __name__ == "__main__":
-    from surface_rl_decoder.surface_code import SurfaceCode
-
-    sc = SurfaceCode()
-    test_episode_w_measurement_errors(sc, block=True)
+    scode = SurfaceCode()
+    test_episode_w_measurement_errors(scode, block=True)
