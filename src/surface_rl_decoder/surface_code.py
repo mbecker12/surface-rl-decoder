@@ -12,10 +12,10 @@ from .syndrome_masks import vertex_mask, plaquette_mask
 from .surface_code_util import (
     check_final_state,
     perform_action,
-    is_terminal,
     copy_array_values,
     RULE_TABLE,
     MAX_ACTIONS,
+    TERMINAL_ACTION,
 )
 
 
@@ -162,13 +162,13 @@ class SurfaceCode(gym.Env):
         state: (d+1, d+1) stacked syndrome arrays
         reward: int, reward for given action
         terminal: bool, determines if it is terminal state or not
-        {}: empty dictionary, for conformity reasons #TODO or is it?
+        {}: empty dictionary, for conformity reasons; supposed to be used for info
         """
         self.actions[self.current_action_index] = action[-3:]
         self.current_action_index += 1
 
         # execute operation throughout the stack
-        terminal = is_terminal(action)
+        terminal = action[-1] == TERMINAL_ACTION
         reward = self.get_reward(action)
 
         if terminal:
@@ -180,6 +180,13 @@ class SurfaceCode(gym.Env):
 
         self.next_state = np.logical_xor(syndrome, self.syndrome_errors)
         self.state = self.next_state
+
+        # if we reach the action history limit
+        # force the episode to be over and determine
+        # the reward based on the state after the latest action
+        if self.current_action_index == MAX_ACTIONS:
+            reward = self.get_reward(action=(-1, -1, TERMINAL_ACTION))
+            terminal = True
 
         return self.state, reward, terminal, {}
 
@@ -568,7 +575,7 @@ class SurfaceCode(gym.Env):
             return -1000
 
         # ground state but still some qubit errors persist
-        if final_state.sum() != 0:
+        if final_state[-1].sum() != 0:
             return -100
 
         # ground state and all qubit errors have been corrected
