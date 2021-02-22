@@ -194,6 +194,8 @@ def test_proper_episode():
     # ...and if we take away the measurement errors, no errors remain
     assert np.all(np.logical_xor(sc.state[-1], _syndrome_errors[-1]) == 0)
 
+    assert sc.ground_state
+
 
 if __name__ == "__main__":
     scode = SurfaceCode()
