@@ -82,7 +82,6 @@ class SurfaceCode(gym.Env):
         # Sweke definition
         self.num_actions = 3 * self.system_size ** 2 + 1
         self.action_space = gym.spaces.Discrete(self.num_actions)
-        self.completed_actions = np.zeros(self.num_actions, np.uint8)
 
         # observation space should correspond to the shape
         # of vertex- and plaquette-representation
