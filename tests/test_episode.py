@@ -1,4 +1,3 @@
-import os
 from copy import deepcopy
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
@@ -132,24 +131,16 @@ def test_episode_w_measurement_errors(sc, block=False):
     sc.render(block=block)
 
 
-def test_proper_episode():
+def test_proper_episode(configure_env, restore_env, seed_surface_code):
     """
     Test a proper episode where no human inference occurs
     which could corrupt and disturb copy actions etc.
     """
 
-    original_depth = os.environ.get("CONFIG_ENV_STACK_DEPTH", "4")
-    os.environ["CONFIG_ENV_STACK_DEPTH"] = "4"
-    original_size = os.environ.get("CONFIG_ENV_SIZE", "5")
-    os.environ["CONFIG_ENV_SIZE"] = "5"
-    original_error_channel = os.environ.get("CONFIG_ENV_ERROR_CHANNEL", "x")
-    os.environ["CONFIG_ENV_ERROR_CHANNEL"] = "x"
+    original_depth, original_size, original_error_channel = configure_env()
 
     sc = SurfaceCode()
-    np.random.seed(42)
-    sc.p_error = 0.1
-    sc.p_msmt = 0.1
-    sc.reset(error_channel="dp")
+    seed_surface_code(sc, 42, 0.1, 0.1, "dp")
 
     assert sc.stack_depth == 4
     assert sc.system_size == 5
@@ -160,9 +151,7 @@ def test_proper_episode():
     assert np.all(sc.actual_errors == _actual_errors), sc.actual_errors
     assert np.all(sc.state == _state), sc.state
 
-    os.environ["CONFIG_ENV_STACK_DEPTH"] = original_depth
-    os.environ["CONFIG_ENV_SIZE"] = original_size
-    os.environ["CONFIG_ENV_ERROR_CHANNEL"] = original_error_channel
+    restore_env(original_depth, original_size, original_error_channel)
 
     for action in _actions:
         sc.step(action)

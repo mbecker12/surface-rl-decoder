@@ -1,4 +1,3 @@
-import os
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
 
@@ -107,13 +106,12 @@ def test_syndrome_output_edge(v=True):
     assert np.all(syndrome == expected_syndrome % 2)
 
 
-def test_multiple_syndromes_x(sc):
+def test_multiple_syndromes_x(sc, configure_env, restore_env):
     expected_syndrome = np.zeros(
         (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
     )
 
-    original_size = os.environ.get("CONFIG_ENV_SIZE", "5")
-    os.environ["CONFIG_ENV_SIZE"] = "5"
+    original_depth, original_size, original_error_channel = configure_env()
     sc = SurfaceCode()
     d = sc.system_size
 
@@ -146,16 +144,15 @@ def test_multiple_syndromes_x(sc):
     syndrome = sc.create_syndrome_output(sc.qubits[0])
     assert np.all(syndrome == expected_syndrome % 2)
 
-    os.environ["CONFIG_ENV_SIZE"] = original_size
+    restore_env(original_depth, original_size, original_error_channel)
 
 
-def test_multiple_syndromes_z(sc):
+def test_multiple_syndromes_z(sc, configure_env, restore_env):
     expected_syndrome = np.zeros(
         (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
     )
 
-    original_size = os.environ.get("CONFIG_ENV_SIZE", "5")
-    os.environ["CONFIG_ENV_SIZE"] = "5"
+    original_depth, original_size, original_error_channel = configure_env()
     sc = SurfaceCode()
     d = sc.system_size
 
@@ -186,7 +183,7 @@ def test_multiple_syndromes_z(sc):
 
     assert np.all(syndrome == expected_syndrome % 2)
 
-    os.environ["CONFIG_ENV_SIZE"] = original_size
+    restore_env(original_depth, original_size, original_error_channel)
 
 
 if __name__ == "__main__":
