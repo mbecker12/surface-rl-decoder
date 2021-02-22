@@ -13,6 +13,7 @@ from .surface_code_util import (
     check_final_state,
     perform_action,
     is_terminal,
+    copy_array_values,
     RULE_TABLE,
     MAX_ACTIONS,
 )
@@ -45,11 +46,6 @@ class SurfaceCode(gym.Env):
             h = stack depth, i.e. number of time steps / time slices in the stack
             d = code distance
 
-
-            # TODO need to keep track of measurement errors separately,
-            # so that we know at prediction time
-            # which errors are real.
-
     Actions:
         An action can be a Pauli X, Y, Z, or Identity on any qubit on the surface.
 
@@ -58,6 +54,7 @@ class SurfaceCode(gym.Env):
     Episode Termination:
         #TODO Either if the agent decides that it is terminated or if the last remaining
         # surface is error free.
+        # Or possibly if the agent repeats an action.
 
     """
 
@@ -87,11 +84,6 @@ class SurfaceCode(gym.Env):
         self.action_space = gym.spaces.Discrete(self.num_actions)
         self.completed_actions = np.zeros(self.num_actions, np.uint8)
 
-        self.volume_depth = 3  # what is this? TODO # possibly deprecated
-        self.n_action_layers = (
-            3  # what is this? In the case with Y errors, this is 3 TODO
-        )
-
         # observation space should correspond to the shape
         # of vertex- and plaquette-representation
         self.observation_space = gym.spaces.Box(
@@ -115,12 +107,12 @@ class SurfaceCode(gym.Env):
             self.system_size + 1,
         ), plaquette_mask.shape
 
-        # TODO:
-        # How to define the surface code matrix?
+        # How we define the surface code matrix:
         # Idea: define both plaquettes and vertices on a (d+1, d+1) matrix
         # https://app.diagrams.net/#G1Ppj6myKPwCny7QeFz9cNq2TC_h6fwkn6
 
-        # Look at Sweke code, they worked on the same surface code representation
+        # implement rotated surface code
+        # from https://journals.aps.org/prx/pdf/10.1103/PhysRevX.9.041031 Fig. 4
         self.qubits = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
         )
@@ -129,6 +121,13 @@ class SurfaceCode(gym.Env):
         self.state = np.zeros(
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
+
+        # actual initial qubit configuration, physical errors
+        self.actual_errors = np.zeros_like(self.qubits)
+        self.next_state = np.zeros_like(self.state)
+
+        # syndrome measurement errors
+        self.syndrome_errors = np.zeros_like(self.state)
 
         self.observation_space = gym.spaces.Box(
             low=0,
@@ -140,9 +139,6 @@ class SurfaceCode(gym.Env):
             ),
             dtype=np.uint8,
         )
-
-        self.actual_errors = self.qubits
-        self.next_state = self.state
 
         # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
         self.rule_table = RULE_TABLE
@@ -173,13 +169,18 @@ class SurfaceCode(gym.Env):
         self.current_action_index += 1
 
         # execute operation throughout the stack
+        terminal = is_terminal(action)
+        reward = self.get_reward(action)
+
+        if terminal:
+            return self.state, reward, terminal, {}
+
         self.qubits = perform_action(self.qubits, action)
 
-        self.next_state = self.create_syndrome_output(self.qubits)
+        syndrome = self.create_syndrome_output_stack(self.qubits)
 
-        reward = self.get_reward(action)
+        self.next_state = np.logical_xor(syndrome, self.syndrome_errors)
         self.state = self.next_state
-        terminal = is_terminal(action)
 
         return self.state, reward, terminal, {}
 
@@ -302,8 +303,7 @@ class SurfaceCode(gym.Env):
         error_stack: (h, d, d) array of qubits; qubit slices through time
             with occasional error operations
         """
-        # TODO: can extend this function to also support error stacks
-        # where errors occur only after a certain time
+
         error_stack = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
         )
@@ -314,15 +314,11 @@ class SurfaceCode(gym.Env):
             new_error = self.generate_qubit_error(error_channel=error_channel)
 
             # filter where errors have actually occured with np.where()
-            nonzero_idx = np.where(base_error != 0)
+            nonzero_idx = np.where(np.logical_or(new_error, base_error))
 
-            # TODO: could possibly optimize this
-            for row in nonzero_idx[0]:
-                for col in nonzero_idx[1]:
-                    old_operator = base_error[row, col]
-                    new_error[row, col] = self.rule_table[
-                        old_operator, new_error[row, col]
-                    ]
+            for row, col in zip(*nonzero_idx):
+                old_operator = base_error[row, col]
+                new_error[row, col] = self.rule_table[old_operator, new_error[row, col]]
 
             error_stack[height, :, :] = new_error
             base_error = new_error
@@ -351,9 +347,6 @@ class SurfaceCode(gym.Env):
 
         # take into account positions of vertices and plaquettes
         error_mask = np.multiply(error_mask, np.add(plaquette_mask, vertex_mask))
-        # TODO: could just save the error_mask here to keep track of
-        # where real errors are and where msmt errors are
-        # Or one could save the error array, output from generate_qubit_error()
 
         # where an error occurs, flip the true syndrome measurement
         faulty_syndrome = np.where(error_mask > 0, 1 - true_syndrome, true_syndrome)
@@ -374,6 +367,7 @@ class SurfaceCode(gym.Env):
         self.qubits = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
         )
+        self.actual_errors = np.zeros_like(self.qubits)
         self.state = np.zeros(
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
@@ -382,14 +376,21 @@ class SurfaceCode(gym.Env):
         )
 
         self.actions = np.zeros_like(self.actions)
+        self.syndrome_errors = np.zeros_like(self.state)
 
-        # TODO: implement function to generate minimum number of errors
-        while self.qubits.sum() == 0:
-            self.qubits = self.generate_qubit_error_stack(error_channel=error_channel)
-            true_syndrome = self.create_syndrome_output_stack(self.qubits)
-            self.state = self.generate_measurement_error(true_syndrome)
+        if self.p_msmt > 0 and self.p_error > 0:
+            while self.actual_errors.sum() == 0:
+                self.actual_errors = self.generate_qubit_error_stack(
+                    error_channel=error_channel
+                )
+                true_syndrome = self.create_syndrome_output_stack(self.actual_errors)
+                self.state = self.generate_measurement_error(true_syndrome)
+                # save the introduced syndrome errors by checking the difference
+                # between the true syndrome from qubit errors
+                # and the updated syndrome with measurement errors
+                self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
 
-        self.actual_errors = self.qubits
+        self.qubits = copy_array_values(self.actual_errors)
         return self.state
 
     def create_syndrome_output(self, qubits):
@@ -553,23 +554,18 @@ class SurfaceCode(gym.Env):
         =======
         reward (int)
         """
-        row = action[1]
-        col = action[2]
-        operator = action[3]
+        _, _, operator = action[-3:]
 
         if operator in (1, 2, 3):
             return 0
 
-        # TODO: need to check for repeated actions
-
         # assume action "terminal" was chosen
-        final_state, is_ground_state = check_final_state(
-            self.actual_errors, self.actions
-        )
+        actual_errors = copy_array_values(self.actual_errors)
+        final_state, self.ground_state = check_final_state(actual_errors, self.actions)
 
         # not in the ground state; meaning the agent
         # performed a logical operation by accident
-        if not is_ground_state:
+        if not self.ground_state:
             return -1000
 
         # ground state but still some qubit errors persist

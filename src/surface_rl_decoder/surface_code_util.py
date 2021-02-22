@@ -3,7 +3,7 @@ Utility functions for the surface code environment
 """
 import numpy as np
 
-TERMINAL_ACTION = -1
+TERMINAL_ACTION = 4
 MAX_ACTIONS = 256
 
 # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
@@ -75,6 +75,8 @@ def perform_all_actions(qubits, actions):
         physical errors left.
     """
     for action in actions:
+        if action[-1] == TERMINAL_ACTION:
+            return qubits
         qubits = perform_action(qubits, action)
     return qubits
 
@@ -96,6 +98,8 @@ def perform_action(qubits, action):
         on all time slices in the stack.
     """
     row, col, add_operator = action[-3:]
+    if add_operator == TERMINAL_ACTION:
+        raise Exception("Error! Attempting to execute terminal operation.")
     old_operator = qubits[:, row, col]
     new_operator = [RULE_TABLE[old_op, add_operator] for old_op in old_operator]
     qubits[:, row, col] = new_operator
@@ -118,3 +122,33 @@ def is_terminal(action):
     is_terminal (bool)
     """
     return action[-1] == TERMINAL_ACTION
+
+
+def copy_array_values(source_array):
+    """
+    Copy an array to a new one, value by value
+    to avoid having to use deepcopy
+    and to avoid potential memory leaks.
+
+    Parameters
+    ==========
+    source_array: 3-dimensional array to copy values from
+    dimension: shape of source_array
+
+    Returns
+    =======
+    target_array: New array with same values and shape as source_array
+    """
+    dimension = source_array.shape
+    assert len(dimension) == 3
+
+    target_array = np.array(
+        [
+            [
+                [source_array[h, i, j] for j in range(dimension[2])]
+                for i in range(dimension[1])
+            ]
+            for h in range(dimension[0])
+        ]
+    )
+    return target_array

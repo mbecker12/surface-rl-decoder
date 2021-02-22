@@ -30,7 +30,7 @@ def test_qubit_error_stack():
         assert np.any(error_stack != 0)
 
         # make sure that the number of errors in later layers
-        # is geq number of errors in lower layers
+        # is g.e.q. number of errors in lower layers
         for height in range(scode.stack_depth - 1):
             assert scode.qubits[height].sum() <= scode.qubits[height + 1].sum()
 
