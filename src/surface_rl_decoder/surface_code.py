@@ -74,6 +74,8 @@ class SurfaceCode(gym.Env):
         self.system_size = int(env_config.get("size"))
         self.syndrome_size = self.system_size + 1
         self.min_qbit_errors = int(env_config.get("min_qbit_err"))
+        if self.min_qbit_errors < 1:
+            self.min_qbit_errors = None
         self.p_error = float(env_config.get("p_error"))
         self.p_msmt = float(env_config.get("p_msmt"))
         self.stack_depth = int(env_config.get("stack_depth"))
@@ -190,7 +192,7 @@ class SurfaceCode(gym.Env):
 
         return self.state, reward, terminal, {}
 
-    def generate_qubit_x_error(self):
+    def generate_qubit_x_error(self, min_n_errors=None):
         """
         Generate only X errors on the ubit grid.
 
@@ -198,17 +200,26 @@ class SurfaceCode(gym.Env):
         to the error probability.
         In those elements where the random value was below p_error, an X operation is performed.
 
+        Parameters
+        ==========
+        min_n_errors: (optional) (int) minimum number of qubit errors that
+            should be introduced in this layer
+
         Returns
         =======
         error: (d, d) array containing error operations on a qubit grid
         """
         shape = (self.system_size, self.system_size)
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
-        error = (uniform_random_vector < self.p_error).astype(np.uint8)
+        error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
 
-        return error
+        if min_n_errors is not None and error_mask.sum() < min_n_errors:
+            idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
+            error_mask[idx[0], idx[1]] = 1
 
-    def generate_qubit_iidxz_error(self):
+        return error_mask
+
+    def generate_qubit_iidxz_error(self, min_n_errors=None):
         """
         Generate X and Z qubit errors independent of each other on one slice in vectorized form.
 
@@ -219,6 +230,11 @@ class SurfaceCode(gym.Env):
         However, only in those elements where the random value was below p_error,
         the operation is saved by multiplying the operaton matrix with the mask array.
 
+        Parameters
+        ==========
+        min_n_errors: (optional) (int) minimum number of qubit errors that
+            should be introduced in this layer
+
         Returns
         =======
         error: (d, d) array containing error operations on a qubit grid
@@ -226,11 +242,26 @@ class SurfaceCode(gym.Env):
         shape = (self.system_size, self.system_size)
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask_x = (uniform_random_vector < self.p_error).astype(np.uint8)
+
+        if min_n_errors is not None:
+            min_x_errors = min_n_errors // 2 + min_n_errors % 2
+            min_z_errors = min_n_errors // 2
+
+            if error_mask_x.sum() < min_x_errors:
+                idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
+                error_mask_x[idx[0], idx[1]] = 1
+
         x_err = np.ones(shape, dtype=np.uint8)
         x_err = np.multiply(x_err, error_mask_x)
 
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask_z = (uniform_random_vector < self.p_error).astype(np.uint8)
+
+        if min_n_errors is not None:
+            if error_mask_z.sum() < min_z_errors:
+                idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
+                error_mask_z[idx[0], idx[1]] = 1
+
         z_err = np.ones(shape, dtype=np.uint8) * 3
         z_err = np.multiply(z_err, error_mask_z)
 
@@ -241,7 +272,7 @@ class SurfaceCode(gym.Env):
 
         return error
 
-    def generate_qubit_dp_error(self):
+    def generate_qubit_dp_error(self, min_n_errors=None):
         """
         Generate depolarizing qubit errors on one slice in vectorized form.
 
@@ -252,6 +283,11 @@ class SurfaceCode(gym.Env):
         However, only in those elements where the random value was below p_error,
         the operation is saved by multiplying the operaton matrix with the mask array.
 
+        Parameters
+        ==========
+        min_n_errors: (optional) (int) minimum number of qubit errors that
+            should be introduced in this layer
+
         Returns
         =======
         error: (d, d) array containing error operations on a qubit grid
@@ -260,19 +296,25 @@ class SurfaceCode(gym.Env):
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
 
+        if min_n_errors is not None and error_mask.sum() < min_n_errors:
+            idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
+            error_mask[idx[0], idx[1]] = 1
+
         error_operation = np.random.randint(1, 4, shape, dtype=np.uint8)
         error = np.multiply(error_mask, error_operation)
         error = error.astype(np.uint8)
 
         return error
 
-    def generate_qubit_error(self, error_channel=None):
+    def generate_qubit_error(self, error_channel=None, min_n_errors=None):
         """
         Wrapper function to create qubit errors vis the corret error channel.
 
         Parameters
         ==========
         error_channel: (optional) either "dp", "x", "iidxz" denoting the error channel of choice
+        min_n_errors: (optional) (int) minimum number of qubit errors that
+            should be introduced in this layer
 
         Returns
         =======
@@ -283,17 +325,17 @@ class SurfaceCode(gym.Env):
             error_channel = self.error_channel
 
         if error_channel in ("x", "X"):
-            error = self.generate_qubit_x_error()
+            error = self.generate_qubit_x_error(min_n_errors=min_n_errors)
         elif error_channel in ("dp", "DP"):
-            error = self.generate_qubit_dp_error()
+            error = self.generate_qubit_dp_error(min_n_errors=min_n_errors)
         elif error_channel in ("iidxz", "IIDXZ"):
-            error = self.generate_qubit_iidxz_error()
+            error = self.generate_qubit_iidxz_error(min_n_errors=min_n_errors)
         else:
             raise Exception(f"Error! error channel {error_channel} not supported.")
 
         return error
 
-    def generate_qubit_error_stack(self, error_channel="dp"):
+    def generate_qubit_error_stack(self, error_channel="dp", min_n_errors=None):
         """
         Create a whole stack of qubits which act as the time evolution
         of the surface code through time.
@@ -303,6 +345,8 @@ class SurfaceCode(gym.Env):
         Parameters
         ==========
         error_channel: (optional) either "dp", "x", "iidxz" denoting the error channel of choice
+        min_n_errors: (optional) (int) minimum number of qubit errors that
+            should be introduced in the first layer
 
         Returns
         =======
@@ -313,10 +357,14 @@ class SurfaceCode(gym.Env):
         error_stack = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
         )
-        base_error = self.generate_qubit_error(error_channel=error_channel)
+        base_error = self.generate_qubit_error(
+            error_channel=error_channel, min_n_errors=min_n_errors
+        )
 
         error_stack[0, :, :] = base_error
         for height in range(1, self.stack_depth):
+            # don't use min_n_errors here;
+            # at this point, we merely want to build on top of the fround layer
             new_error = self.generate_qubit_error(error_channel=error_channel)
 
             # filter where errors have actually occured with np.where()
@@ -377,24 +425,22 @@ class SurfaceCode(gym.Env):
         self.state = np.zeros(
             (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
         )
-        self.next_state = np.zeros(
-            (self.stack_depth, self.syndrome_size, self.syndrome_size), dtype=np.uint8
-        )
+        self.next_state = np.zeros_like(self.state)
 
         self.actions = np.zeros_like(self.actions)
         self.syndrome_errors = np.zeros_like(self.state)
 
         if self.p_msmt > 0 and self.p_error > 0:
-            while self.actual_errors.sum() == 0:
-                self.actual_errors = self.generate_qubit_error_stack(
-                    error_channel=error_channel
-                )
-                true_syndrome = self.create_syndrome_output_stack(self.actual_errors)
-                self.state = self.generate_measurement_error(true_syndrome)
-                # save the introduced syndrome errors by checking the difference
-                # between the true syndrome from qubit errors
-                # and the updated syndrome with measurement errors
-                self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
+            self.actual_errors = self.generate_qubit_error_stack(
+                error_channel=error_channel, min_n_errors=self.min_qbit_errors
+            )
+
+        true_syndrome = self.create_syndrome_output_stack(self.actual_errors)
+        self.state = self.generate_measurement_error(true_syndrome)
+        # save the introduced syndrome errors by checking the difference
+        # between the true syndrome from qubit errors
+        # and the updated syndrome with measurement errors
+        self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
 
         self.qubits = copy_array_values(self.actual_errors)
         return self.state
