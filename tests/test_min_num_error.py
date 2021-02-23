@@ -1,20 +1,35 @@
+SUCCESS_RATE = 0.95
+MIN_ERROR = 5
+N_ITERATIONS = 100
+
+
 def test_min_x_errors(sc):
     err_channel = "x"
     sc.min_qbit_errors = 0
     sc.p_error = 0.0001
     sc.p_msmt = 0.0001
-    for _ in range(100):
-        sc.reset(error_channel=err_channel)
-        assert sc.qubits.sum() < 5
-        assert sc.actual_errors.sum() < 5
 
-    sc.min_qbit_errors = 5
+    successes = 0
+
+    for _ in range(N_ITERATIONS):
+        sc.reset(error_channel=err_channel)
+        if sc.qubits.sum() < MIN_ERROR and sc.actual_errors.sum() < MIN_ERROR:
+            successes += 1
+
+    assert successes / N_ITERATIONS > SUCCESS_RATE
+
+    sc.min_qbit_errors = MIN_ERROR
     sc.p_error = 0.0001
     sc.p_msmt = 0.0001
-    for _ in range(100):
+
+    successes = 0
+
+    for _ in range(N_ITERATIONS):
         sc.reset(error_channel=err_channel)
-        assert sc.qubits.sum() >= 5
-        assert sc.actual_errors.sum() >= 5
+        if sc.qubits.sum() >= MIN_ERROR and sc.actual_errors.sum() >= MIN_ERROR:
+            successes += 1
+
+    assert successes / N_ITERATIONS > SUCCESS_RATE
 
 
 def test_min_dp_errors(sc):
@@ -22,18 +37,28 @@ def test_min_dp_errors(sc):
     sc.min_qbit_errors = 0
     sc.p_error = 0.0001
     sc.p_msmt = 0.0001
-    for _ in range(100):
-        sc.reset(error_channel=err_channel)
-        assert sc.qubits.sum() < 5
-        assert sc.actual_errors.sum() < 5
 
-    sc.min_qbit_errors = 5
+    successes = 0
+
+    for _ in range(N_ITERATIONS):
+        sc.reset(error_channel=err_channel)
+        if sc.qubits.sum() < MIN_ERROR and sc.actual_errors.sum() < MIN_ERROR:
+            successes += 1
+
+    assert successes / N_ITERATIONS > SUCCESS_RATE
+
+    sc.min_qbit_errors = MIN_ERROR
     sc.p_error = 0.0001
     sc.p_msmt = 0.0001
-    for _ in range(100):
+
+    successes = 0
+
+    for _ in range(N_ITERATIONS):
         sc.reset(error_channel=err_channel)
-        assert sc.qubits.sum() >= 5
-        assert sc.actual_errors.sum() >= 5
+        if sc.qubits.sum() >= MIN_ERROR and sc.actual_errors.sum() >= MIN_ERROR:
+            successes += 1
+
+    assert successes / N_ITERATIONS > SUCCESS_RATE
 
 
 def test_min_iidxz_errors(sc):
@@ -41,15 +66,25 @@ def test_min_iidxz_errors(sc):
     sc.min_qbit_errors = 0
     sc.p_error = 0.0001
     sc.p_msmt = 0.0001
-    for _ in range(100):
-        sc.reset(error_channel=err_channel)
-        assert sc.qubits.sum() < 5
-        assert sc.actual_errors.sum() < 5
 
-    sc.min_qbit_errors = 5
+    successes = 0
+
+    for _ in range(N_ITERATIONS):
+        sc.reset(error_channel=err_channel)
+        if sc.qubits.sum() < MIN_ERROR and sc.actual_errors.sum() < MIN_ERROR:
+            successes += 1
+
+    assert successes / N_ITERATIONS > SUCCESS_RATE
+
+    sc.min_qbit_errors = MIN_ERROR
     sc.p_error = 0.0001
     sc.p_msmt = 0.0001
-    for _ in range(100):
+
+    successes = 0
+
+    for _ in range(N_ITERATIONS):
         sc.reset(error_channel=err_channel)
-        assert sc.qubits.sum() >= 5
-        assert sc.actual_errors.sum() >= 5
+        if sc.qubits.sum() >= MIN_ERROR and sc.actual_errors.sum() >= MIN_ERROR:
+            successes += 1
+
+    assert successes / N_ITERATIONS > SUCCESS_RATE
