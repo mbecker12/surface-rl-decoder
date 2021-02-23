@@ -16,6 +16,7 @@ def test_min_x_errors(sc):
         assert sc.qubits.sum() >= 5
         assert sc.actual_errors.sum() >= 5
 
+
 def test_min_dp_errors(sc):
     err_channel = "dp"
     sc.min_qbit_errors = 0
@@ -33,6 +34,7 @@ def test_min_dp_errors(sc):
         sc.reset(error_channel=err_channel)
         assert sc.qubits.sum() >= 5
         assert sc.actual_errors.sum() >= 5
+
 
 def test_min_iidxz_errors(sc):
     err_channel = "iidxz"
