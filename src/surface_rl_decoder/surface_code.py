@@ -10,7 +10,11 @@ from matplotlib.patches import Wedge, Rectangle
 from iniparser import Config
 from .syndrome_masks import vertex_mask, plaquette_mask
 from .surface_code_util import (
+    NON_TRIVIAL_LOOP_REWARD,
+    SOLVED_EPISODE_REWARD,
+    SYNDROME_LEFT_REWARD,
     check_final_state,
+    create_syndrome_output_stack,
     perform_action,
     copy_array_values,
     RULE_TABLE,
@@ -178,7 +182,9 @@ class SurfaceCode(gym.Env):
 
         self.qubits = perform_action(self.qubits, action)
 
-        syndrome = self.create_syndrome_output_stack(self.qubits)
+        syndrome = create_syndrome_output_stack(
+            self.qubits, self.vertex_mask, self.plaquette_mask
+        )
 
         self.next_state = np.logical_xor(syndrome, self.syndrome_errors)
         self.state = self.next_state
@@ -435,7 +441,9 @@ class SurfaceCode(gym.Env):
                 error_channel=error_channel, min_n_errors=self.min_qbit_errors
             )
 
-        true_syndrome = self.create_syndrome_output_stack(self.actual_errors)
+        true_syndrome = create_syndrome_output_stack(
+            self.actual_errors, self.vertex_mask, self.plaquette_mask
+        )
         self.state = self.generate_measurement_error(true_syndrome)
         # save the introduced syndrome errors by checking the difference
         # between the true syndrome from qubit errors
