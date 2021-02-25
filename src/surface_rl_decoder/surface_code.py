@@ -482,20 +482,16 @@ class SurfaceCode(gym.Env):
 
         # assume action "terminal" was chosen
         actual_errors = copy_array_values(self.actual_errors)
-        final_state, self.ground_state = check_final_state(actual_errors, self.actions)
+        _, self.ground_state, (n_syndromes, n_loops) = check_final_state(
+            actual_errors, self.actions, self.vertex_mask, self.plaquette_mask
+        )
+
+        if self.ground_state:
+            return SOLVED_EPISODE_REWARD
 
         # not in the ground state; meaning the agent
         # performed a logical operation by accident
-        if not self.ground_state:
-            return -1000
-
-        # ground state but still some qubit errors persist
-        if final_state[-1].sum() != 0:
-            return -100
-
-        # ground state and all qubit errors have been corrected
-        # great success
-        return 1000
+        return n_loops * NON_TRIVIAL_LOOP_REWARD + n_syndromes * SYNDROME_LEFT_REWARD
 
     def render(self, mode="human", block=True):
         """
