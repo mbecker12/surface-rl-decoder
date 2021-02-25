@@ -44,7 +44,7 @@ def test_ground_state_with_errors(sc):
     action = (0, 0, TERMINAL_ACTION)
     sc.step(action)
 
-    assert sc.ground_state
+    assert not sc.ground_state, sc.qubits[-1]
 
 
 def test_reset_function(sc):
