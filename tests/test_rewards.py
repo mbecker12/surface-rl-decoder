@@ -127,7 +127,7 @@ def test_non_trivial_loop(configure_env, restore_env):
     # the above configuration introduces a non-trivial loop
     # (in this case spanning 5 qubits)
     # and thus a logical operation
-    assert reward == 5 * NON_TRIVIAL_LOOP_REWARD, (sc.state[-1], sc.qubits[-1])
+    assert reward == NON_TRIVIAL_LOOP_REWARD, (sc.state[-1], sc.qubits[-1])
     assert sc.state[-1].sum() == 0
 
     restore_env(original_depth, original_size, original_error_channel)
@@ -188,7 +188,7 @@ def test_long_non_trivial_loops(configure_env, restore_env):
     assert terminal
     # the above configuration introduces a non-trivial loop
     # and thus a logical operation
-    assert reward == 5 * NON_TRIVIAL_LOOP_REWARD, sc.state[-1]
+    assert reward == NON_TRIVIAL_LOOP_REWARD, sc.state[-1]
 
     restore_env(original_depth, original_size, original_error_channel)
 
@@ -218,6 +218,44 @@ def test_long_non_trivial_loops2(configure_env, restore_env):
     assert terminal
     # the above configuration introduces a non-trivial loop
     # and thus a logical operation
-    assert reward == 5 * NON_TRIVIAL_LOOP_REWARD, sc.state[-1]
+    assert reward == NON_TRIVIAL_LOOP_REWARD, sc.state[-1]
+
+    restore_env(original_depth, original_size, original_error_channel)
+
+
+def test_non_trivial_loop_x_and_z(configure_env, restore_env):
+    original_depth, original_size, original_error_channel = configure_env()
+
+    sc = SurfaceCode()
+    sc.p_error = 0
+    sc.p_msmt = 0
+    sc.reset()
+
+    # introduce a trivial loop in 5x5 code, z operator
+    sc.actual_errors[-1, 0, 2] = 3
+    sc.actual_errors[-1, 1, 2] = 3
+    sc.actual_errors[-1, 2, 2] = 3
+    sc.actual_errors[-1, 3, 2] = 3
+    sc.actual_errors[-1, 4, 2] = 3
+
+    # introduce a trivial loop in 5x5 code, x operator
+    sc.actual_errors[-1, 2, 0] = 1
+    sc.actual_errors[-1, 2, 1] = 1
+    sc.actual_errors[-1, 2, 2] = 2
+    sc.actual_errors[-1, 2, 3] = 1
+    sc.actual_errors[-1, 2, 4] = 1
+
+    sc.qubits = copy_array_values(sc.actual_errors)
+    sc.state = create_syndrome_output_stack(
+        sc.qubits, sc.vertex_mask, sc.plaquette_mask
+    )
+
+    _, reward, terminal, _ = sc.step(action=(-1, -1, TERMINAL_ACTION))
+    assert terminal
+    # the above configuration introduces a non-trivial loop
+    # (in this case spanning 5 qubits)
+    # and thus a logical operation
+    assert reward == 2 * NON_TRIVIAL_LOOP_REWARD, (sc.state[-1], sc.qubits[-1])
+    assert sc.state[-1].sum() == 0
 
     restore_env(original_depth, original_size, original_error_channel)
