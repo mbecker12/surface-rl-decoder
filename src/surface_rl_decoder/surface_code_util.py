@@ -12,7 +12,7 @@ RULE_TABLE = np.array(
 )
 
 # reward scores
-NON_TRIVIAL_LOOP_REWARD = -1
+NON_TRIVIAL_LOOP_REWARD = -27
 SYNDROME_LEFT_REWARD = -5
 SOLVED_EPISODE_REWARD = 100
 
@@ -60,13 +60,11 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
 
     x_loops = np.sum(np.sum(x_matrix, axis=0))
     z_loops = np.sum(np.sum(z_matrix != 0, axis=0))
-    n_loops = x_loops + z_loops
+    n_loops = x_loops % 2 + z_loops % 2
 
     is_ground_state = True
 
-    if x_loops % 2 == 1:
-        is_ground_state = False
-    elif z_loops % 2 == 1:
+    if n_loops > 0:
         is_ground_state = False
 
     return final_state, is_ground_state, (0, n_loops)
