@@ -105,19 +105,22 @@ def test_episode_w_measurement_errors(sc, block=False):
         sc.step(action)
         assert previous_qb_sum >= sc.qubits.sum()
 
-    assert sc.state[1, 1, 1] == 1
-    assert sc.state[1, 4, 0] == 1
-    assert sc.state[1, 3, 1] == 1
-    assert sc.state[1, 4, 1] == 0
-    assert sc.state[1, 4, 3] == 1
-    assert sc.state[1, 4, 4] == 1
-    assert sc.state[1, 3, 5] == 1
+    sc.render(block=block)
+
+    assert sc.state[1, 1, 2] == 1, sc.state[1]
+    assert sc.state[1, 0, 1] == 1, sc.state[1]
+    assert sc.state[1, 4, 0] == 1, sc.state[1]
+    assert sc.state[1, 3, 1] == 1, sc.state[1]
+    assert sc.state[1, 4, 1] == 0, sc.state[1]
+    assert sc.state[1, 4, 3] == 1, sc.state[1]
+    assert sc.state[1, 4, 4] == 1, sc.state[1]
+    assert sc.state[1, 3, 5] == 1, sc.state[1]
     assert sc.syndrome_errors[1, 3, 5] == 1
     assert sc.actual_errors[1, 3, 4] == 0
     assert sc.actual_errors[1, 2, 4] == 0
 
     assert sc.state[2, 4, 1] == 1
-    assert sc.state[2, 1, 1] == 1
+    assert sc.state[2, 0, 1] == 1
     assert sc.state[2, 3, 4] == 1
 
     assert sc.state[4, 1, 2] == 1
