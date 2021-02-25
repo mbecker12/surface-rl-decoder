@@ -512,8 +512,20 @@ class SurfaceCode(gym.Env):
             markersize_symbols = 7
             linewidth = 2
 
-            vertex_matrix = np.multiply(self.state, self.vertex_mask)
-            plaquette_matrix = np.multiply(self.state, self.plaquette_mask)
+            vertex_matrix = np.multiply(
+                np.logical_xor(self.state, self.syndrome_errors), self.vertex_mask
+            )
+            plaquette_matrix = np.multiply(
+                np.logical_xor(self.state, self.syndrome_errors), self.plaquette_mask
+            )
+
+            vertex_msmt_error_matrix = np.multiply(
+                self.syndrome_errors, self.vertex_mask
+            )
+
+            plaquette_msmt_error_matrix = np.multiply(
+                self.syndrome_errors, self.plaquette_mask
+            )
 
             self.setup_qubit_grid(
                 markersize_qubit=markersize_qubit,
@@ -611,6 +623,30 @@ class SurfaceCode(gym.Env):
                     color="red",
                     label="flux",
                     markersize=markersize_excitation,
+                )
+
+                # visualize measurement errors
+                vertex_msmt_idx = np.where(vertex_msmt_error_matrix[idx])
+                plaquette_msmt_idx = np.where(plaquette_msmt_error_matrix[idx])
+                ax.plot(
+                    vertex_msmt_idx[1] - 0.5,
+                    -vertex_msmt_idx[0] + 0.5,
+                    "o",
+                    color="grey",
+                    label="charge",
+                    mfc="none",
+                    markersize=markersize_excitation + 2,
+                    markeredgewidth=2,
+                )
+                ax.plot(
+                    plaquette_msmt_idx[1] - 0.5,
+                    -plaquette_msmt_idx[0] + 0.5,
+                    "o",
+                    color="grey",
+                    label="flux",
+                    mfc="none",
+                    markersize=markersize_excitation + 2,
+                    markeredgewidth=2,
                 )
 
             slider.on_changed(update_slider)
