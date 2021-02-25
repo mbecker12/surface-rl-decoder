@@ -16,8 +16,6 @@ NON_TRIVIAL_LOOP_REWARD = -1
 SYNDROME_LEFT_REWARD = -5
 SOLVED_EPISODE_REWARD = 100
 
-# TODO: docstrings for create_syndrome functions
-
 
 def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
     """
@@ -47,19 +45,12 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
     )
     final_state = final_state.reshape(1, final_state.shape[-2], final_state.shape[-1])
 
-    print(f"Check for syndromes")
     # look for uncorrected syndromes
-    print(final_state[-1])
     if (n_syndromes := final_state[-1].astype(np.uint8).sum()) != 0:
-        print(f"Have uncorrected syndromes")
-        # print(f"{n_syndromes=}")
-        # print(f"{final_state[-1]=}")
         return final_state, False, (n_syndromes, 0)
 
     # no syndromes left
     # check for non-trivial loops
-    print(f"No syndromes")
-    print(f"Check for non-trivial loops")
     z_errors = (final_qubit_configuration[-1] == 3).astype(np.uint8)
     y_errors = (final_qubit_configuration[-1] == 2).astype(np.uint8)
     x_errors = (final_qubit_configuration[-1] == 1).astype(np.uint8)
@@ -78,7 +69,6 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
     elif z_loops % 2 == 1:
         is_ground_state = False
 
-    print(f"{n_loops=}")
     return final_state, is_ground_state, (0, n_loops)
 
 
@@ -190,6 +180,10 @@ def create_syndrome_output(qubits, vertex_mask, plaquette_mask):
     Parameters
     ==========
     qubits: (d, d) array containing the net operation performed on each qubit
+    vertex_mask: (1, d+1, d+1) or (h, d+1, d+1) logical mask denoting locations
+        of vertex ancillaries in the syndrome encoding
+    plaquette_mask: (1, d+1, d+1) or (h, d+1, d+1) logical mask denoting locations
+        of plaquette ancillaries in the syndrome encoding
 
     Returns
     =======
@@ -254,6 +248,11 @@ def create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask):
     Parameters
     ==========
     qubits: (h, d, d) array containing the net operation performed on each qubit
+    vertex_mask: (h, d+1, d+1) logical mask denoting locations
+        of vertex ancillaries in the syndrome encoding
+    plaquette_mask: (h, d+1, d+1) logical mask denoting locations
+        of plaquette ancillaries in the syndrome encoding
+
 
     Returns
     =======
