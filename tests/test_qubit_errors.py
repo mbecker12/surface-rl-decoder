@@ -1,6 +1,10 @@
 import pytest
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
+from src.surface_rl_decoder.surface_code_util import (
+    create_syndrome_output,
+    create_syndrome_output_stack,
+)
 
 
 def test_qubit_error_slice():
@@ -40,7 +44,9 @@ def test_msmt_error_slice():
     scode.p_msmt = 0.5
 
     erroneous_qubits = scode.generate_qubit_error()
-    true_syndrome = scode.create_syndrome_output(erroneous_qubits)
+    true_syndrome = create_syndrome_output(
+        erroneous_qubits, scode.vertex_mask, scode.plaquette_mask
+    )
 
     faulty_syndrome = scode.generate_measurement_error(true_syndrome)
 
@@ -54,7 +60,9 @@ def test_msmt_error_stack():
     scode.p_msmt = 0.5
 
     erroneous_qubits = scode.generate_qubit_error_stack()
-    true_syndrome = scode.create_syndrome_output_stack(erroneous_qubits)
+    true_syndrome = create_syndrome_output_stack(
+        erroneous_qubits, scode.vertex_mask, scode.plaquette_mask
+    )
 
     faulty_syndrome = scode.generate_measurement_error(true_syndrome)
 

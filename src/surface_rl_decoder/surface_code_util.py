@@ -11,8 +11,13 @@ RULE_TABLE = np.array(
     ([0, 1, 2, 3], [1, 0, 3, 2], [2, 3, 0, 1], [3, 2, 1, 0]), dtype=np.uint8
 )
 
+# reward scores
+NON_TRIVIAL_LOOP_REWARD = -1
+SYNDROME_LEFT_REWARD = -5
+SOLVED_EPISODE_REWARD = 100
 
-def check_final_state(actual_errors, actions):
+
+def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
     """
     Returns the final state, i.e. initial qubit configuration
     with all suggested actions executed on it.
@@ -28,22 +33,34 @@ def check_final_state(actual_errors, actions):
     final_state: (h, d, d) array of final state,
         i.e. all proposed actions executed on initial qubit state
     is_ground_state: (bool) shows whether final_state is in the ground state or not
+    (n_syndromes, n_loops): (tuple) counting the number of syndromes and/or loops
+        remaining in the final layer after all corrections have been performed
     """
-    # check for trivial loops
-    # check for logical operation
-    # check if still errors left
 
-    final_state = perform_all_actions(actual_errors, actions)
+    final_qubit_configuration = perform_all_actions(actual_errors, actions)
+    final_state = create_syndrome_output(
+        final_qubit_configuration[-1],
+        vertex_mask=vertex_mask,
+        plaquette_mask=plaquette_mask,
+    )
+    final_state = final_state.reshape(1, final_state.shape[-2], final_state.shape[-1])
 
-    z_errors = (final_state[-1] == 3).astype(np.uint8)
-    y_errors = (final_state[-1] == 2).astype(np.uint8)
-    x_errors = (final_state[-1] == 1).astype(np.uint8)
+    # look for uncorrected syndromes
+    if (n_syndromes := final_state[-1].astype(np.uint8).sum()) != 0:
+        return final_state, False, (n_syndromes, 0)
+
+    # no syndromes left
+    # check for non-trivial loops
+    z_errors = (final_qubit_configuration[-1] == 3).astype(np.uint8)
+    y_errors = (final_qubit_configuration[-1] == 2).astype(np.uint8)
+    x_errors = (final_qubit_configuration[-1] == 1).astype(np.uint8)
 
     x_matrix = x_errors + y_errors
     z_matrix = y_errors + z_errors
 
     x_loops = np.sum(np.sum(x_matrix, axis=0))
-    z_loops = np.sum(np.sum(z_matrix, axis=0))
+    z_loops = np.sum(np.sum(z_matrix != 0, axis=0))
+    n_loops = x_loops + z_loops
 
     is_ground_state = True
 
@@ -52,7 +69,7 @@ def check_final_state(actual_errors, actions):
     elif z_loops % 2 == 1:
         is_ground_state = False
 
-    return final_state, is_ground_state
+    return final_state, is_ground_state, (0, n_loops)
 
 
 def perform_all_actions(qubits, actions):
@@ -152,3 +169,139 @@ def copy_array_values(source_array):
         ]
     )
     return target_array
+
+
+def create_syndrome_output(qubits, vertex_mask, plaquette_mask):
+    """
+    Infer the true syndrome output (w/o measurement errors)
+    from the qubit matrix.
+    Perform this for one slice.
+
+    Parameters
+    ==========
+    qubits: (d, d) array containing the net operation performed on each qubit
+    vertex_mask: (1, d+1, d+1) or (h, d+1, d+1) logical mask denoting locations
+        of vertex ancillaries in the syndrome encoding
+    plaquette_mask: (1, d+1, d+1) or (h, d+1, d+1) logical mask denoting locations
+        of plaquette ancillaries in the syndrome encoding
+
+    Returns
+    =======
+    syndrome: (d+1, d+1) array embedding vertices and plaquettes
+    """
+
+    # make sure it is only one slice
+    if len(qubits.shape) != 2:
+        if len(qubits.shape) == 3:
+            assert qubits.shape[0] == 1, qubits.shape
+
+    # pad with ((one row above, zero rows below), (one row to the left, zero rows to the right))
+    padded_qubits = np.pad(qubits, ((1, 0), (1, 0)), "constant", constant_values=0)
+
+    # pylint: disable=invalid-name
+    x = (padded_qubits == 1).astype(np.uint8)
+    y = (padded_qubits == 2).astype(np.uint8)
+    z = (padded_qubits == 3).astype(np.uint8)
+    assert x.shape == padded_qubits.shape, x.shape
+    assert y.shape == padded_qubits.shape, y.shape
+    assert z.shape == padded_qubits.shape, z.shape
+
+    x_shifted_left = np.roll(x, -1, axis=1)
+    x_shifted_up = np.roll(x, -1, axis=0)
+    x_shifted_ul = np.roll(x_shifted_up, -1, axis=1)  # shifted up and left
+
+    z_shifted_left = np.roll(z, -1, axis=1)
+    z_shifted_up = np.roll(z, -1, axis=0)
+    z_shifted_ul = np.roll(z_shifted_up, -1, axis=1)
+
+    y_shifted_left = np.roll(y, -1, axis=1)
+    y_shifted_up = np.roll(y, -1, axis=0)
+    y_shifted_ul = np.roll(y_shifted_up, -1, axis=1)
+
+    # X operators = shaded = vertex = checks for Z errors
+    syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * plaquette_mask[0]
+    syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * plaquette_mask[0]
+
+    # Z operators = blank = plaquette = checks for X errors
+    syndrome += (z + z_shifted_up + z_shifted_left + z_shifted_ul) * vertex_mask[0]
+    syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * vertex_mask[0]
+
+    assert syndrome.shape == (
+        padded_qubits.shape[-2],
+        padded_qubits.shape[-1],
+    ), syndrome.shape
+
+    syndrome = (
+        syndrome % 2
+    )  # we can only measure parity, hence only odd number of errors per syndrome
+    return syndrome
+
+
+def create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask):
+    """
+    Infer the true syndrome output (w/o measurement errors)
+    from the qubit matrix.
+
+    d: code distance
+    h: stack depth/height
+
+    Parameters
+    ==========
+    qubits: (h, d, d) array containing the net operation performed on each qubit
+    vertex_mask: (h, d+1, d+1) logical mask denoting locations
+        of vertex ancillaries in the syndrome encoding
+    plaquette_mask: (h, d+1, d+1) logical mask denoting locations
+        of plaquette ancillaries in the syndrome encoding
+
+
+    Returns
+    =======
+    syndrome: (h, d+1, d+1) array embedding vertices and plaquettes
+    """
+    # pad with (
+    #   (nothing along time axis),
+    #   (one row above, zero rows below),
+    #   (one row to the left, zero rows to the right)
+    # )
+    padded_qubits = np.pad(
+        qubits, ((0, 0), (1, 0), (1, 0)), "constant", constant_values=0
+    )
+
+    # pylint: disable=invalid-name
+    x = (padded_qubits == 1).astype(np.uint8)
+    y = (padded_qubits == 2).astype(np.uint8)
+    z = (padded_qubits == 3).astype(np.uint8)
+    assert x.shape == padded_qubits.shape
+    assert y.shape == padded_qubits.shape
+    assert z.shape == padded_qubits.shape
+
+    x_shifted_left = np.roll(x, -1, axis=2)
+    x_shifted_up = np.roll(x, -1, axis=1)
+    x_shifted_ul = np.roll(x_shifted_up, -1, axis=2)  # shifted up and left
+
+    z_shifted_left = np.roll(z, -1, axis=2)
+    z_shifted_up = np.roll(z, -1, axis=1)
+    z_shifted_ul = np.roll(z_shifted_up, -1, axis=2)
+
+    y_shifted_left = np.roll(y, -1, axis=2)
+    y_shifted_up = np.roll(y, -1, axis=1)
+    y_shifted_ul = np.roll(y_shifted_up, -1, axis=2)
+
+    # X operators = shaded = vertex = checks for Z errors
+    syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * plaquette_mask
+    syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * plaquette_mask
+
+    # Z operators = blank = plaquette = checks for X errors
+    syndrome += (z + z_shifted_up + z_shifted_left + z_shifted_ul) * vertex_mask
+    syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * vertex_mask
+
+    assert syndrome.shape == (
+        padded_qubits.shape[0],
+        padded_qubits.shape[1],
+        padded_qubits.shape[2],
+    ), (syndrome.shape, qubits.shape)
+
+    syndrome = (
+        syndrome % 2
+    )  # we can only measure parity, hence only odd number of errors per syndrome
+    return syndrome
