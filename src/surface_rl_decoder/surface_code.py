@@ -78,8 +78,6 @@ class SurfaceCode(gym.Env):
         self.system_size = int(env_config.get("size"))
         self.syndrome_size = self.system_size + 1
         self.min_qbit_errors = int(env_config.get("min_qbit_err"))
-        if self.min_qbit_errors < 1:
-            self.min_qbit_errors = None
         self.p_error = float(env_config.get("p_error"))
         self.p_msmt = float(env_config.get("p_msmt"))
         self.stack_depth = int(env_config.get("stack_depth"))
@@ -198,7 +196,7 @@ class SurfaceCode(gym.Env):
 
         return self.state, reward, terminal, {}
 
-    def generate_qubit_x_error(self, min_n_errors=None):
+    def generate_qubit_x_error(self, min_n_errors=-1):
         """
         Generate only X errors on the ubit grid.
 
@@ -219,13 +217,13 @@ class SurfaceCode(gym.Env):
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
 
-        if min_n_errors is not None and error_mask.sum() < min_n_errors:
+        if min_n_errors > 0 and error_mask.sum() < min_n_errors:
             idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
             error_mask[idx[0], idx[1]] = 1
 
         return error_mask
 
-    def generate_qubit_iidxz_error(self, min_n_errors=None):
+    def generate_qubit_iidxz_error(self, min_n_errors=-1):
         """
         Generate X and Z qubit errors independent of each other on one slice in vectorized form.
 
@@ -249,7 +247,7 @@ class SurfaceCode(gym.Env):
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask_x = (uniform_random_vector < self.p_error).astype(np.uint8)
 
-        if min_n_errors is not None:
+        if min_n_errors > 0:
             min_x_errors = min_n_errors // 2 + min_n_errors % 2
             min_z_errors = min_n_errors // 2
 
@@ -263,7 +261,7 @@ class SurfaceCode(gym.Env):
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask_z = (uniform_random_vector < self.p_error).astype(np.uint8)
 
-        if min_n_errors is not None:
+        if min_n_errors > 0:
             if error_mask_z.sum() < min_z_errors:
                 idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
                 error_mask_z[idx[0], idx[1]] = 1
@@ -278,7 +276,7 @@ class SurfaceCode(gym.Env):
 
         return error
 
-    def generate_qubit_dp_error(self, min_n_errors=None):
+    def generate_qubit_dp_error(self, min_n_errors=-1):
         """
         Generate depolarizing qubit errors on one slice in vectorized form.
 
@@ -302,7 +300,7 @@ class SurfaceCode(gym.Env):
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
 
-        if min_n_errors is not None and error_mask.sum() < min_n_errors:
+        if min_n_errors > 0 and error_mask.sum() < min_n_errors:
             idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
             error_mask[idx[0], idx[1]] = 1
 
@@ -312,7 +310,7 @@ class SurfaceCode(gym.Env):
 
         return error
 
-    def generate_qubit_error(self, error_channel=None, min_n_errors=None):
+    def generate_qubit_error(self, error_channel=None, min_n_errors=-1):
         """
         Wrapper function to create qubit errors vis the corret error channel.
 
@@ -341,7 +339,7 @@ class SurfaceCode(gym.Env):
 
         return error
 
-    def generate_qubit_error_stack(self, error_channel="dp", min_n_errors=None):
+    def generate_qubit_error_stack(self, error_channel="dp", min_n_errors=-1):
         """
         Create a whole stack of qubits which act as the time evolution
         of the surface code through time.
