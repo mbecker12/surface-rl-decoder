@@ -62,7 +62,6 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
     z_loops = np.sum(np.sum(z_matrix != 0, axis=0))
     n_loops = x_loops % 2 + z_loops % 2
 
-
     is_ground_state = True
 
     if n_loops > 0:
