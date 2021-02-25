@@ -218,13 +218,13 @@ def create_syndrome_output(qubits, vertex_mask, plaquette_mask):
     y_shifted_up = np.roll(y, -1, axis=0)
     y_shifted_ul = np.roll(y_shifted_up, -1, axis=1)
 
-    # X = shaded = vertex
-    syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * vertex_mask[0]
-    syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * vertex_mask[0]
-
-    # Z = blank = plaquette
-    syndrome += (z + z_shifted_up + z_shifted_left + z_shifted_ul) * plaquette_mask[0]
+    # X operators = shaded = vertex = checks for Z errors
+    syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * plaquette_mask[0]
     syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * plaquette_mask[0]
+
+    # Z operators = blank = plaquette = checks for X errors
+    syndrome += (z + z_shifted_up + z_shifted_left + z_shifted_ul) * vertex_mask[0]
+    syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * vertex_mask[0]
 
     assert syndrome.shape == (
         padded_qubits.shape[-2],
@@ -263,7 +263,9 @@ def create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask):
     #   (one row above, zero rows below),
     #   (one row to the left, zero rows to the right)
     # )
-    padded_qubits = np.pad(qubits, ((0, 0), (1, 0), (1, 0)), "constant", constant_values=0)
+    padded_qubits = np.pad(
+        qubits, ((0, 0), (1, 0), (1, 0)), "constant", constant_values=0
+    )
 
     # pylint: disable=invalid-name
     x = (padded_qubits == 1).astype(np.uint8)
@@ -285,13 +287,13 @@ def create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask):
     y_shifted_up = np.roll(y, -1, axis=1)
     y_shifted_ul = np.roll(y_shifted_up, -1, axis=2)
 
-    # X = shaded = vertex
-    syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * vertex_mask
-    syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * vertex_mask
-
-    # Z = blank = plaquette
-    syndrome += (z + z_shifted_up + z_shifted_left + z_shifted_ul) * plaquette_mask
+    # X operators = shaded = vertex = checks for Z errors
+    syndrome = (x + x_shifted_up + x_shifted_left + x_shifted_ul) * plaquette_mask
     syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * plaquette_mask
+
+    # Z operators = blank = plaquette = checks for X errors
+    syndrome += (z + z_shifted_up + z_shifted_left + z_shifted_ul) * vertex_mask
+    syndrome += (y + y_shifted_up + y_shifted_left + y_shifted_ul) * vertex_mask
 
     assert syndrome.shape == (
         padded_qubits.shape[0],
