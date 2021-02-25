@@ -128,6 +128,7 @@ def test_non_trivial_loop(configure_env, restore_env):
     # (in this case spanning 5 qubits)
     # and thus a logical operation
     assert reward == NON_TRIVIAL_LOOP_REWARD, (sc.state[-1], sc.qubits[-1])
+
     assert sc.state[-1].sum() == 0
 
     restore_env(original_depth, original_size, original_error_channel)
@@ -218,6 +219,7 @@ def test_long_non_trivial_loops2(configure_env, restore_env):
     assert terminal
     # the above configuration introduces a non-trivial loop
     # and thus a logical operation
+
     assert reward == NON_TRIVIAL_LOOP_REWARD, sc.state[-1]
 
     restore_env(original_depth, original_size, original_error_channel)
