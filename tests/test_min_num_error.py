@@ -1,6 +1,6 @@
 import os
 
-from surface_rl_decoder.surface_code import SurfaceCode
+from src.surface_rl_decoder.surface_code import SurfaceCode
 
 SUCCESS_RATE = 0.95
 MIN_ERROR = 5
