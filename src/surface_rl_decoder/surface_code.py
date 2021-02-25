@@ -618,7 +618,6 @@ class SurfaceCode(gym.Env):
         else:
             raise Exception(f"Error! Mode {mode} not supported!")
 
-
     def setup_qubit_grid(
         self,
         markersize_qubit=15,
