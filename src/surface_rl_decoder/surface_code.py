@@ -411,7 +411,7 @@ class SurfaceCode(gym.Env):
 
         return faulty_syndrome
 
-    def reset(self, error_channel="dp"):
+    def reset(self, error_channel="dp", p_error=-1, p_msmt=-1):
         """
         Reset the environment and generate new qubit and syndrome stacks with errors.
 
@@ -421,6 +421,10 @@ class SurfaceCode(gym.Env):
         """
 
         self.ground_state = True
+        if p_msmt >= 0:
+            self.p_msmt = p_msmt
+        if p_error >= 0:
+            self.p_error = p_error
 
         self.qubits = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
@@ -434,7 +438,7 @@ class SurfaceCode(gym.Env):
         self.actions = np.zeros_like(self.actions)
         self.syndrome_errors = np.zeros_like(self.state)
 
-        if self.p_msmt > 0 and self.p_error > 0:
+        if self.p_error > 0:
             self.actual_errors = self.generate_qubit_error_stack(
                 error_channel=error_channel, min_n_errors=self.min_qbit_errors
             )
@@ -442,7 +446,10 @@ class SurfaceCode(gym.Env):
         true_syndrome = create_syndrome_output_stack(
             self.actual_errors, self.vertex_mask, self.plaquette_mask
         )
-        self.state = self.generate_measurement_error(true_syndrome)
+        if self.p_msmt > 0:
+            self.state = self.generate_measurement_error(true_syndrome)
+        else:
+            self.state = true_syndrome
         # save the introduced syndrome errors by checking the difference
         # between the true syndrome from qubit errors
         # and the updated syndrome with measurement errors
