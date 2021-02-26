@@ -18,7 +18,7 @@ ignore-patterns=
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
-#init-hook=
+init-hook='import sys; sys.path.append(".");'
 
 # Use multiple processes to speed up Pylint. Specifying 0 will auto-detect the
 # number of processors available to use.
@@ -348,7 +348,8 @@ good-names=i,
            k,
            ex,
            Run,
-           _
+           _,
+           ax
 
 # Good variable names regexes, separated by a comma. If names match any regex,
 # they will always be accepted
@@ -555,7 +556,7 @@ preferred-modules=
 max-args=5
 
 # Maximum number of attributes for a class (see R0902).
-max-attributes=7
+max-attributes=20
 
 # Maximum number of boolean expressions in an if statement (see R0916).
 max-bool-expr=5
@@ -564,7 +565,7 @@ max-bool-expr=5
 max-branches=12
 
 # Maximum number of locals for function / method body.
-max-locals=15
+max-locals=20
 
 # Maximum number of parents for a class (see R0901).
 max-parents=7
