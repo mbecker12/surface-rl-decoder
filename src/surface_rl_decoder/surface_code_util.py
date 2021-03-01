@@ -4,7 +4,6 @@ Utility functions for the surface code environment
 import numpy as np
 
 TERMINAL_ACTION = 4
-MAX_ACTIONS = 256
 
 # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
 RULE_TABLE = np.array(

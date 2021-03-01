@@ -18,7 +18,6 @@ from .surface_code_util import (
     perform_action,
     copy_array_values,
     RULE_TABLE,
-    MAX_ACTIONS,
     TERMINAL_ACTION,
 )
 
@@ -82,6 +81,7 @@ class SurfaceCode(gym.Env):
         self.p_msmt = float(env_config.get("p_msmt"))
         self.stack_depth = int(env_config.get("stack_depth"))
         self.error_channel = env_config.get("error_channel")
+        self.max_actions = int(env_config.get("max_actions"))
 
         # Sweke definition
         self.num_actions = 3 * self.system_size ** 2 + 1
@@ -147,7 +147,7 @@ class SurfaceCode(gym.Env):
         self.rule_table = RULE_TABLE
 
         # container to save action history
-        self.actions = np.zeros((MAX_ACTIONS, 3), dtype=np.uint8)
+        self.actions = np.zeros((self.max_actions, 3), dtype=np.uint8)
         self.current_action_index = 0
 
         self.ground_state = True
@@ -190,7 +190,7 @@ class SurfaceCode(gym.Env):
         # if we reach the action history limit
         # force the episode to be over and determine
         # the reward based on the state after the latest action
-        if self.current_action_index == MAX_ACTIONS:
+        if self.current_action_index == self.max_actions:
             reward = self.get_reward(action=(-1, -1, TERMINAL_ACTION))
             terminal = True
 
