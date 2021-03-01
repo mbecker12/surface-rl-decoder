@@ -71,6 +71,42 @@ def test_reset_terminal(env_set):
     _terminals_idx = np.where(terminals)[0]
     assert np.all(_terminals_idx == terminal_idx)
 
+    p_error = [0.5] * env_set.num_environments
+    p_msmt = [0.5] * env_set.num_environments
+
+    update_states = env_set.reset_terminal_environments(
+        terminal_idx, p_error=p_error, p_msmt=p_msmt
+    )
+
+    assert not np.all(update_states[terminal_idx] == new_states[terminal_idx])
+
+    terminal_idx_set = set(terminal_idx)
+    all_indices = set(range(n_envs))
+    diff_set = all_indices.difference(terminal_idx_set)
+
+    for i in diff_set:
+        assert i in (0, 2, 3)
+    for i in terminal_idx:
+        assert i not in diff_set
+
+    assert np.all(update_states[list(diff_set)] == new_states[list(diff_set)])
+
+
+def test_reset_terminal_change_probabilities(env_set):
+    env_set.reset_all()
+    n_envs = env_set.num_environments
+
+    actions = np.zeros((n_envs, 3), dtype=np.uint8)
+
+    terminal_idx = [1, 4]
+    for i in terminal_idx:
+        actions[i] = (99, 99, TERMINAL_ACTION)
+
+    new_states, _, terminals, _ = env_set.step(actions)
+
+    _terminals_idx = np.where(terminals)[0]
+    assert np.all(_terminals_idx == terminal_idx)
+
     update_states = env_set.reset_terminal_environments(terminal_idx)
 
     assert not np.all(update_states[terminal_idx] == new_states[terminal_idx])
