@@ -436,6 +436,7 @@ class SurfaceCode(gym.Env):
         self.next_state = np.zeros_like(self.state)
 
         self.actions = np.zeros_like(self.actions)
+        self.current_action_index = 0
         self.syndrome_errors = np.zeros_like(self.state)
 
         if self.p_error > 0:
