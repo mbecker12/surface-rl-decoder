@@ -49,7 +49,7 @@ def start_mp():
         "actor_io_queue": actor_io_queue,
         "num_environments": num_environments,
         "size_action_history": size_action_history,
-        "size_local_memory_buffer": size_local_memory_buffer
+        "size_local_memory_buffer": size_local_memory_buffer,
     }
     actor_process = []
     for i in range(num_actors):
