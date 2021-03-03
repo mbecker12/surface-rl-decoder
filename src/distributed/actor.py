@@ -22,13 +22,15 @@ def actor(args):
     actor_id = args["id"]
     size_action_history = args["size_action_history"]
     device = args["device"]
+    verbosity = args["verbosity"]
 
     logger.info("Fire up all the environments!")
 
     env = SurfaceCode()  # TODO: need published gym environment here
-    environments = EnvironmentSet(env, num_environments)
     state_size = env.syndrome_size
     stack_depth = env.stack_depth
+
+    environments = EnvironmentSet(env, num_environments)
 
     transition_type = np.dtype(
         [
@@ -77,12 +79,14 @@ def actor(args):
         actions = np.random.randint(0, 4, size=(num_environments, 3))
 
         # generate a random terminal action somewhere
-        if np.random.random_sample() < 0.01:
+        if np.random.random_sample() < 0.3:
             terminate_index = np.random.randint(0, num_environments)
             actions[terminate_index][:] = (0, 0, TERMINAL_ACTION)
 
         q_values = np.random.random_sample(num_environments)
         next_states, rewards, terminals, _ = environments.step(actions)
+
+        # next_states += np.random.randint(0, 255, size=next_states.shape, dtype=np.uint8)
 
         transitions = np.asarray(
             [
@@ -105,11 +109,11 @@ def actor(args):
 
             # this approach counts through all environments and local memory buffer continuously
             # with no differentiation between those two channels
-            # to_send = [
-            #     *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
-            # ]
+            to_send = [
+                *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
+            ]
 
-            to_send = (local_buffer_transitions[:, :-1], priorities.flatten())
+            # to_send = (local_buffer_transitions[:, :-1], priorities.flatten())
 
             sleep(0.5)
 
