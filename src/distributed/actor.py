@@ -1,3 +1,4 @@
+import os
 from time import time, sleep
 from collections import namedtuple
 import logging
@@ -5,7 +6,7 @@ import numpy as np
 from distributed.environment_set import EnvironmentSet
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
-
+from torch.utils.tensorboard import SummaryWriter
 # pylint: disable=too-many-statements,too-many-locals
 
 Transition = namedtuple(
@@ -71,15 +72,23 @@ def actor(args):
     priorities = np.empty((25, 128))  # priorities TODO probably for replay memory
 
     logger.info(f"Actor {actor_id} starting loop on device {device}")
+    sent_data_chunks = 0
+
+    summary_path = args["summary_path"]
+    summary_date = args["summary_date"]
+    tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "actor"))
+    tensorboard_step = 0
     while True:
-        sleep(0.3)
+        sleep(1)
         steps_per_episode += 1
 
         # select action batch
         actions = np.random.randint(0, 4, size=(num_environments, 3))
 
         # generate a random terminal action somewhere
-        if np.random.random_sample() < 0.3:
+        # TODO: seems to generate a bunch of terminal actions in close succession
+        # need to check that
+        if np.random.random_sample() < 0.5:
             terminate_index = np.random.randint(0, num_environments)
             actions[terminate_index][:] = (0, 0, TERMINAL_ACTION)
 
@@ -115,10 +124,15 @@ def actor(args):
 
             # to_send = (local_buffer_transitions[:, :-1], priorities.flatten())
 
-            sleep(0.5)
+            sleep(0.2)
 
             logger.info("Put data in actor_io_queue")
             actor_io_queue.put(to_send)
+            if verbosity:
+                sent_data_chunks += buffer_idx
+                tensorboard.add_scalar("actor/actions", sent_data_chunks, tensorboard_step)
+                tensorboard_step += 1
+            
             buffer_idx = 0
 
         too_many_steps = steps_per_episode > size_action_history
@@ -131,8 +145,3 @@ def actor(args):
             steps_per_episode[indices] = 0
 
         states = next_states
-
-        # performance_stop = time()
-        # performance_elapsed = performance_stop - performance_start
-        # print(f"{performance_elapsed=}")
-        # performance_start = time()
