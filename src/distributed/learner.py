@@ -18,6 +18,7 @@ def learner(args):
     learner_io_queue = args["learner_io_queue"]
     io_learner_queue = args["io_learner_queue"]
     verbosity = args["verbosity"]
+
     learning_rate = args["learning_rate"]
     device = args["device"]
     syndrome_size = args["syndrome_size"]
@@ -118,7 +119,7 @@ def learner(args):
             logger.info("I'm alive my friend. I can see the shadows everywhere!")
             if verbosity > 1:
                 tensorboard.add_scalar("learner/heartbeat", 1, 0)
-
+                
         sleep(1)
 
     logger.info("Time's up. Terminate!")
