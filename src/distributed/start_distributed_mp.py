@@ -138,7 +138,7 @@ def start_mp():
     except Exception as _:
         # TODO: log the run here by using sys.exc_info()[0]
         tb = SummaryWriter(os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO))
-        tb.add_text("RunInfo/Error_Message", sys.exc_info()[0])
+        tb.add_text("run_info/error_message", sys.exc_info()[0])
         tb.close()
 
     sleep(2)
