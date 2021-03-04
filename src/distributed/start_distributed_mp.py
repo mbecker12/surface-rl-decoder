@@ -35,6 +35,9 @@ def start_mp():
     batch_size = int(general_config["batch_size"])
 
     size_action_history = int(env_config.get("max_actions", "256"))
+    system_size = int(env_config["size"])
+    syndrome_size = system_size + 1
+    stack_depth = int(env_config["stack_depth"])
 
     num_cuda_actors = int(actor_config["num_cuda"])
     num_cpu_actors = int(actor_config["num_cpu"])
@@ -48,6 +51,11 @@ def start_mp():
     replay_memory_verbosity = int(memory_config["verbosity"])
 
     learner_verbosity = int(learner_config["verbosity"])
+    learner_max_time_h = int(learner_config["max_time_h"])
+    learning_rate = float(learner_config["learning_rate"])
+    learner_device = learner_config["device"]
+    policy_update_steps = int(learner_config["policy_update_steps"])
+    discount_factor = float(learner_config["discount_factor"])
 
     # initialize queues
     logger.info("Initialize queues")
@@ -79,14 +87,23 @@ def start_mp():
         "size_action_history": size_action_history,
         "size_local_memory_buffer": size_local_memory_buffer,
         "verbosity": actor_verbosity,
+        "summary_path": SUMMARY_PATH,
+        "summary_date": SUMMARY_DATE,
     }
 
     learner_args = {
-        "baz": "bar",
-        "hallo": "echo",
+        "syndrome_size": syndrome_size,
+        "stack_depth": stack_depth,
         "learner_io_queue": learner_io_queue,
         "io_learner_queue": io_learner_queue,
         "verbosity": learner_verbosity,
+        "summary_path": SUMMARY_PATH,
+        "summary_date": SUMMARY_DATE,
+        "max_time": learner_max_time_h,
+        "learning_rate": learning_rate,
+        "device": learner_device,
+        "policy_update_steps": policy_update_steps,
+        "discount_factor": discount_factor
     }
 
     tensorboard = SummaryWriter(
@@ -123,7 +140,12 @@ def start_mp():
         tb = SummaryWriter(os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO))
         tb.add_text("RunInfo/Error_Message", sys.exc_info()[0])
         tb.close()
-        pass
+
+    sleep(2)
+    logger.info("Training Done!")
+    for i in range(num_actors):
+        actor_process[i].terminate()
+    io_process.terminate()
 
 
 if __name__ == "__main__":
