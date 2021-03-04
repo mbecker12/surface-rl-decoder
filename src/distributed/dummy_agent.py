@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 class DummyModel(nn.Module):
     def __init__(self, syndrome_size, stack_depth):
+        super().__init__()
         self.lin1 = nn.Linear(stack_depth * syndrome_size * syndrome_size, 512, bias=True)
         self.lin2 = nn.Linear(512, 512)
         n_qubits = syndrome_size - 1
