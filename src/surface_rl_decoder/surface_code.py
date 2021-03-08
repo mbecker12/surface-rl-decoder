@@ -190,7 +190,7 @@ class SurfaceCode(gym.Env):
         # if we reach the action history limit
         # force the episode to be over and determine
         # the reward based on the state after the latest action
-        if self.current_action_index == self.max_actions:
+        if self.current_action_index >= self.max_actions:
             reward = self.get_reward(action=(-1, -1, TERMINAL_ACTION))
             terminal = True
 
