@@ -10,13 +10,7 @@ def incremental_mean(x, mu, n):
 
 
 def select_action(
-    state,
-    model,
-    device,
-    stack_depth,
-    system_size,
-    num_actions_per_qubit=3,
-    epsilon=0.0,
+    state, model, system_size, num_actions_per_qubit=3, epsilon=0.0, device=None
 ):
     """
     Select an action according to an ε-greedy policy based on the
@@ -38,12 +32,17 @@ def select_action(
         # TODO: select an action randomly based on the q-values
         q_value_probabilities = torch.softmax(q_values).detach().numpy()
 
-        pass
+        idx = np.random.choice(range(len(q_values)), p=q_value_probabilities)
 
     # choose deterministic, purely-greedy action
     else:
-        q_value_index_to_action
-        pass
+        idx = np.argmax(q_values)
+
+    action = q_value_index_to_action(
+        idx, system_size, num_actions_per_qubit=num_actions_per_qubit
+    )
+
+    return action, q_values
 
 
 def action_to_q_value_index(
