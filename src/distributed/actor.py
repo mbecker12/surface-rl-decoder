@@ -7,6 +7,7 @@ from distributed.environment_set import EnvironmentSet
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 from torch.utils.tensorboard import SummaryWriter
+
 # pylint: disable=too-many-statements,too-many-locals
 
 Transition = namedtuple(
@@ -83,19 +84,17 @@ def actor(args):
         steps_per_episode += 1
 
         # select action batch
-        actions = np.random.randint(0, 4, size=(num_environments, 3))
+        actions = np.random.randint(1, 4, size=(num_environments, 3))
 
         # generate a random terminal action somewhere
         # TODO: seems to generate a bunch of terminal actions in close succession
         # need to check that
-        if np.random.random_sample() < 0.5:
+        if np.random.random_sample() < 0.1:
             terminate_index = np.random.randint(0, num_environments)
             actions[terminate_index][:] = (0, 0, TERMINAL_ACTION)
 
         q_values = np.random.random_sample(num_environments)
         next_states, rewards, terminals, _ = environments.step(actions)
-
-        # next_states += np.random.randint(0, 255, size=next_states.shape, dtype=np.uint8)
 
         transitions = np.asarray(
             [
@@ -130,9 +129,11 @@ def actor(args):
             actor_io_queue.put(to_send)
             if verbosity:
                 sent_data_chunks += buffer_idx
-                tensorboard.add_scalar("actor/actions", sent_data_chunks, tensorboard_step)
+                tensorboard.add_scalar(
+                    "actor/actions", sent_data_chunks, tensorboard_step
+                )
                 tensorboard_step += 1
-            
+
             buffer_idx = 0
 
         too_many_steps = steps_per_episode > size_action_history
