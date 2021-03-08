@@ -7,7 +7,16 @@ from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 import logging
 from distributed.dummy_agent import DummyModel
-from distributed.learner_util import parameters_to_vector, vector_to_parameters, data_to_batch, predict_max_optimized
+from distributed.evaluate import evaluate
+from distributed.learner_util import (
+    parameters_to_vector,
+    perform_q_learning_step,
+    vector_to_parameters,
+    data_to_batch,
+    predict_max_optimized,
+)
+
+# from distributed.util import action_to_q_value_index
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("learner")
@@ -22,13 +31,19 @@ def learner(args):
     learning_rate = args["learning_rate"]
     device = args["device"]
     syndrome_size = args["syndrome_size"]
+    code_size = syndrome_size - 1
     stack_depth = args["stack_depth"]
     policy_update_steps = args["policy_update_steps"]
     discount_factor = args["discount_factor"]
+    batch_size = args["batch_size"]
+    eval_frequency = args["eval_frequency"]
+    p_error_list = args["learner_eval_p_error"]
+    p_msmt_list = args["learner_eval_p_msmt"]
+    count_to_eval = 0
 
     start_time = time()
-    max_time_h = args["max_time"] # hours
-    max_time = max_time_h * 60 * 60 # seconds
+    max_time_h = args["max_time"]  # hours
+    max_time = max_time_h * 60 * 60  # seconds
 
     heart = time()
     heartbeat_interval = 10  # seconds
@@ -61,51 +76,38 @@ def learner(args):
             vector_to_parameters(params, target_net.parameters())
             target_net.to(device)
 
-
         if io_learner_queue.qsize == 0:
             logger.info("Learner waiting")
 
         data = io_learner_queue.get()
         if data is not None:
-            logger.info(f"{len(data)=}")
 
-            data_size = len(data)
+            transitions = data[0]
+            data_size = len(transitions)
             received_data += data_size
+            assert data_size == batch_size, data_size
 
             if verbosity:
-                tensorboard.add_scalar("learner/received_data", received_data, tensorboard_step)
+                tensorboard.add_scalar(
+                    "learner/received_data", received_data, tensorboard_step
+                )
                 tensorboard_step += 1
 
-        batch_state, batch_actions, batch_reward, batch_next_state, batch_terminal, weights, indices = data_to_batch()
+        # TODO: in this whole nn section,
+        # we might need an abstraction layer to support
+        # different learning strategies
 
-        policy_net.train()
-        target_net.eval()
-
-        # compute policy net output
-        policy_output = policy_net(batch_state)
-        policy_output = policy_output.gather(1, batch_actions.view(-1, 1)).squeeze(1)
-
-        # compute target network output
-        # target_output = predictMax(target_net, batch_next_state, len(batch_next_state),grid_shift, system_size, device)
-        target_output = predict_max_optimized(target_net, batch_next_state, syndrome_size, device)
-        target_output = target_output.to(device)
-
-        # compute loss and update replay memory
-        y = batch_reward + ((~batch_terminal).type(torch.float32) * discount_factor * target_output)
-        y = y.clamp(-100, 100)
-        loss = criterion(y, policy_output)
-        optimizer.zero_grad()
-
-        loss = weights * loss
-        
-        # Compute priorities
-        priorities = np.absolute(loss.cpu().detach().numpy())
-        
-        loss = loss.mean()
-
-        # backpropagate loss
-        loss.backward()
-        optimizer.step()
+        indices, priorities = perform_q_learning_step(
+            policy_net,
+            target_net,
+            device,
+            criterion,
+            optimizer,
+            data,
+            code_size,
+            batch_size,
+            discount_factor,
+        )
 
         # update priorities in replay_memory
         p_update = (indices, priorities)
@@ -113,13 +115,37 @@ def learner(args):
         learner_io_queue.put(msg)
 
         # TODO: evaluation here
+        count_to_eval += 1
+        if eval_frequency != -1 and count_to_eval > eval_frequency:
+            logger.info("Evaluate!!!")
+            count_to_eval = 0
+            success_rate, ground_state_rate, _, mean_q_list, _ = evaluate(
+                policy_net,
+                "",
+                device,
+                p_error_list,
+                p_msmt_list,
+                plot_one_episode=False,
+            )
+
+            for i, p in enumerate(p_error_list):
+                logger.info("\t\t\t\tAdd eval data to tensorboard")
+                tensorboard.add_scalar(
+                    f"network/mean_q, p error {p}", mean_q_list[i], t
+                )
+                tensorboard.add_scalar(
+                    f"network/success_rate, p error {p}", success_rate[i], t
+                )
+                tensorboard.add_scalar(
+                    f"network/ground_state_rate, p error {p}", ground_state_rate[i], t
+                )
 
         if time() - heart > heartbeat_interval:
             heart = time()
             logger.info("I'm alive my friend. I can see the shadows everywhere!")
             if verbosity > 1:
                 tensorboard.add_scalar("learner/heartbeat", 1, 0)
-                
+
         sleep(1)
 
     logger.info("Time's up. Terminate!")
