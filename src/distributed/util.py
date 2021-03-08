@@ -5,8 +5,8 @@ from typing import List, Tuple, Union
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
 
-def incremental_mean(x, mu, n):
-    return mu + (x - mu) / (n)
+def incremental_mean(val, mu, n):
+    return mu + (val - mu) / (n)
 
 
 def select_action(
@@ -32,11 +32,11 @@ def select_action(
         # TODO: select an action randomly based on the q-values
         q_value_probabilities = torch.softmax(q_values).detach().numpy()
 
-        idx = np.random.choice(range(len(q_values)), p=q_value_probabilities)
+        idx = np.random.choice(range(len(q_values[0])), p=q_value_probabilities)
 
     # choose deterministic, purely-greedy action
     else:
-        idx = np.argmax(q_values)
+        idx = np.argmax(q_values[0])
 
     action = q_value_index_to_action(
         idx, system_size, num_actions_per_qubit=num_actions_per_qubit
