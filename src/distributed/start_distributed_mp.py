@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 from time import sleep
 import logging
 import multiprocessing as mp
@@ -15,7 +16,7 @@ logger.setLevel(logging.INFO)
 
 SUMMARY_PATH = "runs"
 # TODO: replace this with the actual date in the real setting
-SUMMARY_DATE = "test"
+SUMMARY_DATE = "test2"
 SUMMARY_RUN_INFO = "run_info"
 
 
@@ -30,9 +31,6 @@ def start_mp():
     learner_config = distributed_config.get("learner")
 
     env_config = global_config.get("env")  # TODO get env config as well
-    general_config = global_config.get("general")
-
-    batch_size = int(general_config["batch_size"])
 
     size_action_history = int(env_config.get("max_actions", "256"))
     system_size = int(env_config["size"])
@@ -54,8 +52,12 @@ def start_mp():
     learner_max_time_h = int(learner_config["max_time_h"])
     learning_rate = float(learner_config["learning_rate"])
     learner_device = learner_config["device"]
+    batch_size = int(learner_config["batch_size"])
     policy_update_steps = int(learner_config["policy_update_steps"])
     discount_factor = float(learner_config["discount_factor"])
+    eval_frequency = int(learner_config["eval_frequency"])
+    learner_eval_p_errors = [0.01, 0.02, 0.03]
+    learner_eval_p_msmt = [0.01, 0.02, 0.03]
 
     # initialize queues
     logger.info("Initialize queues")
@@ -103,7 +105,11 @@ def start_mp():
         "learning_rate": learning_rate,
         "device": learner_device,
         "policy_update_steps": policy_update_steps,
-        "discount_factor": discount_factor
+        "discount_factor": discount_factor,
+        "batch_size": batch_size,
+        "eval_frequency": eval_frequency,
+        "learner_eval_p_error": learner_eval_p_errors,
+        "learner_eval_p_msmt": learner_eval_p_msmt,
     }
 
     tensorboard = SummaryWriter(
@@ -133,12 +139,17 @@ def start_mp():
     io_process.start()
 
     logger.info("Start learner")
+    learner(learner_args)
     try:
         learner(learner_args)
-    except Exception as _:
+    except Exception as err:
+        print(err)
+        error_traceback = traceback.format_exc()
+        logger.error("An error occurred!")
+        logger.error(error_traceback)
         # TODO: log the run here by using sys.exc_info()[0]
         tb = SummaryWriter(os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO))
-        tb.add_text("run_info/error_message", sys.exc_info()[0])
+        tb.add_text("run_info/error_message", error_traceback)
         tb.close()
 
     sleep(2)
