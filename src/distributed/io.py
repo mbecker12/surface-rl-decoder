@@ -68,8 +68,10 @@ def io_replay_memory(args):
                 assert isinstance(_transitions[4], (bool, np.bool_)), type(
                     _transitions[4]
                 )
-                # if _transitions[1][-1] == TERMINAL_ACTION:
-                #     logger.info("I'LL BE BACK!")
+
+                replay_memory.save((_transitions, _priorities))
+                n_transitions_total += 1
+                count_transition_received += 1
 
                 if i == 0 and verbosity:
                     tensorboard.add_scalar(
@@ -91,7 +93,6 @@ def io_replay_memory(args):
                         _state_float = _transitions[0][-1].astype(np.float32)
                         _next_state_float = _transitions[3][-1].astype(np.float32)
 
-                        
                         tensorboard.add_image(
                             "transition/state",
                             _state_float,
@@ -118,10 +119,6 @@ def io_replay_memory(args):
                             tensorboard_step,
                             dataformats="HW",
                         )
-
-                replay_memory.save((_transitions, _priorities))
-                n_transitions_total += 1
-                count_transition_received += 1
 
             logger.info("Saved transitions to replay memory")
 
@@ -167,10 +164,13 @@ def io_replay_memory(args):
             # TODO: lindeby returns
             # transitions, weights, indices, priorities
             # what are the different elements?
-            transitions, *_ = replay_memory.sample(batch_size)
+            transitions, memory_weights, indices, priorities = replay_memory.sample(
+                batch_size
+            )
+            data = (transitions, memory_weights, indices)
             logger.info(f"{io_learner_queue.qsize()=}")
             logger.info(f"{replay_memory.current_num_objects=}")
-            io_learner_queue.put(transitions)
+            io_learner_queue.put(data)
             logger.info("Put data in io_learner_queue")
 
             count_consumption_outgoing += batch_size
@@ -184,7 +184,7 @@ def io_replay_memory(args):
             if msg == "priorities":
                 # Update priorities
                 logger.info("received message 'priorities' from learner")
-                logger.info(f"{item=}")
+                # logger.info(f"{item=}")
             elif msg == "terminate":
                 logger.info("received message 'terminate' from learner")
                 logger.info(
