@@ -55,7 +55,7 @@ def start_mp():
     memory_config = distributed_config.get("replay_memory")
     learner_config = distributed_config.get("learner")
 
-    # set up surface code environment configuration 
+    # set up surface code environment configuration
     env_config = global_config.get("env")
 
     size_action_history = int(env_config.get("max_actions", "256"))
@@ -70,14 +70,18 @@ def start_mp():
     num_environments = int(actor_config["num_environments"])
     size_local_memory_buffer = int(actor_config.get("size_local_memory_buffer"))
     actor_verbosity = int(actor_config["verbosity"])
+    actor_benchmarking = int(actor_config["benchmarking"])
+    num_actions_per_qubit = 3
 
     # set up replay memory configuration
     replay_memory_size = int(memory_config["size"])
     replay_size_before_sampling = int(memory_config["replay_size_before_sampling"])
     replay_memory_verbosity = int(memory_config["verbosity"])
+    replay_memory_benchmarking = int(memory_config["benchmarking"])
 
     # set up learner configuration
     learner_verbosity = int(learner_config["verbosity"])
+    learner_benchmarking = int(learner_config["benchmarking"])
     learner_max_time_h = int(learner_config["max_time_h"])
     learning_rate = float(learner_config["learning_rate"])
     learner_device = learner_config["device"]
@@ -94,7 +98,7 @@ def start_mp():
     actor_io_queue = mp.Queue()
     learner_io_queue = mp.Queue()
     io_learner_queue = mp.Queue()
-    sleep(0.5)
+    learner_actor_queue = mp.Queue()
 
     # configure processes
     mem_args = {
@@ -105,16 +109,20 @@ def start_mp():
         "replay_size_before_sampling": replay_size_before_sampling,
         "batch_size": batch_size,
         "verbosity": replay_memory_verbosity,
+        "benchmarking": replay_memory_benchmarking,
         "summary_path": SUMMARY_PATH,
         "summary_date": SUMMARY_DATE,
     }
 
     actor_args = {
         "actor_io_queue": actor_io_queue,
+        "learner_actor_queue": learner_actor_queue,
         "num_environments": num_environments,
         "size_action_history": size_action_history,
         "size_local_memory_buffer": size_local_memory_buffer,
+        "num_actions_per_qubit": num_actions_per_qubit,
         "verbosity": actor_verbosity,
+        "benchmarking": actor_benchmarking,
         "summary_path": SUMMARY_PATH,
         "summary_date": SUMMARY_DATE,
     }
@@ -124,7 +132,9 @@ def start_mp():
         "stack_depth": stack_depth,
         "learner_io_queue": learner_io_queue,
         "io_learner_queue": io_learner_queue,
+        "learner_actor_queue": learner_actor_queue,
         "verbosity": learner_verbosity,
+        "benchmarking": learner_benchmarking,
         "summary_path": SUMMARY_PATH,
         "summary_date": SUMMARY_DATE,
         "max_time": learner_max_time_h,
@@ -136,7 +146,7 @@ def start_mp():
         "eval_frequency": eval_frequency,
         "learner_eval_p_error": learner_eval_p_errors,
         "learner_eval_p_msmt": learner_eval_p_msmt,
-        "timesteps": max_timesteps
+        "timesteps": max_timesteps,
     }
 
     # set up tensorboard for monitoring
@@ -181,7 +191,9 @@ def start_mp():
         logger.error("An error occurred!")
         logger.error(error_traceback)
         # log the actual error to the tensorboard
-        tensorboard = SummaryWriter(os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO))
+        tensorboard = SummaryWriter(
+            os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO)
+        )
         tensorboard.add_text("run_info/error_message", error_traceback)
         tensorboard.close()
 
