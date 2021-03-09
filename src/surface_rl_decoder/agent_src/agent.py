@@ -20,23 +20,24 @@ class QuantumAgent1(nn.Module):
             config_keyword = "src\\surface_rl_decoder\\config"
         else:
             config_keyword = "config"
-        env_config = config.get(config_keyword)
-        env_config = env_config.get("env")
+        global_config = config.get(config_keyword)
+        env_config = global_config.get("env")
+        net_config = global_config.get("network")
         
         self.size = int(env_config.get("size"))
         syndrome_surface_size = (self.size+1)*(self.size+1)
-        hidden_concat_size = int(env_config.get("hidden_concat_size"))
+        hidden_concat_size = int(net_config.get("hidden_concat_size"))
         self.nr_actions_per_qubit = int(env_config.get("nr_actions_per_qubit"))
         self.stack_depth = int(env_config.get("stack_depth"))
 
         self.epsilon_from = float(env_config.get("epsilon_from"))   
         self.epsilon_to = float(env_config.get("epsilon_to"))
         self.epsilon_decay = float(env_config.get("epsilon_decay"))
-        self.gamma = float(env_config.get("gamma"))
-        self.lstm_layers = int(env_config.get("lstm_layers"))
-        hiddenX = int(env_config.get("hidden_x"))
-        hiddenZ = int(env_config.get("hidden_z"))
-        hiddenBoth = int(env_config.get("hidden_both"))
+        
+        self.lstm_layers = int(net_config.get("lstm_layers"))
+        hiddenX = int(net_config.get("hidden_x"))
+        hiddenZ = int(net_config.get("hidden_z"))
+        hiddenBoth = int(net_config.get("hidden_both"))
         #self.step = 0
 
         self.inputLayerX = nn.Linear(syndrome_surface_size,hiddenX)
@@ -72,7 +73,7 @@ class QuantumAgent1(nn.Module):
         
         output, (h, c) = self.lstmLayer(complete, (h, c))
         final_output = self.final_layer(output[-1])
-        
+
         #output is of dimensions (seq_len, batch, num_directions * hidden_size)
         #agent.step += 1
         return final_output

@@ -11,6 +11,7 @@ import os
 import pytest
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
+from src.distributed.environment_set import EnvironmentSet
 
 
 @pytest.fixture
@@ -58,3 +59,7 @@ def seed_surface_code():
         return surface_code
 
     return seed_sc
+
+@pytest.fixture
+def env_set():
+    return EnvironmentSet(SurfaceCode(), 5)

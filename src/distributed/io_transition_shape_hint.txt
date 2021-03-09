@@ -1,0 +1,15 @@
+## if the zip method is NOT chosen in the actor
+# assert transitions[i][0][0].shape == (8, 6, 6), transitions[i][0][
+#     0
+# ].shape
+# assert transitions[i][0][1].shape == (3,), transitions[i][0][1].shape
+# assert isinstance(
+#     transitions[i][0][2], (float, np.float64, np.float32)
+# ), type(transitions[i][0][2])
+# assert transitions[i][0][3].shape == (8, 6, 6), transitions[i][0][
+#     3
+# ].shape
+# assert isinstance(transitions[i][0][4], (bool, np.bool_)), type(
+#     transitions[i][0][4]
+# )
+# assert transitions[i][1], transitions[i][1]
