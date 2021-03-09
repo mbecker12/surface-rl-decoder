@@ -13,15 +13,13 @@ c = Config()
 cwd = os.getcwd()
 _config = c.scan(cwd, True).read()
 config = c.config_rendered
-print(f"{config=}")
+
 if "Windows" in platform.system():
     config_keyword = "src\\surface_rl_decoder\\config"
 else:
     config_keyword = "config"
 env_config = config.get(config_keyword)
-print(f"{env_config=}")
 env_config = env_config.get("env")
-print(f"{env_config=}")
 
 d = int(env_config.get("size"))
 
