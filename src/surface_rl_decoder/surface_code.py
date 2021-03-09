@@ -18,7 +18,6 @@ from .surface_code_util import (
     perform_action,
     copy_array_values,
     RULE_TABLE,
-    MAX_ACTIONS,
     TERMINAL_ACTION,
 )
 
@@ -82,6 +81,7 @@ class SurfaceCode(gym.Env):
         self.p_msmt = float(env_config.get("p_msmt"))
         self.stack_depth = int(env_config.get("stack_depth"))
         self.error_channel = env_config.get("error_channel")
+        self.max_actions = int(env_config.get("max_actions"))
 
         # Sweke definition
         self.num_actions = 3 * self.system_size ** 2 + 1
@@ -147,7 +147,7 @@ class SurfaceCode(gym.Env):
         self.rule_table = RULE_TABLE
 
         # container to save action history
-        self.actions = np.zeros((MAX_ACTIONS, 3), dtype=np.uint8)
+        self.actions = np.zeros((self.max_actions, 3), dtype=np.uint8)
         self.current_action_index = 0
 
         self.ground_state = True
@@ -190,7 +190,7 @@ class SurfaceCode(gym.Env):
         # if we reach the action history limit
         # force the episode to be over and determine
         # the reward based on the state after the latest action
-        if self.current_action_index == MAX_ACTIONS:
+        if self.current_action_index >= self.max_actions:
             reward = self.get_reward(action=(-1, -1, TERMINAL_ACTION))
             terminal = True
 
@@ -411,7 +411,7 @@ class SurfaceCode(gym.Env):
 
         return faulty_syndrome
 
-    def reset(self, error_channel="dp"):
+    def reset(self, error_channel="dp", p_error=-1, p_msmt=-1):
         """
         Reset the environment and generate new qubit and syndrome stacks with errors.
 
@@ -421,6 +421,10 @@ class SurfaceCode(gym.Env):
         """
 
         self.ground_state = True
+        if p_msmt >= 0:
+            self.p_msmt = p_msmt
+        if p_error >= 0:
+            self.p_error = p_error
 
         self.qubits = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
@@ -432,9 +436,10 @@ class SurfaceCode(gym.Env):
         self.next_state = np.zeros_like(self.state)
 
         self.actions = np.zeros_like(self.actions)
+        self.current_action_index = 0
         self.syndrome_errors = np.zeros_like(self.state)
 
-        if self.p_msmt > 0 and self.p_error > 0:
+        if self.p_error > 0:
             self.actual_errors = self.generate_qubit_error_stack(
                 error_channel=error_channel, min_n_errors=self.min_qbit_errors
             )
@@ -442,7 +447,11 @@ class SurfaceCode(gym.Env):
         true_syndrome = create_syndrome_output_stack(
             self.actual_errors, self.vertex_mask, self.plaquette_mask
         )
-        self.state = self.generate_measurement_error(true_syndrome)
+        if self.p_msmt > 0:
+            self.state = self.generate_measurement_error(true_syndrome)
+        else:
+            self.state = true_syndrome
+
         # save the introduced syndrome errors by checking the difference
         # between the true syndrome from qubit errors
         # and the updated syndrome with measurement errors
@@ -512,8 +521,20 @@ class SurfaceCode(gym.Env):
             markersize_symbols = 7
             linewidth = 2
 
-            vertex_matrix = np.multiply(self.state, self.vertex_mask)
-            plaquette_matrix = np.multiply(self.state, self.plaquette_mask)
+            vertex_matrix = np.multiply(
+                np.logical_xor(self.state, self.syndrome_errors), self.vertex_mask
+            )
+            plaquette_matrix = np.multiply(
+                np.logical_xor(self.state, self.syndrome_errors), self.plaquette_mask
+            )
+
+            vertex_msmt_error_matrix = np.multiply(
+                self.syndrome_errors, self.vertex_mask
+            )
+
+            plaquette_msmt_error_matrix = np.multiply(
+                self.syndrome_errors, self.plaquette_mask
+            )
 
             self.setup_qubit_grid(
                 markersize_qubit=markersize_qubit,
@@ -611,6 +632,30 @@ class SurfaceCode(gym.Env):
                     color="red",
                     label="flux",
                     markersize=markersize_excitation,
+                )
+
+                # visualize measurement errors
+                vertex_msmt_idx = np.where(vertex_msmt_error_matrix[idx])
+                plaquette_msmt_idx = np.where(plaquette_msmt_error_matrix[idx])
+                ax.plot(
+                    vertex_msmt_idx[1] - 0.5,
+                    -vertex_msmt_idx[0] + 0.5,
+                    "o",
+                    color="black",
+                    label="charge",
+                    mfc="none",
+                    markersize=markersize_excitation + 2,
+                    markeredgewidth=2,
+                )
+                ax.plot(
+                    plaquette_msmt_idx[1] - 0.5,
+                    -plaquette_msmt_idx[0] + 0.5,
+                    "o",
+                    color="black",
+                    label="flux",
+                    mfc="none",
+                    markersize=markersize_excitation + 2,
+                    markeredgewidth=2,
                 )
 
             slider.on_changed(update_slider)

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "src/distributed/start_distributed_mp.py", line 157, in <module>
+    start_mp()
+  File "src/distributed/start_distributed_mp.py", line 135, in start_mp
+    learner(learner_args)
+  File "/home/marvin/Projects/surface-rl-decoder/src/distributed/learner.py", line 105, in learner
+    policy_output = policy_output.gather(1, batch_actions.view(-1, 1)).squeeze(1)
+RuntimeError: Size does not match at dimension 0 expected index [48, 1] to be smaller than src [16, 76] apart from dimension 1
