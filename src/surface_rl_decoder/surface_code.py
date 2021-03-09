@@ -451,6 +451,7 @@ class SurfaceCode(gym.Env):
             self.state = self.generate_measurement_error(true_syndrome)
         else:
             self.state = true_syndrome
+
         # save the introduced syndrome errors by checking the difference
         # between the true syndrome from qubit errors
         # and the updated syndrome with measurement errors

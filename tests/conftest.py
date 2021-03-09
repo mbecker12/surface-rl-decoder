@@ -60,7 +60,6 @@ def seed_surface_code():
 
     return seed_sc
 
-
 @pytest.fixture
 def env_set():
     return EnvironmentSet(SurfaceCode(), 5)
