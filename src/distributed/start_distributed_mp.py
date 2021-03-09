@@ -9,9 +9,9 @@ import logging
 import multiprocessing as mp
 from iniparser import Config
 from torch.utils.tensorboard import SummaryWriter
-from distributed.actor import actor
-from distributed.learner import learner
-from distributed.io import io_replay_memory
+from actor import actor
+from learner import learner
+from io_memory import io_replay_memory
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
