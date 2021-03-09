@@ -13,7 +13,7 @@ from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
 from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
-from distributed.learner_util import 
+from distributed.learner_util import perform_q_learning_step
 
 from surface_rl_decoder.agent_src.agent import QuantumAgent1
 
@@ -81,8 +81,8 @@ def learner(args: Dict):
         timesteps = np.Infinity
 
     # initialize models and other learning gadgets
-    policy_net = QuantumAgent1(syndrome_size, stack_depth)
-    target_net = QuantumAgent1(syndrome_size, stack_depth)
+    policy_net = QuantumAgent1()
+    target_net = QuantumAgent1()
     policy_net.to(device)
     target_net.to(device)
     optimizer = Adam(policy_net.parameters(), lr=learning_rate)
