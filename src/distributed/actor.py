@@ -3,10 +3,15 @@ from time import time, sleep
 from collections import namedtuple
 import logging
 import numpy as np
+import torch
 from distributed.environment_set import EnvironmentSet
+from learner import learner
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
+from dummy_agent import DummyModel
 from torch.utils.tensorboard import SummaryWriter
+from torch.nn.utils import vector_to_parameters
+from util import select_actions
 
 # pylint: disable=too-many-statements,too-many-locals
 
@@ -25,11 +30,14 @@ def actor(args):
     size_action_history = args["size_action_history"]
     device = args["device"]
     verbosity = args["verbosity"]
+    benchmarking = args["benchmarking"]
+    num_actions_per_qubit = args["num_actions_per_qubit"]
 
     logger.info("Fire up all the environments!")
 
     env = SurfaceCode()  # TODO: need published gym environment here
     state_size = env.syndrome_size
+    code_size = state_size - 1
     stack_depth = env.stack_depth
 
     environments = EnvironmentSet(env, num_environments)
@@ -54,9 +62,9 @@ def actor(args):
     local_buffer_actions = np.empty(
         (num_environments, size_local_memory_buffer, 3), dtype=np.uint8
     )
-    # TODO: why is dtype = (float, 3) in the lindeby code?
     local_buffer_qvalues = np.empty(
-        (num_environments, size_local_memory_buffer), dtype=float
+        (num_environments, size_local_memory_buffer),
+        dtype=(float, num_actions_per_qubit * code_size * code_size + 1),
     )
     local_buffer_rewards = np.empty(
         (num_environments, size_local_memory_buffer), dtype=float
@@ -64,8 +72,9 @@ def actor(args):
     buffer_idx = 0
 
     actor_io_queue = args["actor_io_queue"]
+    learner_actor_queue = args["learner_actor_queue"]
 
-    model = None
+    model = DummyModel(state_size, stack_depth)
 
     performance_start = time()
     performance_stop = None
@@ -83,18 +92,17 @@ def actor(args):
         sleep(1)
         steps_per_episode += 1
 
-        # select action batch
-        actions = np.random.randint(1, 4, size=(num_environments, 3))
+        _states = torch.tensor(states, dtype=torch.float32)
 
-        # generate a random terminal action somewhere
-        # TODO: seems to generate a bunch of terminal actions in close succession
-        # need to check that
-        if np.random.random_sample() < 0.1:
-            terminate_index = np.random.randint(0, num_environments)
-            actions[terminate_index][:] = (0, 0, TERMINAL_ACTION)
+        start_select_action = time()
+        actions, q_values = select_actions(_states, model, state_size - 1)
+        if benchmarking:
+            logger.info(f"time for select action: {time() - start_select_action}")
 
-        q_values = np.random.random_sample(num_environments)
+        start_steps = time()
         next_states, rewards, terminals, _ = environments.step(actions)
+        if benchmarking:
+            logger.info(f"time to step through environments: {time() - start_steps}")
 
         transitions = np.asarray(
             [
@@ -113,7 +121,13 @@ def actor(args):
         buffer_idx += 1
 
         if buffer_idx >= size_local_memory_buffer:
-            # TODO: get new weights for NN model here
+            # get new weights for the policy model here
+            if learner_actor_queue.qsize() > 0:
+                msg, network_params = learner_actor_queue.get()
+                if msg == "network_update":
+                    logger.info("Received new network weights")
+                    vector_to_parameters(network_params, model.parameters())
+                    model.to(device)
 
             # this approach counts through all environments and local memory buffer continuously
             # with no differentiation between those two channels

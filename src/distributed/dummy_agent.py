@@ -12,6 +12,7 @@ class DummyModel(nn.Module):
     Just a dummy model to make sure that the data can be processed and
     that the different subprocesses involved run properly.
     """
+
     def __init__(self, syndrome_size, stack_depth, num_actions_per_qubit=3):
         super().__init__()
         self.syndrome_size = syndrome_size
