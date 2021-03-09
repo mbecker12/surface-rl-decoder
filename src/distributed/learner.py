@@ -53,6 +53,7 @@ def learner(args: Dict):
     # configuration
     learner_io_queue = args["learner_io_queue"]
     io_learner_queue = args["io_learner_queue"]
+    learner_actor_queue = args["learner_actor_queue"]
     verbosity = args["verbosity"]
 
     learning_rate = args["learning_rate"]
@@ -98,6 +99,8 @@ def learner(args: Dict):
     t = 0
     while t < timesteps:
         t += 1
+        count_to_eval += 1
+
         if time() - start_time > max_time:
             logger.warning("Learner: time exceeded, aborting...")
             break
@@ -107,6 +110,10 @@ def learner(args: Dict):
             params = parameters_to_vector(policy_net.parameters())
             vector_to_parameters(params, target_net.parameters())
             target_net.to(device)
+
+            msg = ("network_update", params.detach())
+            logger.info("Send network weights to actor process")
+            learner_actor_queue.put(msg)
 
         if io_learner_queue.qsize == 0:
             logger.debug("Learner waiting")
@@ -171,7 +178,6 @@ def learner(args: Dict):
                     ground_state_rate[i],
                     t,
                 )
-        count_to_eval += 1
 
         if time() - heart > heartbeat_interval:
             heart = time()
