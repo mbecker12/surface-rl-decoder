@@ -3,7 +3,7 @@ import torch
 from torch import from_numpy
 import gym
 import logging
-from distributed.util import action_to_q_value_index, incremental_mean, select_action
+from distributed.util import action_to_q_value_index, incremental_mean, select_actions
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import check_final_state
 
@@ -56,6 +56,7 @@ def evaluate(
         mean_q_value_per_p_error = 0
         steps_counter = 0
 
+        # TODO: maybe one can evaluate in batches
         for j in range(num_of_episodes):
             logger.debug(f"{p_error=}, episode: {j}")
             num_steps_per_episode = 0
@@ -74,15 +75,15 @@ def evaluate(
                 steps_counter += 1
                 num_steps_per_episode += 1
 
-                action, q_values = select_action(
+                actions, q_values = select_actions(
                     torch_state, model, system_size, epsilon=epsilon
                 )
 
-                q_value_index = action_to_q_value_index(action, system_size)
+                q_value_index = action_to_q_value_index(actions[0], system_size)
                 q_value = q_values[0, q_value_index]
                 experimental_q_values.append(q_value)
 
-                next_state, reward, terminal, _ = env.step(action)
+                next_state, reward, terminal, _ = env.step(actions[0])
                 energy_surface.append(np.sum(state) - np.sum(next_state))
 
                 state = next_state
