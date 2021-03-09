@@ -1,29 +1,56 @@
+"""
+Define the learner process in the multi-process
+reinforcement learning setup.
+"""
 import os
 from time import time, sleep
+from typing import Dict
+import logging
 import numpy as np
-import torch
 from torch.optim import Adam
 from torch import nn
+from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
-import logging
 from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
-from distributed.learner_util import (
-    parameters_to_vector,
-    perform_q_learning_step,
-    vector_to_parameters,
-    data_to_batch,
-    predict_max_optimized,
-)
-
-# from distributed.util import action_to_q_value_index
+from distributed.learner_util import perform_q_learning_step
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("learner")
 logger.setLevel(logging.INFO)
 
+# pylint: disable=too-many-locals, too-many-statements
+def learner(args: Dict):
+    """
+    Start the learner process. Here, the key learning is performed:
+    Transitions are sampled from the io_learner_queue in batches,
+    then backpropagation on those batches is performed.
 
-def learner(args):
+    Parameters
+    ==========
+    args: dictionary containing important configuration values for
+        the learner process. The following keys are expected:
+            learner_io_queue: multiprocessing.Queue
+            io_learner_queue: multiprocessing.Queue
+            verbosity: int
+            device: torch.device
+            syndrome_size: int, usually code_distance + 1
+            stack_depth: int, number of layers in syndrome stack
+            target_update_steps: int, steps after which to update the target
+                network's parameters
+            discount_factor: float, γ factor in reinforcement learning
+            batch_size: int, batch_size stochastic gradient descent
+            eval_frequency: int, steps after which to evaluate policy network
+            learner_eval_p_error: List, list of different levels of p_error
+                to be used in evaluation
+            learner_eval_p_msmt: List, list of different levels of p_msmt
+                to be used in evaluation
+            max_time: float/int, max learning time in hours
+            timesteps: int, maximum time steps; set to -1 for infinite time steps
+            summary_path: str, base path for tensorboard
+            summary_date: str, target path for tensorboard for current run
+    """
+    # configuration
     learner_io_queue = args["learner_io_queue"]
     io_learner_queue = args["io_learner_queue"]
     verbosity = args["verbosity"]
@@ -47,8 +74,11 @@ def learner(args):
 
     heart = time()
     heartbeat_interval = 10  # seconds
-    timesteps = 10000
+    timesteps = args["timesteps"]
+    if timesteps == -1:
+        timesteps = np.Infinity
 
+    # initialize models and other learning gadgets
     policy_net = DummyModel(syndrome_size, stack_depth)
     target_net = DummyModel(syndrome_size, stack_depth)
     policy_net.to(device)
@@ -56,14 +86,18 @@ def learner(args):
     optimizer = Adam(policy_net.parameters(), lr=learning_rate)
     criterion = nn.MSELoss(reduction="none")
 
-    received_data = 0
-
+    # initialize tensorboard
     summary_path = args["summary_path"]
     summary_date = args["summary_date"]
 
     tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "learner"))
     tensorboard_step = 0
-    for t in range(timesteps):
+    received_data = 0
+
+    # start the actual learning
+    t = 0
+    while t < timesteps:
+        t += 1
         if time() - start_time > max_time:
             logger.warning("Learner: time exceeded, aborting...")
             break
@@ -112,6 +146,7 @@ def learner(args):
         msg = ("priorities", p_update)
         learner_io_queue.put(msg)
 
+        # evaluate policy network
         if eval_frequency != -1 and count_to_eval >= eval_frequency:
             logger.info(f"Start Evaluation, Step {t}")
             count_to_eval = 0

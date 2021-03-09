@@ -1,22 +1,11 @@
-from random import random
+"""
+Utility functions for the learner process
+"""
+from typing import List, Tuple
 import numpy as np
-from numpy import ndarray
 import torch
 from torch import from_numpy
 from distributed.util import action_to_q_value_index
-from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
-
-# from torch import Tensor, tensor
-from typing import List, Tuple, Union
-
-
-def parameters_to_vector(parameters) -> Union[ndarray, torch.Tensor]:
-    pass
-
-
-def vector_to_parameters(vector, target_parameters):
-    pass
-
 
 def data_to_batch(
     data: Tuple, device: torch.device
@@ -85,18 +74,7 @@ def data_to_batch(
         indices,
     )
 
-
-def predict_max_optimized(target_net, batch_next_state, system_size, device):
-    """
-    DEPRECATED
-    Only used for when a state is represented as multiple perspectives on the toric code
-    """
-    # TODO: so far, this is only filled with dummy functionality
-    target_output = torch.tensor([1, 2, 3, 4, 5], dtype=torch.float32)
-    batch_size = 16
-    return target_output.repeat((batch_size, 1))
-
-
+# pylint: disable=too-many-locals, too-many-statements
 def perform_q_learning_step(
     policy_net,
     target_net,
@@ -109,7 +87,21 @@ def perform_q_learning_step(
     discount_factor,
 ):
     """
-    Docu
+    Perform the actual stochastic gradient descent step.
+    Make use of a frozen target network to stabilize training.
+
+    Parameters
+    ==========
+    policy_net: online network to peform the actual training step on
+    target_net: offline network with frozen parameters,
+        serves as the target Q value term in the Bellman equation.
+    device,
+    criterion,
+    optimizer,
+    data,
+    code_size,
+    batch_size,
+    discount_factor,
     """
     (
         batch_state,

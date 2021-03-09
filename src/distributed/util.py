@@ -29,7 +29,6 @@ def select_action(
 
     # choose random action
     if rand < epsilon:
-        # TODO: select an action randomly based on the q-values
         q_value_probabilities = torch.softmax(q_values).detach().numpy()
 
         idx = np.random.choice(range(len(q_values[0])), p=q_value_probabilities)

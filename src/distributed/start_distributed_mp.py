@@ -1,14 +1,17 @@
+"""
+Main module to start the distributed multiprocessing setup
+for reinforcement learning.
+"""
 import os
-import sys
 import traceback
 from time import sleep
 import logging
 import multiprocessing as mp
+from iniparser import Config
+from torch.utils.tensorboard import SummaryWriter
 from distributed.actor import actor
 from distributed.learner import learner
 from distributed.io import io_replay_memory
-from iniparser import Config
-from torch.utils.tensorboard import SummaryWriter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
@@ -21,6 +24,28 @@ SUMMARY_RUN_INFO = "run_info"
 
 
 def start_mp():
+    """
+    Start the actual sub processes.
+    This will read in the configuration from available .ini files.
+    Expect to find files containing the following sections:
+        distributed_config
+            actor
+            replay_memory
+            learner
+        config
+            env
+
+    The available configuration will determine the settings
+    of the different subprocesses:
+        replay memory
+        actor (multiple)
+        learner
+
+    The communication between these processes is handled by
+    Queue objects from the multiprocessing library.
+    """
+
+    # take care of all the configuration
     cfg = Config()
     cfg.scan(".", True).read()
     distributed_config = cfg.config_rendered.get("distributed_config")
@@ -30,13 +55,15 @@ def start_mp():
     memory_config = distributed_config.get("replay_memory")
     learner_config = distributed_config.get("learner")
 
-    env_config = global_config.get("env")  # TODO get env config as well
+    # set up surface code environment configuration 
+    env_config = global_config.get("env")
 
     size_action_history = int(env_config.get("max_actions", "256"))
     system_size = int(env_config["size"])
     syndrome_size = system_size + 1
     stack_depth = int(env_config["stack_depth"])
 
+    # set up actor configuration
     num_cuda_actors = int(actor_config["num_cuda"])
     num_cpu_actors = int(actor_config["num_cpu"])
     num_actors = num_cuda_actors + num_cpu_actors
@@ -44,10 +71,12 @@ def start_mp():
     size_local_memory_buffer = int(actor_config.get("size_local_memory_buffer"))
     actor_verbosity = int(actor_config["verbosity"])
 
+    # set up replay memory configuration
     replay_memory_size = int(memory_config["size"])
     replay_size_before_sampling = int(memory_config["replay_size_before_sampling"])
     replay_memory_verbosity = int(memory_config["verbosity"])
 
+    # set up learner configuration
     learner_verbosity = int(learner_config["verbosity"])
     learner_max_time_h = int(learner_config["max_time_h"])
     learning_rate = float(learner_config["learning_rate"])
@@ -56,10 +85,11 @@ def start_mp():
     target_update_steps = int(learner_config["target_update_steps"])
     discount_factor = float(learner_config["discount_factor"])
     eval_frequency = int(learner_config["eval_frequency"])
+    max_timesteps = int(learner_config["max_timesteps"])
     learner_eval_p_errors = [0.01, 0.02, 0.03]
     learner_eval_p_msmt = [0.01, 0.02, 0.03]
 
-    # initialize queues
+    # initialize communication queues
     logger.info("Initialize queues")
     actor_io_queue = mp.Queue()
     learner_io_queue = mp.Queue()
@@ -68,8 +98,6 @@ def start_mp():
 
     # configure processes
     mem_args = {
-        "foo": "bar",
-        "spam": "ham",
         "actor_io_queue": actor_io_queue,
         "learner_io_queue": learner_io_queue,
         "io_learner_queue": io_learner_queue,
@@ -82,8 +110,6 @@ def start_mp():
     }
 
     actor_args = {
-        "marco": "polo",
-        "uno": "dos",
         "actor_io_queue": actor_io_queue,
         "num_environments": num_environments,
         "size_action_history": size_action_history,
@@ -110,8 +136,10 @@ def start_mp():
         "eval_frequency": eval_frequency,
         "learner_eval_p_error": learner_eval_p_errors,
         "learner_eval_p_msmt": learner_eval_p_msmt,
+        "timesteps": max_timesteps
     }
 
+    # set up tensorboard for monitoring
     tensorboard = SummaryWriter(
         os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO)
     )
@@ -121,8 +149,11 @@ def start_mp():
     tensorboard.close()
 
     # start processes
+
+    # prepare the replay memory process
     io_process = mp.Process(target=io_replay_memory, args=(mem_args,))
 
+    # prepare and start multiple actor processes
     actor_process = []
     for i in range(num_actors):
         if i < num_cuda_actors:
@@ -135,24 +166,25 @@ def start_mp():
         logger.info(f"Spawn actor process {i}")
         actor_process[i].start()
 
+    # spawn replay memory process
     logger.info("Spawn io process")
     io_process.start()
 
+    # spawn learner process
     logger.info("Start learner")
-    learner(learner_args)
     try:
         learner(learner_args)
+    # pylint: disable=broad-except
     except Exception as err:
         print(err)
         error_traceback = traceback.format_exc()
         logger.error("An error occurred!")
         logger.error(error_traceback)
-        # TODO: log the run here by using sys.exc_info()[0]
-        tb = SummaryWriter(os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO))
-        tb.add_text("run_info/error_message", error_traceback)
-        tb.close()
+        # log the actual error to the tensorboard
+        tensorboard = SummaryWriter(os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO))
+        tensorboard.add_text("run_info/error_message", error_traceback)
+        tensorboard.close()
 
-    sleep(2)
     logger.info("Training Done!")
     for i in range(num_actors):
         actor_process[i].terminate()
