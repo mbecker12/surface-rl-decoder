@@ -120,7 +120,7 @@ def io_replay_memory(args):
                             dataformats="HW",
                         )
 
-            logger.info("Saved transitions to replay memory")
+            logger.debug("Saved transitions to replay memory")
 
         # TODO: log gpu metrics here
         if verbosity:
@@ -168,10 +168,10 @@ def io_replay_memory(args):
                 batch_size
             )
             data = (transitions, memory_weights, indices)
-            logger.info(f"{io_learner_queue.qsize()=}")
-            logger.info(f"{replay_memory.current_num_objects=}")
+            logger.debug(f"{io_learner_queue.qsize()=}")
+            logger.debug(f"{replay_memory.current_num_objects=}")
             io_learner_queue.put(data)
-            logger.info("Put data in io_learner_queue")
+            logger.debug("Put data in io_learner_queue")
 
             count_consumption_outgoing += batch_size
 
@@ -183,7 +183,7 @@ def io_replay_memory(args):
 
             if msg == "priorities":
                 # Update priorities
-                logger.info("received message 'priorities' from learner")
+                logger.debug("received message 'priorities' from learner")
                 # logger.info(f"{item=}")
             elif msg == "terminate":
                 logger.info("received message 'terminate' from learner")

@@ -121,8 +121,6 @@ def actor(args):
                 *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
             ]
 
-            # to_send = (local_buffer_transitions[:, :-1], priorities.flatten())
-
             sleep(0.2)
 
             logger.info("Put data in actor_io_queue")

@@ -57,7 +57,7 @@ def evaluate(
         steps_counter = 0
 
         for j in range(num_of_episodes):
-            logger.info(f"{p_error=}, episode: {j}")
+            logger.debug(f"{p_error=}, episode: {j}")
             num_steps_per_episode = 0
             previous_action = 0
             terminal_state = 0

@@ -33,7 +33,7 @@ def learner(args):
     syndrome_size = args["syndrome_size"]
     code_size = syndrome_size - 1
     stack_depth = args["stack_depth"]
-    policy_update_steps = args["policy_update_steps"]
+    target_update_steps = args["target_update_steps"]
     discount_factor = args["discount_factor"]
     batch_size = args["batch_size"]
     eval_frequency = args["eval_frequency"]
@@ -65,19 +65,17 @@ def learner(args):
     tensorboard_step = 0
     for t in range(timesteps):
         if time() - start_time > max_time:
-            logger.info("Learner: time exceeded, aborting...")
+            logger.warning("Learner: time exceeded, aborting...")
             break
 
-        if t % policy_update_steps == 0 and t > 0:
-            performance_stop = time()
-            performance_start = time()
-
+        if t % target_update_steps == 0 and t > 0:
+            logger.debug("Update target network parameters")
             params = parameters_to_vector(policy_net.parameters())
             vector_to_parameters(params, target_net.parameters())
             target_net.to(device)
 
         if io_learner_queue.qsize == 0:
-            logger.info("Learner waiting")
+            logger.debug("Learner waiting")
 
         data = io_learner_queue.get()
         if data is not None:
@@ -114,10 +112,8 @@ def learner(args):
         msg = ("priorities", p_update)
         learner_io_queue.put(msg)
 
-        # TODO: evaluation here
-        count_to_eval += 1
-        if eval_frequency != -1 and count_to_eval > eval_frequency:
-            logger.info("Evaluate!!!")
+        if eval_frequency != -1 and count_to_eval >= eval_frequency:
+            logger.info(f"Start Evaluation, Step {t}")
             count_to_eval = 0
             success_rate, ground_state_rate, _, mean_q_list, _ = evaluate(
                 policy_net,
@@ -128,21 +124,23 @@ def learner(args):
                 plot_one_episode=False,
             )
 
-            for i, p in enumerate(p_error_list):
-                logger.info("\t\t\t\tAdd eval data to tensorboard")
+            for i, p_err in enumerate(p_error_list):
                 tensorboard.add_scalar(
-                    f"network/mean_q, p error {p}", mean_q_list[i], t
+                    f"network/mean_q, p error {p_err}", mean_q_list[i], t
                 )
                 tensorboard.add_scalar(
-                    f"network/success_rate, p error {p}", success_rate[i], t
+                    f"network/success_rate, p error {p_err}", success_rate[i], t
                 )
                 tensorboard.add_scalar(
-                    f"network/ground_state_rate, p error {p}", ground_state_rate[i], t
+                    f"network/ground_state_rate, p error {p_err}",
+                    ground_state_rate[i],
+                    t,
                 )
+        count_to_eval += 1
 
         if time() - heart > heartbeat_interval:
             heart = time()
-            logger.info("I'm alive my friend. I can see the shadows everywhere!")
+            logger.debug("I'm alive my friend. I can see the shadows everywhere!")
             if verbosity > 1:
                 tensorboard.add_scalar("learner/heartbeat", 1, 0)
 

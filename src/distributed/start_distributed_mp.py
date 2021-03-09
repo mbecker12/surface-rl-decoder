@@ -53,7 +53,7 @@ def start_mp():
     learning_rate = float(learner_config["learning_rate"])
     learner_device = learner_config["device"]
     batch_size = int(learner_config["batch_size"])
-    policy_update_steps = int(learner_config["policy_update_steps"])
+    target_update_steps = int(learner_config["target_update_steps"])
     discount_factor = float(learner_config["discount_factor"])
     eval_frequency = int(learner_config["eval_frequency"])
     learner_eval_p_errors = [0.01, 0.02, 0.03]
@@ -104,7 +104,7 @@ def start_mp():
         "max_time": learner_max_time_h,
         "learning_rate": learning_rate,
         "device": learner_device,
-        "policy_update_steps": policy_update_steps,
+        "target_update_steps": target_update_steps,
         "discount_factor": discount_factor,
         "batch_size": batch_size,
         "eval_frequency": eval_frequency,
