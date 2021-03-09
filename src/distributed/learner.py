@@ -81,8 +81,8 @@ def learner(args: Dict):
         timesteps = np.Infinity
 
     # initialize models and other learning gadgets
-    policy_net = QuantumAgent1()
-    target_net = QuantumAgent1()
+    policy_net = DummyModel(syndrome_size, stack_depth)
+    target_net = DummyModel(syndrome_size, stack_depth)
     policy_net.to(device)
     target_net.to(device)
     optimizer = Adam(policy_net.parameters(), lr=learning_rate)
