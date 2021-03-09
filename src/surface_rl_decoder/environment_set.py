@@ -5,7 +5,7 @@ multiple times to run steps in parallel.
 from copy import deepcopy
 from typing import Dict, List, Tuple, Union
 import numpy as np
-from src.surface_rl_decoder.surface_code import SurfaceCode
+from surface_rl_decoder.surface_code import SurfaceCode
 
 
 class EnvironmentSet:
