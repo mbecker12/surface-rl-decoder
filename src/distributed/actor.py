@@ -3,7 +3,7 @@ from time import time, sleep
 from collections import namedtuple
 import logging
 import numpy as np
-from distributed.environment_set import EnvironmentSet
+from surface_rl_decoder.environment_set import EnvironmentSet
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 from torch.utils.tensorboard import SummaryWriter
