@@ -11,9 +11,9 @@ from torch.optim import Adam
 from torch import nn
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
-from distributed.dummy_agent import DummyModel
-from distributed.evaluate import evaluate
-from distributed.learner_util import perform_q_learning_step
+from dummy_agent import DummyModel
+from evaluate import evaluate
+from learner_util import perform_q_learning_step
 
 from surface_rl_decoder.agent_src.agent import QuantumAgent1
 

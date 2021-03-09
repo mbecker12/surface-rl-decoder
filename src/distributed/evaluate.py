@@ -3,7 +3,7 @@ import torch
 from torch import from_numpy
 import gym
 import logging
-from distributed.util import action_to_q_value_index, incremental_mean, select_action
+from util import action_to_q_value_index, incremental_mean, select_action
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import check_final_state
 

@@ -5,7 +5,7 @@ from typing import List, Tuple
 import numpy as np
 import torch
 from torch import from_numpy
-from distributed.util import action_to_q_value_index
+from util import action_to_q_value_index
 
 def data_to_batch(
     data: Tuple, device: torch.device

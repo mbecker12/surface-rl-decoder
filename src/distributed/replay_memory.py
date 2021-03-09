@@ -1,5 +1,5 @@
 import random
-from distributed.actor import Transition
+from actor import Transition
 
 
 class ReplayMemory:

@@ -3,6 +3,7 @@ Main module to start the distributed multiprocessing setup
 for reinforcement learning.
 """
 import os
+import platform
 import traceback
 from time import sleep
 import logging
@@ -48,8 +49,15 @@ def start_mp():
     # take care of all the configuration
     cfg = Config()
     cfg.scan(".", True).read()
-    distributed_config = cfg.config_rendered.get("distributed_config")
-    global_config = cfg.config_rendered.get("config")
+    if "Windows" in platform.system():
+            global_config_keyword = "src\\surface_rl_decoder\\config"
+            dist_config_keyword = "src\\distributed\\distributed_config"
+    else:
+        global_config_keyword = "config"
+        dist_config_keyword = "distributed_config"
+
+    distributed_config = cfg.config_rendered.get(dist_config_keyword)
+    global_config = cfg.config_rendered.get(global_config_keyword)
 
     actor_config = distributed_config.get("actor")
     memory_config = distributed_config.get("replay_memory")

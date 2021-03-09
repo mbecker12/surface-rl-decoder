@@ -4,6 +4,7 @@ to use it in reinforcement learning.
 """
 import gym
 import numpy as np
+import platform
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from matplotlib.patches import Wedge, Rectangle
@@ -70,7 +71,14 @@ class SurfaceCode(gym.Env):
 
         cfg = Config()
         _config = cfg.scan(".", True).read()
-        self.config = cfg.config_rendered.get("config")
+
+        if "Windows" in platform.system():
+            global_config_keyword = "src\\surface_rl_decoder\\config"
+        else:
+            global_config_keyword = "config"
+        
+
+        self.config = cfg.config_rendered.get(global_config_keyword)
 
         env_config = self.config.get("env")
 
