@@ -9,7 +9,7 @@ def incremental_mean(val, mu, n):
     return mu + (val - mu) / (n)
 
 
-def select_action(
+def select_actions(
     state, model, system_size, num_actions_per_qubit=3, epsilon=0.0, device=None
 ):
     """
@@ -27,21 +27,42 @@ def select_action(
 
     rand = random.random()
 
+    batch_size = q_values.shape[0]
+
     # choose random action
     if rand < epsilon:
-        q_value_probabilities = torch.softmax(q_values).detach().numpy()
+        q_value_probabilities = (
+            torch.softmax(policy_net_output, dim=1, dtype=torch.float32)
+            .detach()
+            .numpy()
+        )
 
-        idx = np.random.choice(range(len(q_values[0])), p=q_value_probabilities)
+        for i in range(batch_size):
+            assert (
+                0.999 <= q_value_probabilities[i].sum() <= 1.00001
+            ), q_value_probabilities[i].sum()
+
+        idx = np.array(
+            [
+                np.random.choice(range(len(q_values[0])), p=q_value_probabilities[i])
+                for i in range(batch_size)
+            ]
+        )
 
     # choose deterministic, purely-greedy action
     else:
-        idx = np.argmax(q_values[0])
+        idx = np.argmax(q_values, axis=1)
 
-    action = q_value_index_to_action(
-        idx, system_size, num_actions_per_qubit=num_actions_per_qubit
+    actions = np.array(
+        [
+            q_value_index_to_action(
+                idx[i], system_size, num_actions_per_qubit=num_actions_per_qubit
+            )
+            for i in range(batch_size)
+        ]
     )
 
-    return action, q_values
+    return actions, q_values
 
 
 def action_to_q_value_index(

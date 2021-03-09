@@ -7,6 +7,7 @@ import torch
 from torch import from_numpy
 from distributed.util import action_to_q_value_index
 
+
 def data_to_batch(
     data: Tuple, device: torch.device
 ) -> Tuple[List, List, List, List, List, List, List]:
@@ -73,6 +74,7 @@ def data_to_batch(
         memory_weights,
         indices,
     )
+
 
 # pylint: disable=too-many-locals, too-many-statements
 def perform_q_learning_step(
