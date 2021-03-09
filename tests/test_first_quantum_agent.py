@@ -1,5 +1,8 @@
+import sys
 import torch
 from src.agent_src.agent import QuantumAgent1
+sys.path.append("./src")
+sys.path.append("./src/surface_rl_decoder")
 
 
 def test_agent2():
