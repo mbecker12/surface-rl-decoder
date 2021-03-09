@@ -11,7 +11,7 @@ import os
 import pytest
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
-from src.distributed.environment_set import EnvironmentSet
+from src.surface_rl_decoder.environment_set import EnvironmentSet
 
 
 @pytest.fixture

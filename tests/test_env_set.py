@@ -1,7 +1,7 @@
 # from os import environ
 from copy import deepcopy
 import numpy as np
-from src.distributed.environment_set import EnvironmentSet
+from src.surface_rl_decoder.environment_set import EnvironmentSet
 from src.surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
 
