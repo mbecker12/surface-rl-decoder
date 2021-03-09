@@ -1,12 +1,9 @@
 import os
-import math
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
+#import torch.optim as optim
 from iniparser import Config
-import random
 import platform
 
 
@@ -42,12 +39,12 @@ class QuantumAgent1(nn.Module):
         hiddenBoth = int(env_config.get("hidden_both"))
         #self.step = 0
 
-        self.inputLayerX = nn.Linear(syndrome_surface_size*syndrome_surface_size,hiddenX)
-        self.inputLayerBoth = nn.Linear(syndrome_surface_size*syndrome_surface_size,hiddenBoth)
-        self.inputLayerZ = nn.Linear(syndrome_surface_size*syndrome_surface_size,hiddenZ)
+        self.inputLayerX = nn.Linear(syndrome_surface_size,hiddenX)
+        self.inputLayerBoth = nn.Linear(syndrome_surface_size,hiddenBoth)
+        self.inputLayerZ = nn.Linear(syndrome_surface_size,hiddenZ)
         self.concatenatedXZ = nn.Linear(hiddenZ+hiddenX, hidden_concat_size)
         self.concatenatedComplete = nn.Linear(hidden_concat_size+hiddenBoth, self.nr_actions_per_qubit*(self.size)*(self.size)+1)
-        self.lstmLayer = nn.LSTM(self.nr_actions_per_qubit*(self.size)*(self.size)+1, self.nr_actions_per_qubit*(self.size)*(self.size)+1, num_layers=3, bidirectional = True)
+        self.lstmLayer = nn.LSTM(self.nr_actions_per_qubit*(self.size)*(self.size)+1, self.nr_actions_per_qubit*(self.size)*(self.size)+1, num_layers=self.lstm_layers, bidirectional = True)
         self.final_layer = nn.Linear((self.nr_actions_per_qubit*(self.size)*(self.size)+1)*2, self.nr_actions_per_qubit*(self.size)*(self.size)+1)
         
 
@@ -63,16 +60,20 @@ class QuantumAgent1(nn.Module):
         both = both.view(self.stack_depth, batch_size, (self.size+1)*(self.size+1), 1)
         both = torch.squeeze(both)
         both = F.relu(self.inputLayerBoth(both))
-        xz = torch.cat((x,z), 2)
+        xz = torch.cat((x,z), -1)
         xz = F.relu(self.concatenatedXZ(xz))
-        complete = torch.cat((xz,both), 2)
+        complete = torch.cat((xz,both), -1)
         complete = F.sigmoid(self.concatenatedComplete(complete))
+        complete = complete.view(self.stack_depth, batch_size, self.nr_actions_per_qubit*(self.size)*(self.size)+1)
         h = torch.zeros(self.lstm_layers*2, batch_size, self.nr_actions_per_qubit*(self.size)*(self.size)+1)
         c = torch.zeros(self.lstm_layers*2, batch_size, self.nr_actions_per_qubit*(self.size)*(self.size)+1)
-        for i in range(self.stack_depth):
-            output, (h, c) = lstmLayer(complete[i,:].view(self.stack_depth, batch_size, self.nr_actions_per_qubit*(self.size)*(self.size)+1), h, c)
-
-        output = self.final_layer(output)
+        
+        #for loop?
+        
+        output, (h, c) = self.lstmLayer(complete, (h, c))
+        final_output = self.final_layer(output[-1])
+        
+        #output is of dimensions (seq_len, batch, num_directions * hidden_size)
         #agent.step += 1
-        return F.softmax(output)
+        return final_output
 
