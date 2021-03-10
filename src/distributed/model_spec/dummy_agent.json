@@ -1,0 +1,6 @@
+{
+	"dummy_agent": {
+		"layer1_size": 512,
+		"layer2_size": 512
+	}
+}
