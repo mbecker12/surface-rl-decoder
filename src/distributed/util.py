@@ -10,9 +10,7 @@ def incremental_mean(val, mu, n):
     return mu + (val - mu) / (n)
 
 
-def select_actions(
-    state, model, system_size, num_actions_per_qubit=3, epsilon=0.0
-):
+def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0.0):
     """
     Select actions batch-wise according to an ε-greedy policy based on the
     provided neural network model.
@@ -50,26 +48,25 @@ def select_actions(
 
     # choose random action where it applies
     rand = np.random.random_sample(batch_size)
-    non_greedy_mask = rand < epsilon # where true: choose a random action
+    non_greedy_mask = rand < epsilon  # where true: choose a random action
     non_greedy_indices = np.where(non_greedy_mask)[0]
 
     # generate probabilities
     q_value_probabilities = (
-        torch.softmax(
-            policy_net_output[non_greedy_indices],
-            dim=1, dtype=torch.float32
-        )
+        torch.softmax(policy_net_output[non_greedy_indices], dim=1, dtype=torch.float32)
         .detach()
         .numpy()
     )
 
-    assert q_value_probabilities.shape[0] == len(non_greedy_indices), len(non_greedy_indices)
+    assert q_value_probabilities.shape[0] == len(non_greedy_indices), len(
+        non_greedy_indices
+    )
 
     # assure that probabilities add to 1
     for j, _ in enumerate(non_greedy_indices):
         assert (
-                0.999 <= q_value_probabilities[j].sum() <= 1.00001
-            ), q_value_probabilities[j].sum()
+            0.999 <= q_value_probabilities[j].sum() <= 1.00001
+        ), q_value_probabilities[j].sum()
 
     # overwrite the chosen q-value index at the places where a random action
     # should be chosen
@@ -84,7 +81,9 @@ def select_actions(
     actions = np.array(
         [
             q_value_index_to_action(
-                q_value_index[i], system_size, num_actions_per_qubit=num_actions_per_qubit
+                q_value_index[i],
+                system_size,
+                num_actions_per_qubit=num_actions_per_qubit,
             )
             for i in range(batch_size)
         ]
@@ -181,6 +180,7 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
     y_coord = grid_index_group // system_size
 
     return (x_coord, y_coord, operator)
+
 
 if __name__ == "__main__":
     for y in range(5):

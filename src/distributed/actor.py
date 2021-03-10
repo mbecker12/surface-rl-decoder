@@ -122,7 +122,7 @@ def actor(args):
     performance_start = time()
     performance_stop = None
     heart = time()
-    heartbeat_interval = 60 # seconds
+    heartbeat_interval = 60  # seconds
 
     priorities = np.empty((25, 128))  # priorities TODO probably for replay memory
 
@@ -142,7 +142,9 @@ def actor(args):
         # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32)
         start_select_action = time()
-        actions, q_values = select_actions(_states, model, state_size - 1, epsilon=epsilon)
+        actions, q_values = select_actions(
+            _states, model, state_size - 1, epsilon=epsilon
+        )
         if benchmarking:
             logger.info(f"time for select action: {time() - start_select_action}")
 

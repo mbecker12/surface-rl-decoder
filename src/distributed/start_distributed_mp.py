@@ -142,7 +142,7 @@ def start_mp():
         "summary_date": SUMMARY_DATE,
         "model_name": model_name,
         "model_config": model_config,
-        "epsilon": epsilon
+        "epsilon": epsilon,
     }
 
     learner_args = {
@@ -167,7 +167,7 @@ def start_mp():
         "timesteps": max_timesteps,
         "model_name": model_name,
         "model_config": model_config,
-        "learner_epsilon": learner_epsilon
+        "learner_epsilon": learner_epsilon,
     }
 
     # set up tensorboard for monitoring

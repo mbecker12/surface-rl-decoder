@@ -23,7 +23,9 @@ class DummyModel(nn.Module):
         layer2_size = config["layer2_size"]
 
         self.lin1 = nn.Linear(
-            self.stack_depth * self.syndrome_size * self.syndrome_size, layer1_size, bias=True
+            self.stack_depth * self.syndrome_size * self.syndrome_size,
+            layer1_size,
+            bias=True,
         )
         self.lin2 = nn.Linear(layer1_size, layer2_size)
         n_actions_total = num_actions_per_qubit * n_qubits * n_qubits + 1

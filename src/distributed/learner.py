@@ -178,7 +178,7 @@ def learner(args: Dict):
                 p_error_list,
                 p_msmt_list,
                 plot_one_episode=False,
-                epsilon=learner_epsilon
+                epsilon=learner_epsilon,
             )
 
             for i, p_err in enumerate(p_error_list):

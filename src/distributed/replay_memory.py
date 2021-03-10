@@ -11,6 +11,7 @@ class ReplayMemory:
     The data is stored in a simple linear container and is sampled
     with uniform probability from it.
     """
+
     def __init__(self, memory_size):
         self.memory = [Transition(None, None, None, None, None)] * memory_size
         self.memory_size = memory_size
@@ -19,7 +20,7 @@ class ReplayMemory:
 
     def save(self, obj):
         """
-        Save data objects. 
+        Save data objects.
         """
         self.memory[self.current_num_objects] = obj
         self.current_num_objects = (self.current_num_objects + 1) % self.memory_size

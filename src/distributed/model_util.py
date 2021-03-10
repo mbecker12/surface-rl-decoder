@@ -7,6 +7,7 @@ learning model
 
 from dummy_agent import DummyModel
 
+
 def choose_model(model_name, model_config):
     """
     Given a model name, choose the corresponding neural network agent/model
@@ -30,7 +31,10 @@ def choose_model(model_name, model_config):
 
     return model
 
-def extend_model_config(model_config, system_size, stack_depth, num_actions_per_qubit=3):
+
+def extend_model_config(
+    model_config, system_size, stack_depth, num_actions_per_qubit=3
+):
     """
     Extend an existing model or agent configuration dictionary
     with information about the environment.

@@ -42,7 +42,7 @@ def io_replay_memory(args):
         "summary_date": (str), target path for tensorboard for current run
     """
     heart = time()
-    heartbeat_interval = 60 # seconds
+    heartbeat_interval = 60  # seconds
 
     # initialization
     learner_io_queue = args["learner_io_queue"]
