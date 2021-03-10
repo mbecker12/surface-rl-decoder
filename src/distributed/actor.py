@@ -1,17 +1,19 @@
+"""
+Define the actor process for exploration of the environment in
+reinforcement learning.
+"""
 import os
-from time import time, sleep
+from time import time
 from collections import namedtuple
 import logging
 import numpy as np
 import torch
-from distributed.environment_set import EnvironmentSet
-from learner import learner
-from surface_rl_decoder.surface_code import SurfaceCode
-from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
-from dummy_agent import DummyModel
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
-from util import select_actions
+from environment_set import EnvironmentSet
+from util import extend_model_config, select_actions
+from dummy_agent import DummyModel
+from surface_rl_decoder.surface_code import SurfaceCode
 
 # pylint: disable=too-many-statements,too-many-locals
 
@@ -25,6 +27,37 @@ logger.setLevel(logging.INFO)
 
 
 def actor(args):
+    """
+    Define the actor function to be run by a mp process.
+    The actor defines multiple environments which are in differing states
+    and can perform steps independent of each other.
+
+    After a certain number of steps, the used policy network is updated
+    with new parameters from the learner process.
+
+    Parameters
+    ==========
+    args: dictionary containing actor configuration
+        "actor_io_queue": mp.Queue object for communication between actor
+            and replay memory
+        "learner_actor_queue": mp.Queue object for communication between actor
+            and learner process
+        "num_environments": (int) number of independent environments to perform steps in
+        "size_action_history": (int) maximum size of the action history of the environment,
+            trying to execute more actions than this in one environment causes the environment
+            to terminate and start again with a new syndrome.
+        "size_local_memory_buffer":  (int) maximum number of objects in the local
+            memory store for transitions, actions, q values, rewards
+        "num_actions_per_qubit": (int) number of possible operators on a qubit,
+            default should be 3, for Pauli-X, -Y, -Z
+        "verbosity": verbosity level
+        "epsilon": (float) probability to choose a random action
+        "model_config": (dict) configuration for network architecture.
+            May change with different architectures
+        "benchmarking": whether certain performance time measurements should be performed
+        "summary_path": (str), base path for tensorboard
+        "summary_date": (str), target path for tensorboard for current run
+    """
     num_environments = args["num_environments"]
     actor_id = args["id"]
     size_action_history = args["size_action_history"]
@@ -32,6 +65,7 @@ def actor(args):
     verbosity = args["verbosity"]
     benchmarking = args["benchmarking"]
     num_actions_per_qubit = args["num_actions_per_qubit"]
+    epsilon = args["epsilon"]
 
     logger.info("Fire up all the environments!")
 
@@ -40,6 +74,7 @@ def actor(args):
     code_size = state_size - 1
     stack_depth = env.stack_depth
 
+    # create a collection of independent environments
     environments = EnvironmentSet(env, num_environments)
 
     transition_type = np.dtype(
@@ -52,9 +87,11 @@ def actor(args):
         ]
     )
 
+    # initialize all states
     states = environments.reset_all()
     steps_per_episode = np.zeros(num_environments)
 
+    # initialize local memory buffers
     size_local_memory_buffer = args["size_local_memory_buffer"] + 1
     local_buffer_transitions = np.empty(
         (num_environments, size_local_memory_buffer), dtype=transition_type
@@ -71,10 +108,14 @@ def actor(args):
     )
     buffer_idx = 0
 
+    # load communication queues
     actor_io_queue = args["actor_io_queue"]
     learner_actor_queue = args["learner_actor_queue"]
 
-    model = DummyModel(state_size, stack_depth)
+    # initialize the policy agent
+    model_config = args["model_config"]
+    model_config = extend_model_config(model_config, state_size, stack_depth)
+    model = DummyModel(model_config)
 
     performance_start = time()
     performance_stop = None
@@ -84,26 +125,30 @@ def actor(args):
     logger.info(f"Actor {actor_id} starting loop on device {device}")
     sent_data_chunks = 0
 
+    # initialize tensorboard for monitoring/logging
     summary_path = args["summary_path"]
     summary_date = args["summary_date"]
     tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "actor"))
     tensorboard_step = 0
+    
+    # start the main exploration loop
     while True:
-        sleep(1)
         steps_per_episode += 1
 
+        # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32)
-
         start_select_action = time()
-        actions, q_values = select_actions(_states, model, state_size - 1)
+        actions, q_values = select_actions(_states, model, state_size - 1, epsilon=epsilon)
         if benchmarking:
             logger.info(f"time for select action: {time() - start_select_action}")
 
+        # perform the chosen actions
         start_steps = time()
         next_states, rewards, terminals, _ = environments.step(actions)
         if benchmarking:
             logger.info(f"time to step through environments: {time() - start_steps}")
 
+        # save transitions to local buffer
         transitions = np.asarray(
             [
                 Transition(
@@ -120,6 +165,7 @@ def actor(args):
         local_buffer_rewards[:, buffer_idx] = rewards
         buffer_idx += 1
 
+        # prepare to send local transitions to replay memory
         if buffer_idx >= size_local_memory_buffer:
             # get new weights for the policy model here
             if learner_actor_queue.qsize() > 0:
@@ -135,9 +181,7 @@ def actor(args):
                 *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
             ]
 
-            sleep(0.2)
-
-            logger.info("Put data in actor_io_queue")
+            logger.debug("Put data in actor_io_queue")
             actor_io_queue.put(to_send)
             if verbosity:
                 sent_data_chunks += buffer_idx
@@ -148,6 +192,7 @@ def actor(args):
 
             buffer_idx = 0
 
+        # determine episodes which are to be deemed terminal
         too_many_steps = steps_per_episode > size_action_history
         if np.any(terminals) or np.any(too_many_steps):
             # find terminal envs
@@ -157,4 +202,5 @@ def actor(args):
             next_states[indices] = reset_states[indices]
             steps_per_episode[indices] = 0
 
+        # update states for next iteration
         states = next_states
