@@ -3,6 +3,7 @@ Main module to start the distributed multiprocessing setup
 for reinforcement learning.
 """
 import os
+import json
 import traceback
 from time import sleep
 import logging
@@ -71,6 +72,7 @@ def start_mp():
     size_local_memory_buffer = int(actor_config.get("size_local_memory_buffer"))
     actor_verbosity = int(actor_config["verbosity"])
     actor_benchmarking = int(actor_config["benchmarking"])
+    epsilon = float(actor_config["epsilon"])
     num_actions_per_qubit = 3
 
     # set up replay memory configuration
@@ -90,6 +92,7 @@ def start_mp():
     discount_factor = float(learner_config["discount_factor"])
     eval_frequency = int(learner_config["eval_frequency"])
     max_timesteps = int(learner_config["max_timesteps"])
+    learner_epsilon = float(learner_config["learner_epsilon"])
     learner_eval_p_errors = [0.01, 0.02, 0.03]
     learner_eval_p_msmt = [0.01, 0.02, 0.03]
 
@@ -99,6 +102,18 @@ def start_mp():
     learner_io_queue = mp.Queue()
     io_learner_queue = mp.Queue()
     learner_actor_queue = mp.Queue()
+
+    model_name = learner_config["model_name"]
+    model_config_location = learner_config["model_config_location"]
+    model_config_file = learner_config["model_config_file"]
+    model_config_file_path = os.path.join(model_config_location, model_config_file)
+
+    # load json with potantially multiple model definitions
+    with open(model_config_file_path) as json_file:
+        model_config = json.load(json_file)
+
+    # select the specification of the right model from the json
+    model_config = model_config[model_name]
 
     # configure processes
     mem_args = {
@@ -125,6 +140,9 @@ def start_mp():
         "benchmarking": actor_benchmarking,
         "summary_path": SUMMARY_PATH,
         "summary_date": SUMMARY_DATE,
+        "model_name": model_name,
+        "model_config": model_config,
+        "epsilon": epsilon
     }
 
     learner_args = {
@@ -147,6 +165,9 @@ def start_mp():
         "learner_eval_p_error": learner_eval_p_errors,
         "learner_eval_p_msmt": learner_eval_p_msmt,
         "timesteps": max_timesteps,
+        "model_name": model_name,
+        "model_config": model_config,
+        "learner_epsilon": learner_epsilon
     }
 
     # set up tensorboard for monitoring
@@ -158,7 +179,7 @@ def start_mp():
     tensorboard.add_text("run_info/hyper_parameters", tensorboard_string)
     tensorboard.close()
 
-    # start processes
+    # # start processes
 
     # prepare the replay memory process
     io_process = mp.Process(target=io_replay_memory, args=(mem_args,))
