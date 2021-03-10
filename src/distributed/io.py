@@ -1,3 +1,9 @@
+"""
+Implementation of the IO process to handle replay memory.
+Connects to the actor and learner process to store and share data
+between those processes.
+"""
+
 import os
 from time import time, sleep
 import logging
@@ -13,11 +19,32 @@ logger = logging.getLogger("io")
 logger.setLevel(logging.INFO)
 
 
-# TODO: find out if this is really the replay memory
 def io_replay_memory(args):
-    heart = time()
-    heartbeat_interval = 10
+    """
+    Start an instance of the replay memory process.
+    Receives transitions from the actor processes and stores them
+    in a replay-memory object.
+    Upon request it will sample and send the replay memories to the learner process.
 
+    Parameters
+    ==========
+    args: (dict)
+        "actor_io_queue": mp.Queue object to communicate between actor and io module
+        "learner_io_queue": mp.Queue object to communicate between learner and io module
+        "io_learner_queue": mp.Queue object to communicate between io module and learner
+        "replay_memory_size": (int) storage size (num of objects) of this replay memory instance
+        "replay_size_before_sampling": (int) number of elements to accumulate before a
+            meaningful sample will be generated
+        "batch_size": (int) number of elements in one batch that gets sent to the learner process
+        "verbosity": (int) verbosity level
+        "benchmarking": (int/bool) whether or not to perform certain timing actions for benchmarking
+        "summary_path": (str), base path for tensorboard
+        "summary_date": (str), target path for tensorboard for current run
+    """
+    heart = time()
+    heartbeat_interval = 60 # seconds
+
+    # initialization
     learner_io_queue = args["learner_io_queue"]
     io_learner_queue = args["io_learner_queue"]
     actor_io_queue = args["actor_io_queue"]
@@ -36,9 +63,11 @@ def io_replay_memory(args):
 
     start_learning = False
 
+    # initialize tensorboard for monitoring/logging
     tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "io"))
     tensorboard_step = 0
 
+    # prepare data throughput metrics
     count_consumption_outgoing = (
         0  # count the consumption of batches to be sent to the learner process
     )
@@ -47,7 +76,7 @@ def io_replay_memory(args):
     transitions_total = 0
     stop_watch = time()
     while True:
-        # sleep(1)
+
         # process the transitions sent from the actor process
         while not actor_io_queue.empty():
 
@@ -69,6 +98,7 @@ def io_replay_memory(args):
                     _transitions[4]
                 )
 
+                # save transitions to the replay memory store
                 replay_memory.save((_transitions, _priorities))
                 n_transitions_total += 1
                 count_transition_received += 1
@@ -152,6 +182,7 @@ def io_replay_memory(args):
             tensorboard_step += 1
             stop_watch = time()
 
+        # if the replay memory is sufficiently filled, trigger the actual learning
         if (
             not start_learning
         ) and replay_memory.current_num_objects >= replay_size_before_sampling:
@@ -160,10 +191,8 @@ def io_replay_memory(args):
         else:
             sleep(1)
 
+        # prepare to send data to learner process repeatedly
         while start_learning and (io_learner_queue.qsize() < batch_in_queue_limit):
-            # TODO: lindeby returns
-            # transitions, weights, indices, priorities
-            # what are the different elements?
             transitions, memory_weights, indices, priorities = replay_memory.sample(
                 batch_size
             )
@@ -179,6 +208,7 @@ def io_replay_memory(args):
         terminate = False
         while not learner_io_queue.empty():
 
+            # look for priority updates for prioritized replay memory
             msg, item = learner_io_queue.get()
 
             if msg == "priorities":
@@ -193,3 +223,4 @@ def io_replay_memory(args):
 
         if time() - heart > heartbeat_interval:
             heart = time()
+            logger.debug("Oohoh I, ooh, I'm still alive")

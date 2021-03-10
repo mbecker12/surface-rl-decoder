@@ -11,8 +11,8 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from environment_set import EnvironmentSet
-from util import extend_model_config, select_actions
-from dummy_agent import DummyModel
+from model_util import choose_model, extend_model_config
+from util import select_actions
 from surface_rl_decoder.surface_code import SurfaceCode
 
 # pylint: disable=too-many-statements,too-many-locals
@@ -52,6 +52,7 @@ def actor(args):
             default should be 3, for Pauli-X, -Y, -Z
         "verbosity": verbosity level
         "epsilon": (float) probability to choose a random action
+        "model_name": (str) specifier for the model
         "model_config": (dict) configuration for network architecture.
             May change with different architectures
         "benchmarking": whether certain performance time measurements should be performed
@@ -113,12 +114,15 @@ def actor(args):
     learner_actor_queue = args["learner_actor_queue"]
 
     # initialize the policy agent
+    model_name = args["model_name"]
     model_config = args["model_config"]
     model_config = extend_model_config(model_config, state_size, stack_depth)
-    model = DummyModel(model_config)
+    model = choose_model(model_name, model_config)
 
     performance_start = time()
     performance_stop = None
+    heart = time()
+    heartbeat_interval = 60 # seconds
 
     priorities = np.empty((25, 128))  # priorities TODO probably for replay memory
 
@@ -130,7 +134,7 @@ def actor(args):
     summary_date = args["summary_date"]
     tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "actor"))
     tensorboard_step = 0
-    
+
     # start the main exploration loop
     while True:
         steps_per_episode += 1
@@ -204,3 +208,7 @@ def actor(args):
 
         # update states for next iteration
         states = next_states
+
+        if time() - heart > heartbeat_interval:
+            heart = time()
+            logger.debug("It's alive, can you feel it?")

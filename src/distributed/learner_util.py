@@ -97,13 +97,18 @@ def perform_q_learning_step(
     policy_net: online network to peform the actual training step on
     target_net: offline network with frozen parameters,
         serves as the target Q value term in the Bellman equation.
-    device,
-    criterion,
-    optimizer,
-    data,
-    code_size,
-    batch_size,
-    discount_factor,
+    device: torch devic
+    criterion: loss function
+    optimizer: optimizer for training
+    data: (Tuple) data received io-learner-queue
+    code_size: code distance, number of qubits in one row/column
+    batch_size: number of different states in a batch
+    discount_factor: γ-factor in reinforcement learning
+
+    Returns
+    =======
+    indices: indices for (prioritized) memory replay objects
+    priorities: priorities for (prioritized) memory replay objects
     """
     (
         batch_state,
@@ -148,7 +153,9 @@ def perform_q_learning_step(
     loss = criterion(target_q_value, policy_output)
     optimizer.zero_grad()
 
-    # loss = weights * loss
+    # only used for prioritized experience replay
+    if weights is not None:
+        loss = weights * loss
 
     # Compute priorities
     priorities = np.absolute(loss.cpu().detach().numpy())

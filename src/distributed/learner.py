@@ -14,6 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
 from distributed.learner_util import perform_q_learning_step
+from model_util import choose_model, extend_model_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("learner")
@@ -30,25 +31,30 @@ def learner(args: Dict):
     ==========
     args: dictionary containing important configuration values for
         the learner process. The following keys are expected:
-            learner_io_queue: multiprocessing.Queue
-            io_learner_queue: multiprocessing.Queue
-            verbosity: int
-            device: torch.device
-            syndrome_size: int, usually code_distance + 1
-            stack_depth: int, number of layers in syndrome stack
-            target_update_steps: int, steps after which to update the target
+            "learner_io_queue": multiprocessing.Queue
+            "io_learner_queue": multiprocessing.Queue
+            "verbosity": (int) verbosity level
+            "device": torch.device
+            "syndrome_size": (int), usually code_distance + 1
+            "stack_depth": (int), number of layers in syndrome stack
+            "target_update_steps": (int), steps after which to update the target
                 network's parameters
-            discount_factor: float, γ factor in reinforcement learning
-            batch_size: int, batch_size stochastic gradient descent
-            eval_frequency: int, steps after which to evaluate policy network
-            learner_eval_p_error: List, list of different levels of p_error
+            "discount_factor": (float), γ factor in reinforcement learning
+            "batch_size": (int), batch_size stochastic gradient descent
+            "eval_frequency": (int), steps after which to evaluate policy network
+            "learner_eval_p_error": (List), list of different levels of p_error
                 to be used in evaluation
-            learner_eval_p_msmt: List, list of different levels of p_msmt
+            "learner_eval_p_msmt": (List), list of different levels of p_msmt
                 to be used in evaluation
-            max_time: float/int, max learning time in hours
-            timesteps: int, maximum time steps; set to -1 for infinite time steps
-            summary_path: str, base path for tensorboard
-            summary_date: str, target path for tensorboard for current run
+            "max_time": (float/int), max learning time in hours
+            "timesteps": (int), maximum time steps; set to -1 for infinite time steps
+            "model_name": (str) specifier for the model
+            "model_config": (dict) configuration for network architecture.
+                May change with different architectures
+            "learner_epsilon": (float) the exploration probability for the evaluation
+                policy
+            "summary_path": (str), base path for tensorboard
+            "summary_date": (str), target path for tensorboard for current run
     """
     # configuration
     learner_io_queue = args["learner_io_queue"]
@@ -67,6 +73,7 @@ def learner(args: Dict):
     eval_frequency = args["eval_frequency"]
     p_error_list = args["learner_eval_p_error"]
     p_msmt_list = args["learner_eval_p_msmt"]
+    learner_epsilon = args["learner_epsilon"]
     count_to_eval = 0
 
     start_time = time()
@@ -74,14 +81,18 @@ def learner(args: Dict):
     max_time = max_time_h * 60 * 60  # seconds
 
     heart = time()
-    heartbeat_interval = 10  # seconds
+    heartbeat_interval = 60  # seconds
     timesteps = args["timesteps"]
     if timesteps == -1:
         timesteps = np.Infinity
 
     # initialize models and other learning gadgets
-    policy_net = DummyModel(syndrome_size, stack_depth)
-    target_net = DummyModel(syndrome_size, stack_depth)
+    model_name = args["model_name"]
+    model_config = args["model_config"]
+    model_config = extend_model_config(model_config, syndrome_size, stack_depth)
+
+    policy_net = choose_model(model_name, model_config)
+    target_net = choose_model(model_name, model_config)
     policy_net.to(device)
     target_net.to(device)
     optimizer = Adam(policy_net.parameters(), lr=learning_rate)
@@ -105,12 +116,14 @@ def learner(args: Dict):
             logger.warning("Learner: time exceeded, aborting...")
             break
 
+        # after a certain number of steps, update the frozen target network
         if t % target_update_steps == 0 and t > 0:
             logger.debug("Update target network parameters")
             params = parameters_to_vector(policy_net.parameters())
             vector_to_parameters(params, target_net.parameters())
             target_net.to(device)
 
+            # notify the actor process that its network parameters should be updated
             msg = ("network_update", params.detach())
             logger.info("Send network weights to actor process")
             learner_actor_queue.put(msg)
@@ -118,9 +131,9 @@ def learner(args: Dict):
         if io_learner_queue.qsize == 0:
             logger.debug("Learner waiting")
 
+        # receive new data from replay memory
         data = io_learner_queue.get()
         if data is not None:
-
             transitions = data[0]
             data_size = len(transitions)
             received_data += data_size
@@ -136,6 +149,7 @@ def learner(args: Dict):
         # we might need an abstraction layer to support
         # different learning strategies
 
+        # perform the actual learning
         indices, priorities = perform_q_learning_step(
             policy_net,
             target_net,
@@ -164,6 +178,7 @@ def learner(args: Dict):
                 p_error_list,
                 p_msmt_list,
                 plot_one_episode=False,
+                epsilon=learner_epsilon
             )
 
             for i, p_err in enumerate(p_error_list):
@@ -182,10 +197,6 @@ def learner(args: Dict):
         if time() - heart > heartbeat_interval:
             heart = time()
             logger.debug("I'm alive my friend. I can see the shadows everywhere!")
-            if verbosity > 1:
-                tensorboard.add_scalar("learner/heartbeat", 1, 0)
-
-        sleep(1)
 
     logger.info("Time's up. Terminate!")
     msg = ("terminate", None)
