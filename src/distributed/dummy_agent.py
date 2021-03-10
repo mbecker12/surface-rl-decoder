@@ -13,18 +13,21 @@ class DummyModel(nn.Module):
     that the different subprocesses involved run properly.
     """
 
-    def __init__(self, syndrome_size, stack_depth, num_actions_per_qubit=3):
+    def __init__(self, config):
         super().__init__()
-        self.syndrome_size = syndrome_size
-        self.stack_depth = stack_depth
-        n_qubits = syndrome_size - 1
+        self.syndrome_size = config["syndrome_size"]
+        self.stack_depth = config["stack_depth"]
+        n_qubits = self.syndrome_size - 1
+        num_actions_per_qubit = config["num_actions_per_qubit"]
+        layer1_size = config["layer1_size"]
+        layer2_size = config["layer2_size"]
 
         self.lin1 = nn.Linear(
-            stack_depth * syndrome_size * syndrome_size, 512, bias=True
+            self.stack_depth * self.syndrome_size * self.syndrome_size, layer1_size, bias=True
         )
-        self.lin2 = nn.Linear(512, 512)
+        self.lin2 = nn.Linear(layer1_size, layer2_size)
         n_actions_total = num_actions_per_qubit * n_qubits * n_qubits + 1
-        self.output = nn.Linear(512, n_actions_total)
+        self.output = nn.Linear(layer1_size, n_actions_total)
 
     # pylint: disable=invalid-name
     def forward(self, x: torch.Tensor):
