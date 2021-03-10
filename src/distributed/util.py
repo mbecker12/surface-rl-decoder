@@ -2,7 +2,6 @@ import torch
 import numpy as np
 import random
 from typing import List, Tuple, Union
-from dummy_agent import DummyModel
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
 
@@ -124,6 +123,8 @@ def action_to_q_value_index(
     x_coord, y_coord, operator = action[-3:]
 
     if 1 <= operator <= 3:
+        assert x_coord >= 0, "qubit x coordinate must be between 0 and d-1"
+        assert y_coord >= 0, "qubit y coordinate must be between 0 and d-1"
         index = (
             x_coord * num_actions_per_qubit
             + y_coord * system_size * num_actions_per_qubit
@@ -173,6 +174,14 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
         or q_value_index == -1
     ):
         return (0, 0, TERMINAL_ACTION)
+    elif (
+        q_value_index < 0
+        or q_value_index > num_actions_per_qubit * system_size * system_size
+    ):
+        raise Exception(
+            f"Error! Index {q_value_index} is invalid for surface code with system size {system_size}."
+        )
+
     actor = q_value_index % num_actions_per_qubit
     operator = actor + 1
     grid_index_group = (q_value_index - actor) // num_actions_per_qubit
@@ -180,22 +189,3 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
     y_coord = grid_index_group // system_size
 
     return (x_coord, y_coord, operator)
-
-
-if __name__ == "__main__":
-    for y in range(5):
-        for x in range(5):
-            for ac in (1, 2, 3):
-                idx = action_to_q_value_index((x, y, ac), 5)
-                print(f"{x=}, {y=}, {ac=}, {idx=}")
-
-                action = q_value_index_to_action(idx, 5)
-                assert action == (x, y, ac)
-
-    for i in range(3 * 5 * 5 + 1):
-        action = q_value_index_to_action(i, 5)
-        x, y, ac = action
-        print(f"{x=}, {y=}, {ac=}, {i=}")
-
-        idx = action_to_q_value_index(action, 5)
-        assert idx == i

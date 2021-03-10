@@ -5,7 +5,7 @@ learning model
 (a.k.a. agent)
 """
 
-from dummy_agent import DummyModel
+from distributed.dummy_agent import DummyModel
 
 
 def choose_model(model_name, model_config):
