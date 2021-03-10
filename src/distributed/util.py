@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import random
 from typing import List, Tuple, Union
+from dummy_agent import DummyModel
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
 
@@ -10,11 +11,26 @@ def incremental_mean(val, mu, n):
 
 
 def select_actions(
-    state, model, system_size, num_actions_per_qubit=3, epsilon=0.0, device=None
+    state, model, system_size, num_actions_per_qubit=3, epsilon=0.0
 ):
     """
-    Select an action according to an ε-greedy policy based on the
+    Select actions batch-wise according to an ε-greedy policy based on the
     provided neural network model.
+
+    Parameters
+    ==========
+    state: torch.tensor, batch of stacks of states,
+        shape: (batch_size, stack_depth, system_size, system_size)
+    model: the neural network model of choice
+    num_actions_per_qubit: (optional) number of possible operators on one qubit,
+        default is 3, for Pauli-X, -Y, or -Z.
+    epsilon: (float) probability to choose a random action
+
+    Returns
+    =======
+    actions: (array-like) shape: (batch_size, 3); chosen action for each batch
+    q_values: (array-like), shape: (batch_size, num_actions_per_qubit * d**2 + 1)
+        q_values for each action in the given input state.
     """
 
     model.eval()
@@ -25,42 +41,56 @@ def select_actions(
         policy_net_output = model(state)
         q_values = np.array(policy_net_output.cpu())
 
-    rand = random.random()
-
     batch_size = q_values.shape[0]
 
-    # choose random action
-    if rand < epsilon:
-        q_value_probabilities = (
-            torch.softmax(policy_net_output, dim=1, dtype=torch.float32)
-            .detach()
-            .numpy()
+    # choose completely greedy action first
+    # for now, choose only the q-value-index
+    # the actual action is chosen at the bottom of this function
+    q_value_index = np.argmax(q_values, axis=1)
+
+    # choose random action where it applies
+    rand = np.random.random_sample(batch_size)
+    non_greedy_mask = rand < epsilon # where true: choose a random action
+    non_greedy_indices = np.where(non_greedy_mask)[0]
+
+    # generate probabilities
+    q_value_probabilities = (
+        torch.softmax(
+            policy_net_output[non_greedy_indices],
+            dim=1, dtype=torch.float32
         )
+        .detach()
+        .numpy()
+    )
 
-        for i in range(batch_size):
-            assert (
-                0.999 <= q_value_probabilities[i].sum() <= 1.00001
-            ), q_value_probabilities[i].sum()
+    assert q_value_probabilities.shape[0] == len(non_greedy_indices), len(non_greedy_indices)
 
-        idx = np.array(
-            [
-                np.random.choice(range(len(q_values[0])), p=q_value_probabilities[i])
-                for i in range(batch_size)
-            ]
-        )
+    # assure that probabilities add to 1
+    for j, _ in enumerate(non_greedy_indices):
+        assert (
+                0.999 <= q_value_probabilities[j].sum() <= 1.00001
+            ), q_value_probabilities[j].sum()
 
-    # choose deterministic, purely-greedy action
-    else:
-        idx = np.argmax(q_values, axis=1)
+    # overwrite the chosen q-value index at the places where a random action
+    # should be chosen
+    q_value_index[non_greedy_indices] = np.array(
+        [
+            np.random.choice(range(len(q_values[0])), p=q_value_probabilities[j])
+            for j, _ in enumerate(non_greedy_indices)
+        ]
+    )
 
+    # finally choose the actual action based on the q-value index
     actions = np.array(
         [
             q_value_index_to_action(
-                idx[i], system_size, num_actions_per_qubit=num_actions_per_qubit
+                q_value_index[i], system_size, num_actions_per_qubit=num_actions_per_qubit
             )
             for i in range(batch_size)
         ]
     )
+
+    assert len(actions) == batch_size
 
     return actions, q_values
 
@@ -73,7 +103,7 @@ def action_to_q_value_index(
     to the correct index in the q-value array.
     The q-value array should contain num_actions_per_qubit * system_size**2 + 1
     entries.
-    The entries of q-value arrays are to be thought of
+    The entries of q-value arrays are thought to be the actions in the following order:
         [
             (0,0,1), (0,0,2), (0,0,3), (1,0,1), (1,0,2), (1,0,3), (2,0,1), ...,
             (d-2, d-1, 3), (d-1, d-1, 1), (d-1, d-1, 2), (d-1, d-1, 3), (x, y, terminal)
@@ -110,6 +140,29 @@ def action_to_q_value_index(
 
 
 def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3):
+    """
+    Map an index from a alid q-value array to the corresponding action,
+    with its x- and y-coordinates and chosen operator.
+    The q-value array should contain num_actions_per_qubit * system_size**2 + 1
+    entries.
+    The entries of q-value arrays are thought to be the actions in the following order:
+        [
+            (0,0,1), (0,0,2), (0,0,3), (1,0,1), (1,0,2), (1,0,3), (2,0,1), ...,
+            (d-2, d-1, 3), (d-1, d-1, 1), (d-1, d-1, 2), (d-1, d-1, 3), (x, y, terminal)
+        ]
+
+    Parameters
+    ==========
+    q_value_index: (int) index pointing to the desired q-value in the q-value-array
+    system_size: code distance d, number of physical qubits per row/column
+    num_actions_per_qubit: (optional) number of possible operators on one qubit,
+        default is 3, for Pauli-X, -Y, or -Z.
+
+    Returns
+    =======
+    action: (Tuple) (x-coordinate, y-coordinate, operator) of one action
+        to be performed on the whole qubit stack
+    """
     # example, assuming system_size=5, actions_per_qubit=3
     # (example: index 22) -> action (2, 1, 2)
     # actor = 22 % 3 = 1
@@ -129,6 +182,54 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
 
     return (x_coord, y_coord, operator)
 
+def choose_model(model_name, model_config):
+    """
+    Given a model name, choose the corresponding neural network agent/model
+    from a custom mapping
+
+    Parameters
+    ==========
+    model_name: (str) valid name of the model/agent to be chosen
+    model_config: (dict) dictionary containing expected model configuration.
+        This may vary for different models
+
+    Returns
+    =======
+    model: The desired neural network object, subclass of torch.nn.Module
+    """
+
+    if "dummy" in model_name:
+        model = DummyModel(model_config)
+    else:
+        raise Exception(f"Error! Model '{model_name}' not supported or not recognized.")
+
+    return model
+
+def extend_model_config(model_config, system_size, stack_depth, num_actions_per_qubit=3):
+    """
+    Extend an existing model or agent configuration dictionary
+    with information about the environment.
+
+    Parameters
+    ==========
+    model_config: (dict) dictionary contiaining information about
+        model architecture and layer shapes
+    system_size: (int) size of the state, ususally code distance+1
+    stack_depth: (int) number of layers in a state stack
+    num_actions_per_qubit: (optional) (int), number of possible actions on one
+        qubit. Defaults to 3 for Pauli-X, -Y, -Z.
+
+    Returns
+    =======
+    model_config: (dict) updated dictionary with configuration information
+        of the model architecture
+    """
+
+    model_config["syndrome_size"] = system_size
+    model_config["stack_depth"] = stack_depth
+    model_config["num_actions_per_qubit"] = num_actions_per_qubit
+
+    return model_config
 
 if __name__ == "__main__":
     for y in range(5):
