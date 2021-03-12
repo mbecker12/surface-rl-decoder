@@ -79,19 +79,24 @@ Deployment
 
 An example of how to deploy a job script:
 
-    sbatch surface-rl-decoder/alvis-job-first.sh --export-file=surface-rl-decoder/conf.env 
+    sbatch surface-rl-decoder/alvis-job-first.sh
 
 The actual job script is `alvis-job-first.sh`.
 
+Inside the job script, a `conf.env` file is mounted into the container.
 Since we make use of the config-ini-parser, we can override the settings with environment variables which
-we specify in the `conf.env` in the above example.
+we specify in the environment file. Custom configuration should be done by changing the content of the `conf.env` file.
 
 Build
 =====
 
 We can build and push a docker image based on the `Dockerfile` in this repository.
+For execution on an HPC cluster, the docker imager should be transformed to a `singularity` image.
+This can be done by running
 
-The job script mentioned above then envokes `singularity` to create and run a singularity image based on said docker image on the cluster.
+    singularity build $singularity_image_name $location_of_docker_image
+
+The job script mentioned above then envokes `singularity` to load a singularity image based on said docker image on the cluster.
 
 Tests
 =====
