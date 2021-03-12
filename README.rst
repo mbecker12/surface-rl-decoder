@@ -74,6 +74,25 @@ and its value will be used.
 | cfg["config"]["env"]["error_channel"] | CONFIG_ENV_ERROR_CHANNEL | "dp"          |
 +---------------------------------------+--------------------------+---------------+
 
+Deployment
+==========
+
+An example of how to deploy a job script:
+
+    sbatch surface-rl-decoder/alvis-job-first.sh --export-file=surface-rl-decoder/conf.env 
+
+The actual job script is `alvis-job-first.sh`.
+
+Since we make use of the config-ini-parser, we can override the settings with environment variables which
+we specify in the `conf.env` in the above example.
+
+Build
+=====
+
+We can build and push a docker image based on the `Dockerfile` in this repository.
+
+The job script mentioned above then envokes `singularity` to create and run a singularity image based on said docker image on the cluster.
+
 Tests
 =====
 
