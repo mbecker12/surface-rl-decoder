@@ -20,6 +20,7 @@ COPY requirements.txt /${WORKDIR_NAME}/requirements.txt
 RUN ${VENV_PYTHON} -m pip install --upgrade pip --no-cache-dir
 RUN ${VENV_PIP} install -r requirements.txt --no-cache-dir
 
+RUN mkdir /${WORKDIR_NAME}/runs
 COPY setup.cfg /${WORKDIR_NAME}/setup.cfg
 COPY setup.py /${WORKDIR_NAME}/setup.py
 COPY .git /${WORKDIR_NAME}/.git
