@@ -36,6 +36,8 @@ def io_replay_memory(args):
         "replay_size_before_sampling": (int) number of elements to accumulate before a
             meaningful sample will be generated
         "batch_size": (int) number of elements in one batch that gets sent to the learner process
+        "stack_depth": (int), number of layers in syndrome stack
+        "syndrome_size": (int), dimension of syndrome/state layer, usually code_distance + 1
         "verbosity": (int) verbosity level
         "benchmarking": (int/bool) whether or not to perform certain timing actions for benchmarking
         "summary_path": (str), base path for tensorboard
@@ -57,6 +59,8 @@ def io_replay_memory(args):
 
     replay_memory = ReplayMemory(memory_size)
     batch_size = args["batch_size"]
+    stack_depth = args["stack_depth"]
+    syndrome_size = args["syndrome_size"]
 
     summary_path = args["summary_path"]
     summary_date = args["summary_date"]
@@ -88,12 +92,12 @@ def io_replay_memory(args):
                 _transitions, _priorities = transitions[i]
 
                 ## if the zip method is chosen in the actor
-                assert _transitions[0].shape == (8, 6, 6), _transitions[0].shape
+                assert _transitions[0].shape == (stack_depth, syndrome_size, syndrome_size), _transitions[0].shape
                 assert _transitions[1].shape == (3,), _transitions[1].shape
                 assert isinstance(
                     _transitions[2], (float, np.float64, np.float32)
                 ), type(_transitions[2])
-                assert _transitions[3].shape == (8, 6, 6), _transitions[3].shape
+                assert _transitions[3].shape == (stack_depth, syndrome_size, syndrome_size), _transitions[3].shape
                 assert isinstance(_transitions[4], (bool, np.bool_)), type(
                     _transitions[4]
                 )

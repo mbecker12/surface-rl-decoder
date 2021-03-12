@@ -51,6 +51,8 @@ def start_mp():
     cfg.scan(".", True).read()
     distributed_config = cfg.config_rendered.get("distributed_config")
     global_config = cfg.config_rendered.get("config")
+    logger.info(f"{global_config=}")
+    logger.info(f"{distributed_config=}")
 
     actor_config = distributed_config.get("actor")
     memory_config = distributed_config.get("replay_memory")
@@ -123,6 +125,8 @@ def start_mp():
         "replay_memory_size": replay_memory_size,
         "replay_size_before_sampling": replay_size_before_sampling,
         "batch_size": batch_size,
+        "stack_depth": stack_depth,
+        "syndrome_size": syndrome_size,
         "verbosity": replay_memory_verbosity,
         "benchmarking": replay_memory_benchmarking,
         "summary_path": SUMMARY_PATH,
