@@ -21,7 +21,7 @@ job_stats.py ${SLURM_JOB_ID}
 
 singularity run \
     -B ${LOG_PATH}:/${WORKDIR}/runs:rw \
-    docker://xero32/qec-mp:first \
+    ${DOCKER_IMAGE_NAME} \
     /bin/bash -c \
     "cd /${WORKDIR}; \
     python --version; \
