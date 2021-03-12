@@ -92,12 +92,20 @@ def io_replay_memory(args):
                 _transitions, _priorities = transitions[i]
 
                 ## if the zip method is chosen in the actor
-                assert _transitions[0].shape == (stack_depth, syndrome_size, syndrome_size), _transitions[0].shape
+                assert _transitions[0].shape == (
+                    stack_depth,
+                    syndrome_size,
+                    syndrome_size,
+                ), _transitions[0].shape
                 assert _transitions[1].shape == (3,), _transitions[1].shape
                 assert isinstance(
                     _transitions[2], (float, np.float64, np.float32)
                 ), type(_transitions[2])
-                assert _transitions[3].shape == (stack_depth, syndrome_size, syndrome_size), _transitions[3].shape
+                assert _transitions[3].shape == (
+                    stack_depth,
+                    syndrome_size,
+                    syndrome_size,
+                ), _transitions[3].shape
                 assert isinstance(_transitions[4], (bool, np.bool_)), type(
                     _transitions[4]
                 )
