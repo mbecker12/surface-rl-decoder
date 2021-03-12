@@ -198,7 +198,7 @@ def start_mp():
 
         actor_args["id"] = i
         actor_process.append(mp.Process(target=actor, args=(actor_args,)))
-        logger.info(f"Spawn actor process {i}")
+        logger.info(f"Spawn actor process {i} on device {actor_args['device']}")
         actor_process[i].start()
 
     # spawn replay memory process
@@ -206,7 +206,7 @@ def start_mp():
     io_process.start()
 
     # spawn learner process
-    logger.info("Start learner")
+    logger.info(f"Start learner on device {learner_device}")
     try:
         learner(learner_args)
     # pylint: disable=broad-except
