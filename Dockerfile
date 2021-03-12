@@ -22,11 +22,12 @@ RUN ${VENV_PIP} install -r requirements.txt --no-cache-dir
 
 COPY setup.cfg /${WORKDIR_NAME}/setup.cfg
 COPY setup.py /${WORKDIR_NAME}/setup.py
-COPY src /${WORKDIR_NAME}/src
 COPY .git /${WORKDIR_NAME}/.git
+COPY src /${WORKDIR_NAME}/src
+COPY config /${WORKDIR_NAME}/src/config
 COPY README.rst /${WORKDIR_NAME}/README.rst
 
-RUN ${VENV_PYTHON} setup.py develop --user
+RUN ${VENV_PYTHON} setup.py develop
 
 RUN groupadd -r quantum && useradd -m -r -s /bin/sh -g quantum quantum
 RUN chown quantum:quantum /${WORKDIR_NAME}
