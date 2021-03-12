@@ -24,4 +24,5 @@ singularity run \
     docker://xero32/qec-mp:first \
     /bin/bash -c \
     "cd /${WORKDIR}; \
+    python --version; \
     python /${WORKDIR}/src/distributed/start_distributed_mp.py"
