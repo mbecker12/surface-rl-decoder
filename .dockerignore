@@ -1,0 +1,8 @@
+runs/*
+**/*.ipynb
+.github/*
+.ipynb_checkpoints/*
+.pytest_cache/*
+.vscode/*
+htmlcov/*
+plots/*
