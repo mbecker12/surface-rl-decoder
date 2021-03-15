@@ -2,7 +2,7 @@
 #SBATCH -J qec-test
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -t 0:00:40
+#SBATCH -t 0:00:20
 #SBATCH -A SNIC2020-33-2 -p alvis
 #SBATCH --gpus-per-node=V100:1
 #SBATCH --output=./logs-sbatch/logs-%j.out
@@ -22,14 +22,37 @@ mkdir -p ${LOG_PATH}
 
 job_stats.py ${SLURM_JOB_ID}
 
-singularity run --nv \
-    -B ${LOG_PATH}:/${IMAGE_WORKDIR}/runs:rw \
-    --env-file ${CLUSTER_WORKDIR}/conf.env \
-    ${SINGULARITY_IMAGE_NAME} \
-    /bin/bash -c \
-    "cd /${IMAGE_WORKDIR}; \
-    python --version; \
-    nvidia-smi;
-    python -c 'import torch; print(torch.cuda.is_available())'; \
-    python -c 'import torch.cuda as tc; id = tc.current_device(); print(tc.get_device_name(id))'; \
-    python /${IMAGE_WORKDIR}/src/distributed/start_distributed_mp.py"
+if [ -z "$1" ]
+    then
+    echo ""
+    echo "No argument for env-config file supplied!"
+    echo "Resort to default values"
+    echo ""
+
+    singularity run --nv \
+        -B ${LOG_PATH}:/${IMAGE_WORKDIR}/runs:rw \
+        ${SINGULARITY_IMAGE_NAME} \
+        /bin/bash -c \
+        "cd /${IMAGE_WORKDIR}; \
+        python --version; \
+        nvidia-smi;
+        python -c 'import torch; print(torch.cuda.is_available())'; \
+        python -c 'import torch.cuda as tc; id = tc.current_device(); print(tc.get_device_name(id))'; \
+        python /${IMAGE_WORKDIR}/src/distributed/start_distributed_mp.py"
+else
+    echo ""
+    echo "Use config file $1"
+    echo ""
+
+    singularity run --nv \
+        -B ${LOG_PATH}:/${IMAGE_WORKDIR}/runs:rw \
+        --env-file $1 \
+        ${SINGULARITY_IMAGE_NAME} \
+        /bin/bash -c \
+        "cd /${IMAGE_WORKDIR}; \
+        python --version; \
+        nvidia-smi;
+        python -c 'import torch; print(torch.cuda.is_available())'; \
+        python -c 'import torch.cuda as tc; id = tc.current_device(); print(tc.get_device_name(id))'; \
+        python /${IMAGE_WORKDIR}/src/distributed/start_distributed_mp.py"
+fi
