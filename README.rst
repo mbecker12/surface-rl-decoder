@@ -85,6 +85,9 @@ Inside the job script, a ``conf.env`` file is mounted into the container.
 Since we make use of the config-ini-parser, we can override the settings with environment variables which
 we specify in the environment file. Custom configuration should be done by changing the content of the ``conf.env`` file.
 
+Note that you can write the job script so that it takes on command line arguments. These could be used to specify an environment file
+to change the configuration of the run.
+
 Build
 =====
 
