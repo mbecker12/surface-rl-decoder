@@ -20,6 +20,7 @@ COPY requirements.txt /${WORKDIR_NAME}/requirements.txt
 RUN ${VENV_PYTHON} -m pip install --upgrade pip --no-cache-dir
 RUN ${VENV_PIP} install -r requirements.txt --no-cache-dir
 
+RUN groupadd -r quantum && useradd -m -r -s /bin/sh -g quantum quantum
 RUN mkdir /${WORKDIR_NAME}/runs
 RUN chown quantum:quantum /${WORKDIR_NAME}/runs
 
@@ -31,7 +32,6 @@ COPY README.rst /${WORKDIR_NAME}/README.rst
 
 RUN ${VENV_PYTHON} setup.py develop
 
-RUN groupadd -r quantum && useradd -m -r -s /bin/sh -g quantum quantum
 RUN chown quantum:quantum /${WORKDIR_NAME}
 USER quantum
 
