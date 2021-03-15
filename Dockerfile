@@ -21,11 +21,12 @@ RUN ${VENV_PYTHON} -m pip install --upgrade pip --no-cache-dir
 RUN ${VENV_PIP} install -r requirements.txt --no-cache-dir
 
 RUN mkdir /${WORKDIR_NAME}/runs
+RUN chown quantum:quantum /${WORKDIR_NAME}/runs
+
 COPY setup.cfg /${WORKDIR_NAME}/setup.cfg
 COPY setup.py /${WORKDIR_NAME}/setup.py
 COPY .git /${WORKDIR_NAME}/.git
 COPY src /${WORKDIR_NAME}/src
-COPY config /${WORKDIR_NAME}/src/config
 COPY README.rst /${WORKDIR_NAME}/README.rst
 
 RUN ${VENV_PYTHON} setup.py develop

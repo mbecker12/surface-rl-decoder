@@ -38,9 +38,7 @@ A virtual environment for this project can be setup via
     
     pip install -r requirements.txt
 
-You can leave the environment by executing
-
-    deactivate
+You can leave the environment by executing ``deactivate``.
 
 
 The Project was setup using PyScaffold; after setting up your environment, you should run
@@ -54,7 +52,7 @@ Configurations
 ==============
 
 This project uses the config-env-parser to define configuration parameters of all kinds.
-This package will look for a .ini file in the src directory and extract the parameters from there.
+This package will look for a ``.ini`` file in the ``src`` directory (and its subdirectories) and extract the parameters from there.
 If a parameter exists as an environment variable, the environment variable has higher priority
 and its value will be used.
 
@@ -79,19 +77,28 @@ Deployment
 
 An example of how to deploy a job script:
 
-    sbatch surface-rl-decoder/alvis-job-first.sh --export-file=surface-rl-decoder/conf.env 
+    sbatch surface-rl-decoder/alvis-job-first.sh
 
-The actual job script is `alvis-job-first.sh`.
+The actual job script is ``alvis-job-first.sh``.
 
+Inside the job script, a ``conf.env`` file is mounted into the container.
 Since we make use of the config-ini-parser, we can override the settings with environment variables which
-we specify in the `conf.env` in the above example.
+we specify in the environment file. Custom configuration should be done by changing the content of the ``conf.env`` file.
+
+The job script accepts an input argument with a path to an environment-config file. This can be used to specify an environment file
+to change the configuration of the run and specify things like system size, network architecture, path to network configuration, etc.
 
 Build
 =====
 
-We can build and push a docker image based on the `Dockerfile` in this repository.
+We can build and push a docker image based on the ``Dockerfile`` in this repository.
+For execution on an HPC cluster, the docker imager should be transformed to a ``singularity`` image.
+This can be done by running
 
-The job script mentioned above then envokes `singularity` to create and run a singularity image based on said docker image on the cluster.
+    singularity build $singularity_image_name $location_of_docker_image
+
+The job script mentioned above then envokes ``singularity`` to load a singularity image based on said docker image on the cluster.
+
 
 Tests
 =====
@@ -107,7 +114,7 @@ Then, the tests including coverage report can be run via
 
     python -m pytest --cov-report=html --cov=src
 
-The detailed coverage report can be obtained in ./htmlcov/index.html.
+The detailed coverage report can be obtained in ``./htmlcov/index.html.``
 
 
 Note

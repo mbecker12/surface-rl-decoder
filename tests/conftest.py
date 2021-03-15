@@ -80,7 +80,7 @@ def init_testing_model():
     return testing_model
 
 
-MODEL_CONFIG_LOCATION = "src/distributed/model_spec"
+MODEL_CONFIG_LOCATION = "src/config/model_spec"
 
 
 @pytest.fixture
