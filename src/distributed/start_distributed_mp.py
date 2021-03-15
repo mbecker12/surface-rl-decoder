@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
 
-SUMMARY_PATH = "runs"
+SUMMARY_PATH = "./runs"
 # TODO: replace this with the actual date in the real setting
 SUMMARY_DATE = "test2"
 SUMMARY_RUN_INFO = "run_info"
@@ -29,12 +29,11 @@ def start_mp():
     Start the actual sub processes.
     This will read in the configuration from available .ini files.
     Expect to find files containing the following sections:
-        distributed_config
+        config
+            env
             actor
             replay_memory
             learner
-        config
-            env
 
     The available configuration will determine the settings
     of the different subprocesses:
@@ -49,14 +48,12 @@ def start_mp():
     # take care of all the configuration
     cfg = Config()
     cfg.scan(".", True).read()
-    distributed_config = cfg.config_rendered.get("distributed_config")
     global_config = cfg.config_rendered.get("config")
     logger.info(f"{global_config=}")
-    logger.info(f"{distributed_config=}")
 
-    actor_config = distributed_config.get("actor")
-    memory_config = distributed_config.get("replay_memory")
-    learner_config = distributed_config.get("learner")
+    actor_config = global_config.get("actor")
+    memory_config = global_config.get("replay_memory")
+    learner_config = global_config.get("learner")
 
     # set up surface code environment configuration
     env_config = global_config.get("env")
@@ -179,7 +176,6 @@ def start_mp():
         os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO)
     )
     tensorboard_string = "global config: " + str(global_config) + "\n"
-    tensorboard_string += "distributed config: " + str(distributed_config)
     tensorboard.add_text("run_info/hyper_parameters", tensorboard_string)
     tensorboard.close()
 
