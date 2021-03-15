@@ -85,8 +85,8 @@ Inside the job script, a ``conf.env`` file is mounted into the container.
 Since we make use of the config-ini-parser, we can override the settings with environment variables which
 we specify in the environment file. Custom configuration should be done by changing the content of the ``conf.env`` file.
 
-Note that you can write the job script so that it takes on command line arguments. These could be used to specify an environment file
-to change the configuration of the run.
+The job script accepts an input argument with a path to an environment-config file. This can be used to specify an environment file
+to change the configuration of the run and specify things like system size, network architecture, path to network configuration, etc.
 
 Build
 =====
@@ -98,6 +98,7 @@ This can be done by running
     singularity build $singularity_image_name $location_of_docker_image
 
 The job script mentioned above then envokes ``singularity`` to load a singularity image based on said docker image on the cluster.
+
 
 Tests
 =====

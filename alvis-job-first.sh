@@ -56,3 +56,4 @@ else
         python -c 'import torch.cuda as tc; id = tc.current_device(); print(tc.get_device_name(id))'; \
         python /${IMAGE_WORKDIR}/src/distributed/start_distributed_mp.py"
 fi
+

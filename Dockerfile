@@ -22,6 +22,7 @@ RUN ${VENV_PIP} install -r requirements.txt --no-cache-dir
 
 RUN mkdir /${WORKDIR_NAME}/runs
 RUN chown quantum:quantum /${WORKDIR_NAME}/runs
+
 COPY setup.cfg /${WORKDIR_NAME}/setup.cfg
 COPY setup.py /${WORKDIR_NAME}/setup.py
 COPY .git /${WORKDIR_NAME}/.git
