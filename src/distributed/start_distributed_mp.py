@@ -6,6 +6,7 @@ import os
 import json
 import traceback
 from time import sleep
+from copy import deepcopy
 import logging
 import multiprocessing as mp
 from iniparser import Config
@@ -13,6 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 from distributed.actor import actor
 from distributed.learner import learner
 from distributed.io import io_replay_memory
+from model_util import save_metadata
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
@@ -49,7 +51,7 @@ def start_mp():
     cfg = Config()
     cfg.scan(".", True).read()
     global_config = cfg.config_rendered.get("config")
-    logger.info(f"{global_config=}")
+    logger.info(f"\n{global_config=}\n\n")
 
     actor_config = global_config.get("actor")
     memory_config = global_config.get("replay_memory")
@@ -72,6 +74,7 @@ def start_mp():
     actor_verbosity = int(actor_config["verbosity"])
     actor_benchmarking = int(actor_config["benchmarking"])
     epsilon = float(actor_config["epsilon"])
+    actor_load_model = int(actor_config["load_model"])
     num_actions_per_qubit = 3
 
     # set up replay memory configuration
@@ -94,6 +97,9 @@ def start_mp():
     learner_epsilon = float(learner_config["learner_epsilon"])
     learner_eval_p_errors = [0.01, 0.02, 0.03]
     learner_eval_p_msmt = [0.01, 0.02, 0.03]
+    learner_load_model = int(learner_config["load_model"])
+    old_model_path = learner_config["load_model_path"]
+    save_model_path = learner_config["save_model_path"]
 
     # initialize communication queues
     logger.info("Initialize queues")
@@ -144,6 +150,8 @@ def start_mp():
         "model_name": model_name,
         "model_config": model_config,
         "epsilon": epsilon,
+        "load_model": actor_load_model,
+        "old_model_path": old_model_path,
     }
 
     learner_args = {
@@ -169,6 +177,9 @@ def start_mp():
         "model_name": model_name,
         "model_config": model_config,
         "learner_epsilon": learner_epsilon,
+        "load_model": learner_load_model,
+        "old_model_path": old_model_path,
+        "save_model_path": save_model_path,
     }
 
     # set up tensorboard for monitoring
@@ -217,6 +228,18 @@ def start_mp():
         )
         tensorboard.add_text("run_info/error_message", error_traceback)
         tensorboard.close()
+
+    save_model_path_date_meta = os.path.join(
+        save_model_path,
+        SUMMARY_DATE,
+        f"{model_name}_{system_size}_{SUMMARY_DATE}_meta.yaml",
+    )
+
+    logger.info("Saving Metadata")
+    metadata = {}
+    metadata["global"] = deepcopy(global_config)
+    metadata["network"] = deepcopy(model_config)
+    save_metadata(metadata, save_model_path_date_meta)
 
     logger.info("Training Done!")
     for i in range(num_actors):

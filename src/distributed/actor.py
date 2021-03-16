@@ -11,7 +11,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from environment_set import EnvironmentSet
-from model_util import choose_model, extend_model_config
+from model_util import choose_model, extend_model_config, load_model
 from util import select_actions
 from surface_rl_decoder.surface_code import SurfaceCode
 
@@ -67,6 +67,8 @@ def actor(args):
     benchmarking = args["benchmarking"]
     num_actions_per_qubit = args["num_actions_per_qubit"]
     epsilon = args["epsilon"]
+    load_model_flag = args["load_model"]
+    old_model_path = args["old_model_path"]
 
     logger.info("Fire up all the environments!")
 
@@ -119,6 +121,12 @@ def actor(args):
     model_config = extend_model_config(model_config, state_size, stack_depth)
     model = choose_model(model_name, model_config)
 
+    if load_model_flag:
+        model, _, _ = load_model(model, old_model_path)
+        logger.info(f"Loaded actor model from {old_model_path}")
+
+    model.to(device)
+
     performance_start = time()
     performance_stop = None
     heart = time()
@@ -140,10 +148,10 @@ def actor(args):
         steps_per_episode += 1
 
         # select actions based on the chosen model and latest states
-        _states = torch.tensor(states, dtype=torch.float32)
+        _states = torch.tensor(states, dtype=torch.float32, device=device)
         start_select_action = time()
         actions, q_values = select_actions(
-            _states, model, state_size - 1, epsilon=epsilon
+            _states, model, state_size - 1, epsilon=epsilon, device=device
         )
         if benchmarking:
             logger.info(f"time for select action: {time() - start_select_action}")

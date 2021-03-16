@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
 from distributed.learner_util import perform_q_learning_step
-from model_util import choose_model, extend_model_config
+from model_util import choose_model, extend_model_config, load_model, save_model
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("learner")
@@ -61,6 +61,11 @@ def learner(args: Dict):
     io_learner_queue = args["io_learner_queue"]
     learner_actor_queue = args["learner_actor_queue"]
     verbosity = args["verbosity"]
+    load_model_flag = args["load_model"]
+    old_model_path = args["old_model_path"]
+    save_model_path = args["save_model_path"]
+    model_name = args["model_name"]
+    model_config = args["model_config"]
 
     learning_rate = args["learning_rate"]
     device = args["device"]
@@ -76,6 +81,12 @@ def learner(args: Dict):
     learner_epsilon = args["learner_epsilon"]
     count_to_eval = 0
 
+    summary_path = args["summary_path"]
+    summary_date = args["summary_date"]
+    save_model_path_date = os.path.join(
+        save_model_path, summary_date, f"{model_name}_{code_size}_{summary_date}.pt"
+    )
+
     start_time = time()
     max_time_h = args["max_time"]  # hours
     max_time = max_time_h * 60 * 60  # seconds
@@ -87,21 +98,30 @@ def learner(args: Dict):
         timesteps = np.Infinity
 
     # initialize models and other learning gadgets
-    model_name = args["model_name"]
-    model_config = args["model_config"]
     model_config = extend_model_config(model_config, syndrome_size, stack_depth)
 
     policy_net = choose_model(model_name, model_config)
     target_net = choose_model(model_name, model_config)
-    policy_net.to(device)
-    target_net.to(device)
+
     optimizer = Adam(policy_net.parameters(), lr=learning_rate)
     criterion = nn.MSELoss(reduction="none")
 
-    # initialize tensorboard
-    summary_path = args["summary_path"]
-    summary_date = args["summary_date"]
+    if load_model_flag:
+        policy_net, _, _ = load_model(policy_net, old_model_path)
+        target_net, _optimizer, _criterion = load_model(
+            target_net, old_model_path, optimizer=optimizer, load_criterion=True
+        )
+        logger.info(f"Loaded learner models from {old_model_path}")
 
+        if _optimizer is not None:
+            optimizer = _optimizer.to(device)
+        if _criterion is not None:
+            criterion = _criterion
+
+    policy_net.to(device)
+    target_net.to(device)
+
+    # initialize tensorboard
     tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "learner"))
     tensorboard_step = 0
     received_data = 0
@@ -198,9 +218,11 @@ def learner(args: Dict):
             heart = time()
             logger.debug("I'm alive my friend. I can see the shadows everywhere!")
 
-    logger.info("Time's up. Terminate!")
+    logger.info("Reach maximum number of training steps. Terminate!")
     msg = ("terminate", None)
     learner_io_queue.put(msg)
 
-    # TODO: save model
+    save_model(policy_net, optimizer, criterion, save_model_path_date)
+    logger.info(f"Saved policy network to {save_model_path_date}")
+
     tensorboard.close()
