@@ -1,11 +1,10 @@
 import sys
 import torch
-from src.agent_src.agent import QuantumAgent1
+from src.agent_src.agent import QuantumAgent2
 sys.path.append("./src")
 sys.path.append("./src/surface_rl_decoder")
 
-
-def test_agent2():
+def test_agent3():
 
     config = {"size": 5,
     "min_qbit_err": 2,
@@ -17,16 +16,16 @@ def test_agent2():
     "epsilon_to": 0.02,
     "epsilon_decay": 0.998,
     "max_actions": 32,
-    "hidden_concat_size":10,
-    "lstm_layers": 3,
-    "hidden_x": 10,
-    "hidden_z": 10,
-    "hidden_both": 10
+    "input_channels": 1,
+    "kernel_size": 3,
+    "output_channels": 20,
+    "output_channels2": 50,
+    "output_channels3": 20
+    "padding_size": 1
     }
-    agent = QuantumAgent1(config)
+    agent = QuantumAgent2(config)
     tensorX = torch.ones(8,1,6,6)
     tensorZ = torch.zeros(8,1,6,6)
     tensorBoth = tensorX+tensorZ
     agent(tensorBoth)
     print("single input passed")
-
