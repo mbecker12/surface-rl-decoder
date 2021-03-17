@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from environment_set import EnvironmentSet
 from model_util import choose_model, extend_model_config
-from util import select_actions
+from util import compute_priorities, select_actions
 from surface_rl_decoder.surface_code import SurfaceCode
 
 # pylint: disable=too-many-statements,too-many-locals
@@ -67,6 +67,7 @@ def actor(args):
     benchmarking = args["benchmarking"]
     num_actions_per_qubit = args["num_actions_per_qubit"]
     epsilon = args["epsilon"]
+    discount_factor = args["discount_factor"]
 
     logger.info("Fire up all the environments!")
 
@@ -183,6 +184,15 @@ def actor(args):
 
             # this approach counts through all environments and local memory buffer continuously
             # with no differentiation between those two channels
+
+            priorities = compute_priorities(
+                local_buffer_actions[:, :-1],
+                local_buffer_rewards[:, :-1],
+                local_buffer_qvalues[:, :-1],
+                discount_factor,
+                code_size
+            )
+
             to_send = [
                 *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
             ]
