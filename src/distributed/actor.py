@@ -182,17 +182,18 @@ def actor(args):
                     vector_to_parameters(network_params, model.parameters())
                     model.to(device)
 
-            # this approach counts through all environments and local memory buffer continuously
-            # with no differentiation between those two channels
-
+            new_local_qvalues = np.roll(local_buffer_qvalues, -1, axis=1)
             priorities = compute_priorities(
                 local_buffer_actions[:, :-1],
                 local_buffer_rewards[:, :-1],
                 local_buffer_qvalues[:, :-1],
+                new_local_qvalues[:, :-1],
                 discount_factor,
                 code_size,
             )
 
+            # this approach counts through all environments and local memory buffer continuously
+            # with no differentiation between those two channels
             to_send = [
                 *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
             ]

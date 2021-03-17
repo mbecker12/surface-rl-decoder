@@ -25,10 +25,13 @@ def test_compute_priorities():
         0, 2, size=(num_environments, buffer_size - 1), dtype=bool
     )
     qvalues = np.random.random_sample(
-        size=(num_environments, buffer_size - 1, 3 * system_size * system_size + 1)
+        size=(num_environments, buffer_size, 3 * system_size * system_size + 1)
     )
     gamma = 1.0
-    priorities = compute_priorities(actions, rewards, qvalues, gamma, system_size)
+    new_qvalues = np.roll(qvalues, -1, axis=1)[:, :-1]
+    priorities = compute_priorities(
+        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, system_size
+    )
     assert priorities.shape == (
         num_environments,
         buffer_size - 1,
@@ -56,31 +59,35 @@ def test_deterministic_priorities():
     qvalues = np.array(
         [
             [
-                np.arange(max_q + 1),
-                np.arange(max_q + 1),
+                np.arange(max_q + 1) * 1,
+                np.arange(max_q + 1) * 2,
+                np.arange(max_q + 1) * 3,
             ],
             [
-                np.arange(max_q + 1),
-                np.arange(max_q + 1),
+                np.arange(max_q + 1) * 1,
+                np.arange(max_q + 1) * 2,
+                np.arange(max_q + 1) * 3,
             ],
             [
-                np.arange(max_q + 1),
-                np.arange(max_q + 1),
+                np.arange(max_q + 1) * 1,
+                np.arange(max_q + 1) * 2,
+                np.arange(max_q + 1) * 3,
             ],
             [
-                np.arange(max_q + 1),
-                np.arange(max_q + 1),
+                np.arange(max_q + 1) * 1,
+                np.arange(max_q + 1) * 2,
+                np.arange(max_q + 1) * 3,
             ],
         ]
     )
 
-    qvalues = np.multiply(qvalues, 2)
+    # qvalues = np.multiply(qvalues, 2)
 
     assert actions.shape == (num_environments, buffer_size - 1, 3)
     assert rewards.shape == (num_environments, buffer_size - 1)
     assert qvalues.shape == (
         num_environments,
-        buffer_size - 1,
+        buffer_size,
         3 * system_size ** 2 + 1,
     )
 
@@ -89,14 +96,18 @@ def test_deterministic_priorities():
 
     expected_priorities = np.array(
         [
-            [100 + 1 * 2 * (max_q - 0), 50 + 1 * 2 * (max_q - 10)],
-            [20 + 1 * 2 * (max_q - 3), 10 + 1 * 2 * (max_q - 13)],
-            [100 + 1 * 2 * (max_q - 6), 50 + 1 * 2 * (max_q - 16)],
-            [100 + 1 * 2 * (max_q - 0), 50 + 1 * 2 * (max_q - 10)],
+            [100 + 1 * 2 * max_q - 1 * 0, 50 + 1 * 3 * max_q - 2 * 10],
+            [20 + 1 * 2 * max_q - 1 * 3, 10 + 1 * 3 * max_q - 2 * 13],
+            [100 + 1 * 2 * max_q - 1 * 6, 50 + 1 * 3 * max_q - 2 * 16],
+            [100 + 1 * 2 * max_q - 1 * 0, 50 + 1 * 3 * max_q - 2 * 10],
         ]
     )
 
-    priorities = compute_priorities(actions, rewards, qvalues, gamma, system_size)
+    new_qvalues = np.roll(qvalues, -1, axis=1)[:, :-1]
+    priorities = compute_priorities(
+        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, system_size
+    )
+    # priorities = compute_priorities(actions, rewards, qvalues, gamma, system_size)
     assert np.all(
         priorities == expected_priorities
     ), f"{priorities=}, {expected_priorities=}"
@@ -116,10 +127,14 @@ def test_sampling():
         0, 2, size=(num_environments, buffer_size - 1), dtype=bool
     )
     qvalues = np.random.random_sample(
-        size=(num_environments, buffer_size - 1, 3 * system_size * system_size + 1)
+        size=(num_environments, buffer_size, 3 * system_size * system_size + 1)
     )
     gamma = 1.0
-    priorities = compute_priorities(actions, rewards, qvalues, gamma, system_size)
+
+    new_qvalues = np.roll(qvalues, -1, axis=1)[:, :-1]
+    priorities = compute_priorities(
+        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, system_size
+    )
 
     states = np.random.randint(
         0,

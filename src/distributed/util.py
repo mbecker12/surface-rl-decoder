@@ -242,12 +242,12 @@ def assert_not_all_states_equal(states_batch):
     return similarity
 
 
-def compute_priorities(actions, rewards, qvalues, gamma, system_size):
+def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, system_size):
     """
     Compute the absolute temporal difference (TD) value, to be used
     as priority for replay memory.
 
-    TD_error = R + Q_max(s(t+1), a) - Q(s(t), a)
+    TD_error = R + γ * Q_max(s(t+1), a) - Q(s(t), a)
 
     Using the TD error as the priority allows sampling events that cause
     a large loss (and hence a potentially large change in network weights)
@@ -258,6 +258,8 @@ def compute_priorities(actions, rewards, qvalues, gamma, system_size):
     actions: (n_environments, buffer_size, 3) batches of actions
     rewards: (n_environments, buffer_size) batches of rewards
     q values: (n_environments, buffer_size, 3 * d**2 + 1) batches of q values
+    qvalues_new: (n_environments, buffer_size, 3 * d**2 + 1)
+        look-ahead from saved transitions, the q values of the subsequent state
     gamma: (float) discount factor
     system_size: (int) code size, d
 
@@ -265,7 +267,7 @@ def compute_priorities(actions, rewards, qvalues, gamma, system_size):
     =======
     priorities: (n_environments, buffer_size) absolute TD error for each sample
     """
-    qmax = np.amax(qvalues, axis=2)
+    qmax = np.amax(qvalues_new, axis=2)
 
     n_envs = qvalues.shape[0]
     n_bufs = qvalues.shape[1]
