@@ -48,6 +48,8 @@ if [ -z "$1" ]
     echo "No argument for env-config file supplied!"
     echo "Resort to default values"
     echo ""
+    echo "Run on image ${SINGULARITY_IMAGE_NAME}"
+    echo ""
 
     singularity run --nv \
         -B ${LOG_PATH}:/${IMAGE_WORKDIR}/runs:rw \
@@ -62,6 +64,8 @@ if [ -z "$1" ]
 else
     echo ""
     echo "Use config file $1"
+    echo ""
+    echo "Run on image ${SINGULARITY_IMAGE_NAME}"
     echo ""
 
     singularity run --nv \
