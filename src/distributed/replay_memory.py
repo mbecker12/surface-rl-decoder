@@ -18,6 +18,7 @@ class ReplayMemory:
         self.current_num_objects = 0
         self.is_full_memory = False
 
+    # pylint: disable=unused-argument
     def save(self, obj, prio=None):
         """
         Save data objects.
@@ -57,4 +58,7 @@ class ReplayMemory:
         return self.memory_size
 
     def filled_size(self):
+        """
+        Return the number of elements stored in replay memory.
+        """
         return self.current_num_objects
