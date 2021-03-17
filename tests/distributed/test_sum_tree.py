@@ -2,6 +2,7 @@
 from distributed.sum_tree import SumTree
 import numpy as np
 
+
 def test_sum_tree_init():
     max_size = 100
     st = SumTree(max_size)

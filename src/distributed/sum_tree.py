@@ -90,8 +90,9 @@ class SumTree(object):
         # TODO docu
         if 2 ** (self.tree_level - 1) - 1 <= index:
             data_index = index - (2 ** (self.tree_level - 1) - 1)
-            assert 0 <= data_index < len(self.data), \
-                f"{data_index=}, {len(self.data)=}, {self.tree_level=}, {index=}\n\n \
+            assert (
+                0 <= data_index < len(self.data)
+            ), f"{data_index=}, {len(self.data)=}, {self.tree_level=}, {index=}\n\n \
                     {self.print_tree()}"
             return (
                 self.data[data_index],

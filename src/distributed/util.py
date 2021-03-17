@@ -92,6 +92,7 @@ def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0
 
     return actions, q_values
 
+
 def action_to_q_value_index(
     action: Union[Tuple, List], system_size: int, num_actions_per_qubit: int = 3
 ) -> int:
@@ -189,6 +190,7 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
 
     return (x_coord, y_coord, operator)
 
+
 def assert_not_all_elements_equal(arr):
     """
     Helper function to make sure that not
@@ -197,7 +199,8 @@ def assert_not_all_elements_equal(arr):
     """
     diff = np.diff(np.squeeze(arr))
     assert np.any(diff != 0), f"{arr=}, {diff=}"
-        
+
+
 def assert_not_all_states_equal(states_batch):
     """
     Helper function to make sure that not
@@ -230,11 +233,14 @@ def assert_not_all_states_equal(states_batch):
 
                 total += 1
             else:
-                raise Exception(f"Error! Data type {type(states_batch).__name__} not supported.")
+                raise Exception(
+                    f"Error! Data type {type(states_batch).__name__} not supported."
+                )
 
         similarity = count_same / total
 
     return similarity
+
 
 def compute_priorities(actions, rewards, qvalues, gamma, system_size):
     """
@@ -267,15 +273,15 @@ def compute_priorities(actions, rewards, qvalues, gamma, system_size):
     selected_q_values = np.array(
         [
             [
-                qvalues[env][buf][action_to_q_value_index(actions[env][buf], system_size)]
+                qvalues[env][buf][
+                    action_to_q_value_index(actions[env][buf], system_size)
+                ]
                 for buf in range(n_bufs)
             ]
             for env in range(n_envs)
         ]
     )
 
-    priorities = np.absolute(
-        rewards + gamma * qmax - selected_q_values
-    )
+    priorities = np.absolute(rewards + gamma * qmax - selected_q_values)
 
     return priorities

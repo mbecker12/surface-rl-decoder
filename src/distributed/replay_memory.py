@@ -48,9 +48,7 @@ class ReplayMemory:
         )
         if valid_max_index < batch_size:
             return None, None, None, None
-        transitions = random.sample(
-            self.memory[:valid_max_index], batch_size
-        )
+        transitions = random.sample(self.memory[:valid_max_index], batch_size)
 
         return transitions, None, None, None
 

@@ -150,7 +150,7 @@ def start_mp():
         "model_name": model_name,
         "model_config": model_config,
         "epsilon": epsilon,
-        "discount_factor": discount_factor
+        "discount_factor": discount_factor,
     }
 
     learner_args = {

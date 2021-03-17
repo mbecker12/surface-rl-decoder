@@ -222,8 +222,7 @@ def io_replay_memory(args):
         # prepare to send data to learner process repeatedly
         while start_learning and (io_learner_queue.qsize() < batch_in_queue_limit):
             transitions, memory_weights, indices, priorities = replay_memory.sample(
-                batch_size,
-                memory_beta
+                batch_size, memory_beta
             )
             data = (transitions, memory_weights, indices)
             logger.debug(f"{io_learner_queue.qsize()=}")

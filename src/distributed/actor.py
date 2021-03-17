@@ -190,7 +190,7 @@ def actor(args):
                 local_buffer_rewards[:, :-1],
                 local_buffer_qvalues[:, :-1],
                 discount_factor,
-                code_size
+                code_size,
             )
 
             to_send = [
