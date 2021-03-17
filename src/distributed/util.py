@@ -189,3 +189,101 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
     y_coord = grid_index_group // system_size
 
     return (x_coord, y_coord, operator)
+
+
+def assert_not_all_elements_equal(arr):
+    """
+    Helper function to make sure that not
+    all the elements in a given array are the same.
+    Only checks neighboring entries.
+    """
+    diff = np.diff(np.squeeze(arr))
+    assert np.any(diff != 0), f"{arr=}, {diff=}"
+
+
+def assert_not_all_states_equal(states_batch):
+    """
+    Helper function to make sure that not
+    all the syndrome states in a given batch are the same.
+    Only checks neighboring states.
+    """
+    assert states_batch is not None
+    batch_size = len(states_batch)
+    depth = states_batch.shape[1]
+
+    count_same = 0
+    total = 0
+
+    for i in range(1, batch_size):
+        prev_state = states_batch[i - 1]
+        current_state = states_batch[i]
+
+        assert prev_state is not None
+        assert current_state is not None
+
+        for h in range(depth):
+            if isinstance(states_batch, torch.Tensor):
+                if torch.all(prev_state[h] == current_state[h]):
+                    count_same += 1
+
+                total += 1
+            elif isinstance(states_batch, np.ndarray):
+                if np.all(prev_state[h] == current_state[h]):
+                    count_same += 1
+
+                total += 1
+            else:
+                raise Exception(
+                    f"Error! Data type {type(states_batch).__name__} not supported."
+                )
+
+        similarity = count_same / total
+
+    return similarity
+
+
+def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, system_size):
+    """
+    Compute the absolute temporal difference (TD) value, to be used
+    as priority for replay memory.
+
+    TD_error = R + γ * Q_max(s(t+1), a) - Q(s(t), a)
+
+    Using the TD error as the priority allows sampling events that cause
+    a large loss (and hence a potentially large change in network weights)
+    to be sampled more often.
+
+    Parameters
+    ==========
+    actions: (n_environments, buffer_size, 3) batches of actions
+    rewards: (n_environments, buffer_size) batches of rewards
+    q values: (n_environments, buffer_size, 3 * d**2 + 1) batches of q values
+    qvalues_new: (n_environments, buffer_size, 3 * d**2 + 1)
+        look-ahead from saved transitions, the q values of the subsequent state
+    gamma: (float) discount factor
+    system_size: (int) code size, d
+
+    Returns
+    =======
+    priorities: (n_environments, buffer_size) absolute TD error for each sample
+    """
+    qmax = np.amax(qvalues_new, axis=2)
+
+    n_envs = qvalues.shape[0]
+    n_bufs = qvalues.shape[1]
+
+    selected_q_values = np.array(
+        [
+            [
+                qvalues[env][buf][
+                    action_to_q_value_index(actions[env][buf], system_size)
+                ]
+                for buf in range(n_bufs)
+            ]
+            for env in range(n_envs)
+        ]
+    )
+
+    priorities = np.absolute(rewards + gamma * qmax - selected_q_values)
+
+    return priorities

@@ -13,23 +13,34 @@ echo "System size: ${CONFIG_ENV_SIZE}"
 
 IMAGE_WORKDIR=surface-rl-decoder
 CLUSTER_WORKDIR=surface-rl-decoder
-LOG_PATH_SPECIFICATION=tmp_runs
+TENSORBOARD_PATH_SPECIFICATION=tmp_runs
+NETWORK_SAVE_PATH_CLUSTER=tmp_networks
+LOG_PATH_SPECIFICATION_CLUSTER=tmp_runs
+NETWORK_SAVE_PATH_IMAGE=networks
+LOG_PATH_SPECIFICATION_IMAGE=runs
 
-mkdir -p ${LOG_PATH}
 
 if [ -z "${SLURM_JOB_ID}" ]
     then
     echo "No Slurm Job ID found. Revert to local testing mode."
-    CLUSTER_WORKDIR="."
+    CLUSTER_WORKDIR=$(pwd)
+    LOG_PATH=${CLUSTER_WORKDIR}/${LOG_PATH_SPECIFICATION_CLUSTER}
+    NETWORK_PATH=${CLUSTER_WORKDIR}/${NETWORK_SAVE_PATH_CLUSTER}
 else
     echo "Slurm Job ID is ${SLURM_JOB_ID}." 
     job_stats.py ${SLURM_JOB_ID}
+    LOG_PATH=${HOME}/${CLUSTER_WORKDIR}/${LOG_PATH_SPECIFICATION_CLUSTER}
+    NETWORK_PATH=${HOME}/${CLUSTER_WORKDIR}/${NETWORK_SAVE_PATH_CLUSTER}
 fi
 
-LOG_PATH=${HOME}/${CLUSTER_WORKDIR}/${LOG_PATH_SPECIFICATION}
-
-SINGULARITY_IMAGE_NAME=${CLUSTER_WORKDIR}/qec-mp.sif
-DOCKER_IMAGE_NAME=docker://xero32/qec-mp:first
+if [ -z "$2" ]
+then
+    SINGULARITY_IMAGE_NAME=${CLUSTER_WORKDIR}/qec-mp.sif
+    DOCKER_IMAGE_NAME=docker://xero32/qec-mp:first
+else
+    SINGULARITY_IMAGE_NAME=${CLUSTER_WORKDIR}/qec-mp_$2.sif
+    DOCKER_IMAGE_NAME=docker://xero32/qec-mp:$2
+fi
 
 if [ -z "$1" ]
     then

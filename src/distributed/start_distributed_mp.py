@@ -79,6 +79,9 @@ def start_mp():
     replay_size_before_sampling = int(memory_config["replay_size_before_sampling"])
     replay_memory_verbosity = int(memory_config["verbosity"])
     replay_memory_benchmarking = int(memory_config["benchmarking"])
+    replay_memory_type = memory_config["memory_type"]
+    replay_memory_alpha = float(memory_config["alpha"])
+    replay_memory_beta = float(memory_config["beta"])
 
     # set up learner configuration
     learner_verbosity = int(learner_config["verbosity"])
@@ -128,6 +131,9 @@ def start_mp():
         "benchmarking": replay_memory_benchmarking,
         "summary_path": SUMMARY_PATH,
         "summary_date": SUMMARY_DATE,
+        "replay_memory_type": replay_memory_type,
+        "replay_memory_alpha": replay_memory_alpha,
+        "replay_memory_beta": replay_memory_beta,
     }
 
     actor_args = {
@@ -144,6 +150,7 @@ def start_mp():
         "model_name": model_name,
         "model_config": model_config,
         "epsilon": epsilon,
+        "discount_factor": discount_factor,
     }
 
     learner_args = {
