@@ -20,6 +20,7 @@ class QuantumAgent3(nn.Module):
         self.output_channels2 = int(config.get("output_channels2"))
         self.output_channels3 = int(config.get("output_channels3"))
         self.padding_size = int(config.get("padding_size"))
+        self.lstm_layers = int(config.get("lstm_layers"))
 
 
 
@@ -39,10 +40,10 @@ class QuantumAgent3(nn.Module):
         self.comp_conv_layerZ = nn.Conv2d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
         self.comp_conv_layerBoth = nn.Conv2d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
 
-
+        self.lstm_layer = nn.LSTM((self.size+1)*(self.size+1), self.nr_actions_per_qubit*(self.size)*(self.size)+1, num_layers=self.lstm_layers, bidirectional = True)        
         
-        self.almost_final_layer = nn.Linear((self.size+1)*(self.size+1) , self.nr_actions_per_qubit*(self.size)*(self.size)+1)
-        self.final_layer = nn.Linear(self.nr_actions_per_qubit*(self.size)*(self.size)+1,self.nr_actions_per_qubit*(self.size)*(self.size)+1)
+        self.almost_final_layer = nn.Linear((self.nr_actions_per_qubit*(self.size)*(self.size)+1)*2, self.nr_actions_per_qubit*(self.size)*(self.size)+1)
+        self.final_layer = nn.Linear(self.nr_actions_per_qubit*(self.size)*(self.size)+1, self.nr_actions_per_qubit*(self.size)*(self.size)+1)
 
 
 
@@ -69,8 +70,10 @@ class QuantumAgent3(nn.Module):
 
         complete = (x+z+both)/3
         complete = complete.view(self.stack_depth, -1,  (self.size+1)*(self.size+1))
-        complete = self.almost_final_layer(complete)
-        final_output = self.final_layer(complete)
+        output, (_h,_c) = self.lstm_layer(complete)
+
+        output = self.almost_final_layer(output[-1])
+        final_output = self.final_layer(output)
         
         
         return final_output

@@ -21,7 +21,8 @@ def test_agent3():
     "output_channels": 20,
     "output_channels2": 50,
     "output_channels3": 30,
-    "padding_size": 1
+    "padding_size": 1,
+    "lstm_layers": 3
     }
     agent = QuantumAgent3(config)
     tensorX = torch.ones(8,1,6,6)

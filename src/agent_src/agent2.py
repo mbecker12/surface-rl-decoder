@@ -73,7 +73,7 @@ class QuantumAgent2(nn.Module):
         final_output = self.final_layer(complete)
         
         
-        return final_output
+        return final_output[-1]
 
     def interface(self, state):
         x = state*plaquette_mask
