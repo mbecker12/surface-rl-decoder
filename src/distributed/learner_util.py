@@ -120,24 +120,28 @@ def perform_q_learning_step(
         indices,
     ) = data_to_batch(data, device)
 
-    batch_actions = torch.tensor(
+    batch_action_indices = torch.tensor(
         [
             action_to_q_value_index(batch_actions[i], code_size)
             for i in range(batch_size)
         ]
     ).view(-1, 1)
-    batch_actions = batch_actions.to(device)
+    batch_action_indices = batch_action_indices.to(device)
 
     policy_net.train()
     target_net.eval()
 
     # compute policy net output
     policy_output = policy_net(batch_state)
-    policy_output = policy_output.gather(1, batch_actions)
+    assert policy_output.shape == (
+        batch_size,
+        3 * code_size * code_size + 1,
+    ), policy_output.shape
+    policy_output_gathered = policy_output.gather(1, batch_action_indices)
 
     # compute target network output
-    target_output = target_net(batch_next_state)
-    target_output = target_output.max(1)[0].detach()
+    _target_output = target_net(batch_next_state)
+    target_output = _target_output.max(1)[0].detach()
 
     # compute loss and update replay memory
     expected_q_values = (
@@ -147,10 +151,10 @@ def perform_q_learning_step(
     target_q_value = expected_q_values * batch_reward
     target_q_value = target_q_value.view(-1, 1)
 
-    assert target_q_value.shape == policy_output.shape, target_q_value.shape
+    assert target_q_value.shape == policy_output_gathered.shape, target_q_value.shape
 
     target_q_value = target_q_value.clamp(-100, 100)
-    loss = criterion(target_q_value, policy_output)
+    loss = criterion(target_q_value, policy_output_gathered)
     optimizer.zero_grad()
 
     # only used for prioritized experience replay

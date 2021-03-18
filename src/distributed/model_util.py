@@ -6,7 +6,11 @@ learning model
 """
 
 import os
+from typing import Tuple, Union
 import torch
+from torch.nn.modules.loss import MSELoss
+from torch.optim import Adam
+from torch import nn
 import yaml
 from distributed.dummy_agent import DummyModel
 
@@ -66,9 +70,13 @@ def extend_model_config(
 
 def load_model(
     model: torch.nn.Module,
-    old_model_path,
+    old_model_path: str,
     load_criterion=False,
-    optimizer=None):
+    load_optimizer=False,
+    learning_rate=None,
+    optimizer_device=None,
+    model_device=None,
+) -> Tuple[nn.Module, Union[Adam, None], Union[MSELoss, None]]:
     """
     Utility function to load a pytorch model's state dict from a specified path.
 
@@ -76,9 +84,11 @@ def load_model(
     ==========
     model: child class of torch.nn.Module, instance of neural network model
     old_model_path: path to save the state dict to
+    model_device: (optional) device for the loaded model
     load_criterion: (optional)(bool) whether to load the saved criterion
-    optimizer: (optional)(toch.optim.Any) optimizer object; will be overwritten
-        by saved state of the optimizer state_dict
+    load_optimizer: (optional)(bool) whether to load the saved optimizer
+    optimizer_device: (optional, required if load_optimizer) device for the loaded optimizer 
+    learning_rate: (optional, required if load_optimizer) learning rate for gradient descent
 
     Returns
     =======
@@ -86,9 +96,22 @@ def load_model(
     optimizer: optimizer instance, overwritten with saved state in state_dict
     criterion: loss instance, overwritten with saved state in state_dict
     """
+    # load model
     model.load_state_dict(torch.load(old_model_path))
-    if optimizer is not None:
+    if model_device is not None:
+        model = model.to(model_device)
+
+    # load optimizer
+    if load_optimizer:
+        assert learning_rate is not None
+        optimizer = Adam(model.parameters(), lr=learning_rate)
         optimizer.load_state_dict(torch.load(old_model_path + ".optimizer"))
+        assert optimizer_device is not None
+        optimizer = optimizer_to(optimizer, optimizer_device)
+    else:
+        optimizer = None
+
+    # load criterion
     if load_criterion:
         criterion = torch.load(old_model_path + ".loss")
     else:
@@ -131,3 +154,23 @@ def save_metadata(config, path):
 
     with open(path, "w", encoding="utf-8") as yaml_file:
         yaml.dump(config, yaml_file)
+
+
+def optimizer_to(optim, device):
+    """
+    Send a torch.optim object to the target device.
+    """
+    for param in optim.state.values():
+        # Not sure there are any global tensors in the state dict
+        if isinstance(param, torch.Tensor):
+            param.data = param.data.to(device)
+            if param._grad is not None:
+                param._grad.data = param._grad.data.to(device)
+        elif isinstance(param, dict):
+            for subparam in param.values():
+                if isinstance(subparam, torch.Tensor):
+                    subparam.data = subparam.data.to(device)
+                    if subparam._grad is not None:
+                        subparam._grad.data = subparam._grad.data.to(device)
+
+    return optim

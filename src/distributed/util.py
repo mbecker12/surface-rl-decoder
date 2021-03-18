@@ -9,7 +9,7 @@ def incremental_mean(val, mu, n):
     return mu + (val - mu) / (n)
 
 
-def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0.0, device="cpu"):
+def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0.0):
     """
     Select actions batch-wise according to an ε-greedy policy based on the
     provided neural network model.
@@ -53,7 +53,9 @@ def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0
 
     # generate probabilities
     q_value_probabilities = (
-        torch.softmax(q_values_torch_cpu[non_greedy_indices], dim=1, dtype=torch.float32)
+        torch.softmax(
+            q_values_torch_cpu[non_greedy_indices], dim=1, dtype=torch.float32
+        )
         .detach()
         .numpy()
     )
@@ -170,12 +172,10 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
     # grid_index_group = (22 - 1) // 3 = 7
     # x = 7 % 5 = 2
     # y = 7 // 5 = 1
-    if (
-        q_value_index == num_actions_per_qubit * system_size * system_size
-        or q_value_index == -1
-    ):
+    if q_value_index in (num_actions_per_qubit * system_size * system_size, -1):
         return (0, 0, TERMINAL_ACTION)
-    elif (
+
+    if (
         q_value_index < 0
         or q_value_index > num_actions_per_qubit * system_size * system_size
     ):

@@ -14,7 +14,13 @@ from torch.utils.tensorboard import SummaryWriter
 from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
 from distributed.learner_util import perform_q_learning_step
-from model_util import choose_model, extend_model_config, load_model, save_model
+from model_util import (
+    choose_model,
+    extend_model_config,
+    load_model,
+    optimizer_to,
+    save_model,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("learner")
@@ -103,23 +109,24 @@ def learner(args: Dict):
     policy_net = choose_model(model_name, model_config)
     target_net = choose_model(model_name, model_config)
 
-    optimizer = Adam(policy_net.parameters(), lr=learning_rate)
     criterion = nn.MSELoss(reduction="none")
 
     if load_model_flag:
-        policy_net, _, _ = load_model(policy_net, old_model_path)
-        target_net, _optimizer, _criterion = load_model(
-            target_net, old_model_path, optimizer=optimizer, load_criterion=True
+        policy_net, optimizer, criterion = load_model(
+            policy_net,
+            old_model_path,
+            load_optimizer=True,
+            load_criterion=True,
+            optimizer_device=device,
+            model_device=device,
+            learning_rate=learning_rate,
         )
+        target_net, _, _ = load_model(target_net, old_model_path, model_device=device)
         logger.info(f"Loaded learner models from {old_model_path}")
-
-        if _optimizer is not None:
-            optimizer = _optimizer.to(device)
-        if _criterion is not None:
-            criterion = _criterion
-
-    policy_net.to(device)
-    target_net.to(device)
+    else:
+        policy_net.to(device)
+        target_net.to(device)
+        optimizer = Adam(policy_net.parameters(), lr=learning_rate)
 
     # initialize tensorboard
     tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "learner"))

@@ -151,7 +151,7 @@ def actor(args):
         _states = torch.tensor(states, dtype=torch.float32, device=device)
         start_select_action = time()
         actions, q_values = select_actions(
-            _states, model, state_size - 1, epsilon=epsilon, device=device
+            _states, model, state_size - 1, epsilon=epsilon
         )
         if benchmarking:
             logger.info(f"time for select action: {time() - start_select_action}")

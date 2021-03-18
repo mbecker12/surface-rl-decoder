@@ -227,6 +227,7 @@ def start_mp():
             os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO)
         )
         tensorboard.add_text("run_info/error_message", error_traceback)
+
         tensorboard.close()
 
     save_model_path_date_meta = os.path.join(
@@ -239,6 +240,7 @@ def start_mp():
     metadata = {}
     metadata["global"] = deepcopy(global_config)
     metadata["network"] = deepcopy(model_config)
+    metadata["network"]["name"] = model_name
     save_metadata(metadata, save_model_path_date_meta)
 
     logger.info("Training Done!")
