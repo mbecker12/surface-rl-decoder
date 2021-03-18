@@ -68,12 +68,13 @@ class QuantumAgent2(nn.Module):
         both = self.comp_conv_layerBoth(both)
 
         complete = (x+z+both)/3
-        complete = complete.view(self.stack_depth, -1,  (self.size+1)*(self.size+1))
+        complete = complete.view(-1, self.stack_depth,  (self.size+1)*(self.size+1))
         complete = self.almost_final_layer(complete)
-        final_output = self.final_layer(complete)
+        complete = complete.view(self.stack_depth, -1, self.nr_actions_per_qubit*(self.size)*(self.size)+1)
+        final_output = self.final_layer(complete[-1])
         
         
-        return final_output[-1]
+        return final_output
 
     def interface(self, state):
         x = state*plaquette_mask

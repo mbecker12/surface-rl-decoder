@@ -24,8 +24,9 @@ def test_agent3():
     "padding_size": 1
     }
     agent = QuantumAgent2(config)
-    tensorX = torch.ones(8,1,6,6)
-    tensorZ = torch.zeros(8,1,6,6)
+    tensorX = torch.ones(8,3,6,6)
+    tensorZ = torch.zeros(8,3,6,6)
     tensorBoth = tensorX+tensorZ
-    agent(tensorBoth)
+    output = agent(tensorBoth)
+    assert output.shape == (3,3*5**2+1)
     print("single input passed")
