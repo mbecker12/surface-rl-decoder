@@ -87,7 +87,7 @@ def load_model(
     model_device: (optional) device for the loaded model
     load_criterion: (optional)(bool) whether to load the saved criterion
     load_optimizer: (optional)(bool) whether to load the saved optimizer
-    optimizer_device: (optional, required if load_optimizer) device for the loaded optimizer 
+    optimizer_device: (optional, required if load_optimizer) device for the loaded optimizer
     learning_rate: (optional, required if load_optimizer) learning rate for gradient descent
 
     Returns
