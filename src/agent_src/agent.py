@@ -14,10 +14,6 @@ class QuantumAgent1(nn.Module):
         hidden_concat_size = int(config.get("hidden_concat_size"))
         self.nr_actions_per_qubit = int(config.get("nr_actions_per_qubit"))
         self.stack_depth = int(config.get("stack_depth"))
-
-        self.epsilon_from = float(config.get("epsilon_from"))   
-        self.epsilon_to = float(config.get("epsilon_to"))
-        self.epsilon_decay = float(config.get("epsilon_decay"))
         
         self.lstm_layers = int(config.get("lstm_layers"))
         hiddenX = int(config.get("hidden_x"))

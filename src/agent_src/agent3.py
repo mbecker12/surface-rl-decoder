@@ -4,10 +4,10 @@ import torch.nn.functional as F
 from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 
 
-class QuantumAgent2(nn.Module):
+class QuantumAgent3(nn.Module):
 
     def __init__(self, config):
-        super(QuantumAgent2,self).__init__()
+        super(QuantumAgent3,self).__init__()
         
         self.size = int(config.get("size"))
         syndrome_surface_size = (self.size+1)*(self.size+1)
@@ -23,21 +23,21 @@ class QuantumAgent2(nn.Module):
 
 
 
-        self.input_conv_layerX = nn.Conv3d(self.input_channels, self.output_channels, self.kernel_size, padding = self.padding_size)
-        self.input_conv_layerBoth = nn.Conv3d(self.input_channels,self.output_channels, self.kernel_size, padding = self.padding_size)
-        self.input_conv_layerZ = nn.Conv3d(self.input_channels, self.output_channels, self.kernel_size, padding = self.padding_size)
+        self.input_conv_layerX = nn.Conv2d(self.input_channels, self.output_channels, self.kernel_size, padding = self.padding_size)
+        self.input_conv_layerBoth = nn.Conv2d(self.input_channels,self.output_channels, self.kernel_size, padding = self.padding_size)
+        self.input_conv_layerZ = nn.Conv2d(self.input_channels, self.output_channels, self.kernel_size, padding = self.padding_size)
 
-        self.nd_conv_layerX = nn.Conv3d(self.output_channels, self.output_channels2, self.kernel_size, padding = self.padding_size)
-        self.nd_conv_layerZ = nn.Conv3d(self.output_channels, self.output_channels2, self.kernel_size, padding = self.padding_size)
-        self.nd_conv_layerBoth = nn.Conv3d(self.output_channels, self.output_channels2, self.kernel_size, padding = self.padding_size)
+        self.nd_conv_layerX = nn.Conv2d(self.output_channels, self.output_channels2, self.kernel_size, padding = self.padding_size)
+        self.nd_conv_layerZ = nn.Conv2d(self.output_channels, self.output_channels2, self.kernel_size, padding = self.padding_size)
+        self.nd_conv_layerBoth = nn.Conv2d(self.output_channels, self.output_channels2, self.kernel_size, padding = self.padding_size)
 
-        self.rd_conv_layerX = nn.Conv3d(self.output_channels2, self.output_channels3, self.kernel_size, padding = self.padding_size)
-        self.rd_conv_layerZ = nn.Conv3d(self.output_channels2, self.output_channels3, self.kernel_size, padding = self.padding_size)
-        self.rd_conv_layerBoth = nn.Conv3d(self.output_channels2, self.output_channels3, self.kernel_size, padding = self.padding_size)
+        self.rd_conv_layerX = nn.Conv2d(self.output_channels2, self.output_channels3, self.kernel_size, padding = self.padding_size)
+        self.rd_conv_layerZ = nn.Conv2d(self.output_channels2, self.output_channels3, self.kernel_size, padding = self.padding_size)
+        self.rd_conv_layerBoth = nn.Conv2d(self.output_channels2, self.output_channels3, self.kernel_size, padding = self.padding_size)
 
-        self.comp_conv_layerX = nn.Conv3d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
-        self.comp_conv_layerZ = nn.Conv3d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
-        self.comp_conv_layerBoth = nn.Conv3d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
+        self.comp_conv_layerX = nn.Conv2d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
+        self.comp_conv_layerZ = nn.Conv2d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
+        self.comp_conv_layerBoth = nn.Conv2d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
 
 
         
@@ -49,19 +49,19 @@ class QuantumAgent2(nn.Module):
     def forward(self, state):
         x, z, both = self.interface(state) #multiple input channels for different procedures, they are then concatenated as the data is processed
 
-        x = x.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1))
+        x = x.view(-1, self.input_channels, (self.size+1), (self.size+1))
         x = F.relu(self.input_conv_layerX(x))
         x = F.relu(self.nd_conv_layerX(x))
         x = self.rd_conv_layerX(x)
         x = self.comp_conv_layerX(x)
 
-        z = z.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1))
+        z = z.view(-1, self.input_channels, (self.size+1), (self.size+1))
         z = F.relu(self.input_conv_layerZ(z))
         z = F.relu(self.nd_conv_layerZ(z))
         z = self.rd_conv_layerZ(z)
         z = self.comp_conv_layerZ(z)
 
-        both = both.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1))
+        both = both.view(-1, self.input_channels, (self.size+1), (self.size+1))
         both = F.relu(self.input_conv_layerBoth(both))
         both = F.relu(self.nd_conv_layerBoth(both))
         both = self.rd_conv_layerBoth(both)

@@ -4,10 +4,10 @@ import torch.nn.functional as F
 from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 
 
-class QuantumAgent2(nn.Module):
+class QuantumAgent4(nn.Module):
 
     def __init__(self, config):
-        super(QuantumAgent2,self).__init__()
+        super(QuantumAgent4,self).__init__()
         
         self.size = int(config.get("size"))
         syndrome_surface_size = (self.size+1)*(self.size+1)
@@ -19,6 +19,7 @@ class QuantumAgent2(nn.Module):
         self.output_channels = int(config.get("output_channels"))
         self.output_channels2 = int(config.get("output_channels2"))
         self.output_channels3 = int(config.get("output_channels3"))
+        self.output_channels4 = int(config.get("output_channels4"))
         self.padding_size = int(config.get("padding_size"))
 
 
@@ -35,13 +36,13 @@ class QuantumAgent2(nn.Module):
         self.rd_conv_layerZ = nn.Conv3d(self.output_channels2, self.output_channels3, self.kernel_size, padding = self.padding_size)
         self.rd_conv_layerBoth = nn.Conv3d(self.output_channels2, self.output_channels3, self.kernel_size, padding = self.padding_size)
 
-        self.comp_conv_layerX = nn.Conv3d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
-        self.comp_conv_layerZ = nn.Conv3d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
-        self.comp_conv_layerBoth = nn.Conv3d(self.output_channels3, 1, self.kernel_size, padding = self.padding_size)
+        self.comp_conv_layerX = nn.Conv3d(self.output_channels3, self.output_channels4, self.kernel_size, padding = self.padding_size)
+        self.comp_conv_layerZ = nn.Conv3d(self.output_channels3, self.output_channels4, self.kernel_size, padding = self.padding_size)
+        self.comp_conv_layerBoth = nn.Conv3d(self.output_channels3, self.output_channels4, self.kernel_size, padding = self.padding_size)
 
 
         
-        self.almost_final_layer = nn.Linear((self.size+1)*(self.size+1) , self.nr_actions_per_qubit*(self.size)*(self.size)+1)
+        self.almost_final_layer = nn.Linear((self.size+1)*(self.size+1)*self.output_channels4 , self.nr_actions_per_qubit*(self.size)*(self.size)+1)
         self.final_layer = nn.Linear(self.nr_actions_per_qubit*(self.size)*(self.size)+1,self.nr_actions_per_qubit*(self.size)*(self.size)+1)
 
 
@@ -68,7 +69,7 @@ class QuantumAgent2(nn.Module):
         both = self.comp_conv_layerBoth(both)
 
         complete = (x+z+both)/3
-        complete = complete.view(self.stack_depth, -1,  (self.size+1)*(self.size+1))
+        complete = complete.view(self.stack_depth, -1,  (self.size+1)*(self.size+1)*self.output_channels4)
         complete = self.almost_final_layer(complete)
         final_output = self.final_layer(complete)
         
