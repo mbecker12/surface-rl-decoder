@@ -4,7 +4,7 @@
 #SBATCH -n 1
 #SBATCH -t 0:00:20
 #SBATCH -A SNIC2020-33-2 -p alvis
-#SBATCH --gpus-per-node=T4:1
+#SBATCH --gpus-per-node=V100:1
 #SBATCH --output=./logs-sbatch/logs-%j.out
 
 echo "###### Starting job on cluster"
@@ -33,13 +33,14 @@ else
     NETWORK_PATH=${HOME}/${CLUSTER_WORKDIR}/${NETWORK_SAVE_PATH_CLUSTER}
 fi
 
-SINGULARITY_IMAGE_NAME=${CLUSTER_WORKDIR}/qec-mp.sif
-DOCKER_IMAGE_NAME=docker://xero32/qec-mp:first
-
-echo ""
-echo "Network saving path on host: ${NETWORK_PATH}"
-echo "Tensorboard path on host: ${LOG_PATH}"
-echo ""
+if [ -z "$2" ]
+then
+    SINGULARITY_IMAGE_NAME=${CLUSTER_WORKDIR}/qec-mp.sif
+    DOCKER_IMAGE_NAME=docker://xero32/qec-mp:first
+else
+    SINGULARITY_IMAGE_NAME=${CLUSTER_WORKDIR}/qec-mp_$2.sif
+    DOCKER_IMAGE_NAME=docker://xero32/qec-mp:$2
+fi
 
 mkdir -p ${LOG_PATH}
 mkdir -p ${NETWORK_PATH}
@@ -49,6 +50,8 @@ if [ -z "$1" ]
     echo ""
     echo "No argument for env-config file supplied!"
     echo "Resort to default values"
+    echo ""
+    echo "Run on image ${SINGULARITY_IMAGE_NAME}"
     echo ""
 
     singularity run --nv \
@@ -66,6 +69,8 @@ else
     echo ""
     echo "Use config file $1"
     echo ""
+    echo "Run on image ${SINGULARITY_IMAGE_NAME}"
+    echo ""
 
     singularity run --nv \
         -B ${LOG_PATH}:/${IMAGE_WORKDIR}/runs:rw \
@@ -80,4 +85,3 @@ else
         python -c 'import torch.cuda as tc; id = tc.current_device(); print(tc.get_device_name(id))'; \
         python /${IMAGE_WORKDIR}/src/distributed/start_distributed_mp.py"
 fi
-
