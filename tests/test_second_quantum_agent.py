@@ -1,6 +1,6 @@
 import sys
 import torch
-from src.agent_src.agent import QuantumAgent2
+from src.agent_src.agent2 import QuantumAgent2
 sys.path.append("./src")
 sys.path.append("./src/surface_rl_decoder")
 
@@ -20,7 +20,7 @@ def test_agent3():
     "kernel_size": 3,
     "output_channels": 20,
     "output_channels2": 50,
-    "output_channels3": 20
+    "output_channels3": 30,
     "padding_size": 1
     }
     agent = QuantumAgent2(config)
