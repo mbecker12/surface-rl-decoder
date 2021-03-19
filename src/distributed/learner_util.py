@@ -55,7 +55,7 @@ def data_to_batch(
     # the following is only meaningful in prioritized experience replay
     memory_weights = data[1]
     if memory_weights is not None:
-        memory_weights = torch.tensor(memory_weights, dtype=torch.float32)
+        memory_weights = torch.tensor(memory_weights, dtype=torch.float32, device=device)
         memory_weights = memory_weights.view(-1, 1)
 
     indices = data[2]
@@ -146,8 +146,9 @@ def perform_q_learning_step(
     policy_output_gathered = policy_output.gather(1, batch_action_indices)
 
     # compute target network output
-    _target_output = target_net(batch_next_state)
-    target_output = _target_output.max(1)[0].detach()
+    with torch.no_grad():
+        target_output = target_net(batch_next_state)
+        target_output = target_output.max(1)[0].detach()
 
     # compute loss and update replay memory
     expected_q_values = (
@@ -157,8 +158,6 @@ def perform_q_learning_step(
     target_q_values = expected_q_values * batch_reward
     target_q_values = target_q_values.view(-1, 1)
     target_q_values = target_q_values.clamp(-100, 100)
-
-    assert target_q_values.shape == policy_output_gathered.shape, target_q_value.shape
 
     loss = criterion(target_q_values, policy_output_gathered)
 
