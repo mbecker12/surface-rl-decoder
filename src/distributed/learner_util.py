@@ -87,6 +87,8 @@ def perform_q_learning_step(
     code_size,
     batch_size,
     discount_factor,
+    logger=None,
+    verbosity=0,
 ):
     """
     Perform the actual stochastic gradient descent step.
@@ -169,5 +171,8 @@ def perform_q_learning_step(
     # backpropagate
     loss.backward()
     optimizer.step()
+
+    if verbosity > 9:
+        logger.info(f"{policy_net.parameters()=}")
 
     return indices, priorities

@@ -187,6 +187,8 @@ def learner(args: Dict):
             code_size,
             batch_size,
             discount_factor,
+            logger=logger,
+            verbosity=verbosity,
         )
 
         # update priorities in replay_memory
