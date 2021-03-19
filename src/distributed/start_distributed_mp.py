@@ -4,6 +4,7 @@ for reinforcement learning.
 """
 import os
 import json
+import yaml
 import traceback
 from time import sleep
 from copy import deepcopy
@@ -19,11 +20,6 @@ from model_util import save_metadata
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
-
-SUMMARY_PATH = "./runs"
-# TODO: replace this with the actual date in the real setting
-SUMMARY_DATE = "test2"
-SUMMARY_RUN_INFO = "run_info"
 
 
 def start_mp():
@@ -51,11 +47,19 @@ def start_mp():
     cfg = Config()
     cfg.scan(".", True).read()
     global_config = cfg.config_rendered.get("config")
-    logger.info(f"\n{global_config=}\n\n")
+
+    logger.info(
+        "\nQEC Config: \n\n" f"{yaml.dump(global_config, default_flow_style=False)}"
+    )
 
     actor_config = global_config.get("actor")
     memory_config = global_config.get("replay_memory")
     learner_config = global_config.get("learner")
+
+    general_config = global_config.get("general")
+    summary_path = general_config.get("summary_path", "runs")
+    summary_date = general_config.get("summary_date", "test3")
+    summary_run_info = general_config.get("summary_run_info", "run_info")
 
     # set up surface code environment configuration
     env_config = global_config.get("env")
@@ -135,8 +139,8 @@ def start_mp():
         "syndrome_size": syndrome_size,
         "verbosity": replay_memory_verbosity,
         "benchmarking": replay_memory_benchmarking,
-        "summary_path": SUMMARY_PATH,
-        "summary_date": SUMMARY_DATE,
+        "summary_path": summary_path,
+        "summary_date": summary_date,
         "replay_memory_type": replay_memory_type,
         "replay_memory_alpha": replay_memory_alpha,
         "replay_memory_beta": replay_memory_beta,
@@ -151,8 +155,8 @@ def start_mp():
         "num_actions_per_qubit": num_actions_per_qubit,
         "verbosity": actor_verbosity,
         "benchmarking": actor_benchmarking,
-        "summary_path": SUMMARY_PATH,
-        "summary_date": SUMMARY_DATE,
+        "summary_path": summary_path,
+        "summary_date": summary_date,
         "model_name": model_name,
         "model_config": model_config,
         "epsilon": epsilon,
@@ -169,8 +173,8 @@ def start_mp():
         "learner_actor_queue": learner_actor_queue,
         "verbosity": learner_verbosity,
         "benchmarking": learner_benchmarking,
-        "summary_path": SUMMARY_PATH,
-        "summary_date": SUMMARY_DATE,
+        "summary_path": summary_path,
+        "summary_date": summary_date,
         "max_time": learner_max_time_h,
         "learning_rate": learning_rate,
         "device": learner_device,
@@ -191,7 +195,7 @@ def start_mp():
 
     # set up tensorboard for monitoring
     tensorboard = SummaryWriter(
-        os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO)
+        os.path.join(summary_path, summary_date, summary_run_info)
     )
     tensorboard_string = "global config: " + str(global_config) + "\n"
     tensorboard.add_text("run_info/hyper_parameters", tensorboard_string)
@@ -231,7 +235,7 @@ def start_mp():
         logger.error(error_traceback)
         # log the actual error to the tensorboard
         tensorboard = SummaryWriter(
-            os.path.join(SUMMARY_PATH, SUMMARY_DATE, SUMMARY_RUN_INFO)
+            os.path.join(summary_path, summary_date, summary_run_info)
         )
         tensorboard.add_text("run_info/error_message", error_traceback)
 
@@ -239,8 +243,8 @@ def start_mp():
 
     save_model_path_date_meta = os.path.join(
         save_model_path,
-        SUMMARY_DATE,
-        f"{model_name}_{system_size}_{SUMMARY_DATE}_meta.yaml",
+        summary_date,
+        f"{model_name}_{system_size}_meta.yaml",
     )
 
     logger.info("Saving Metadata")

@@ -72,6 +72,14 @@ and its value will be used.
 | cfg["config"]["env"]["error_channel"] | CONFIG_ENV_ERROR_CHANNEL | "dp"          |
 +---------------------------------------+--------------------------+---------------+
 
+Note: The config variable `CONFIG_GENERAL_SUMMARY_DATE` for setting the subdirectory
+to save tensorboard info and networks, cannot be overwritten by conf.env files.
+
+It can however be overwritten by the `-s` flag of the job script `mp-script.sh`.
+This use is intended for testing purposes to keep overwriting the same testing
+directory, e.g. `networks/test` and `runs/test`.
+
+
 Deployment
 ==========
 
