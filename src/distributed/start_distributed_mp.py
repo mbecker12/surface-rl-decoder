@@ -21,6 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
 
+
 def start_mp():
     """
     Start the actual sub processes.
@@ -47,8 +48,9 @@ def start_mp():
     cfg.scan(".", True).read()
     global_config = cfg.config_rendered.get("config")
 
-    logger.info("\nQEC Config: \n\n" \
-        f"{yaml.dump(global_config, default_flow_style=False)}")
+    logger.info(
+        "\nQEC Config: \n\n" f"{yaml.dump(global_config, default_flow_style=False)}"
+    )
 
     actor_config = global_config.get("actor")
     memory_config = global_config.get("replay_memory")
