@@ -1,4 +1,11 @@
 #!/bin/bash
+#SBATCH -J qec-test
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH -t 0:00:40
+#SBATCH -A SNIC2020-33-2 -p alvis
+#SBATCH --gpus-per-node=V100:1
+#SBATCH --output=./logs-sbatch/logs-%j.out
 
 #####################################################################
 # This is an extended version of our
