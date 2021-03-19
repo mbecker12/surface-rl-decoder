@@ -55,7 +55,9 @@ def data_to_batch(
     # the following is only meaningful in prioritized experience replay
     memory_weights = data[1]
     if memory_weights is not None:
-        memory_weights = torch.tensor(memory_weights, dtype=torch.float32, device=device)
+        memory_weights = torch.tensor(
+            memory_weights, dtype=torch.float32, device=device
+        )
         memory_weights = memory_weights.view(-1, 1)
 
     indices = data[2]

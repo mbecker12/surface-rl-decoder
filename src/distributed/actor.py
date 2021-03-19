@@ -72,7 +72,6 @@ def actor(args):
     old_model_path = args["old_model_path"]
     discount_factor = args["discount_factor"]
 
-
     logger.info("Fire up all the environments!")
 
     env = SurfaceCode()  # TODO: need published gym environment here

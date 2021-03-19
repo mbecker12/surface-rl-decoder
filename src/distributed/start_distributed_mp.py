@@ -159,7 +159,6 @@ def start_mp():
         "load_model": actor_load_model,
         "old_model_path": old_model_path,
         "discount_factor": discount_factor,
-
     }
 
     learner_args = {
