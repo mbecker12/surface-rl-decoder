@@ -54,6 +54,10 @@ def data_to_batch(
     batch = data[0]
     # the following is only meaningful in prioritized experience replay
     memory_weights = data[1]
+    if memory_weights is not None:
+        memory_weights = torch.tensor(memory_weights, dtype=torch.float32)
+        memory_weights = memory_weights.view(-1, 1)
+
     indices = data[2]
 
     list_state, list_action, list_reward, list_next_state, list_terminal = zip(*batch)
@@ -150,13 +154,14 @@ def perform_q_learning_step(
         target_output * (~batch_terminal).type(torch.float32) * discount_factor
     )
 
-    target_q_value = expected_q_values * batch_reward
-    target_q_value = target_q_value.view(-1, 1)
+    target_q_values = expected_q_values * batch_reward
+    target_q_values = target_q_values.view(-1, 1)
+    target_q_values = target_q_values.clamp(-100, 100)
 
-    assert target_q_value.shape == policy_output_gathered.shape, target_q_value.shape
+    assert target_q_values.shape == policy_output_gathered.shape, target_q_value.shape
 
-    target_q_value = target_q_value.clamp(-100, 100)
-    loss = criterion(target_q_value, policy_output_gathered)
+    loss = criterion(target_q_values, policy_output_gathered)
+
     optimizer.zero_grad()
 
     # only used for prioritized experience replay

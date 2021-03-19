@@ -18,9 +18,15 @@ class ReplayMemory:
         self.current_num_objects = 0
         self.is_full_memory = False
 
-    def save(self, obj):
+    # pylint: disable=unused-argument
+    def save(self, obj, prio=None):
         """
         Save data objects.
+
+        Parameters
+        ==========
+        obj: the data object to save to replay memory
+        prio: unused, is only present for conformity reasons
         """
         self.memory[self.current_num_objects] = obj
         self.current_num_objects = (self.current_num_objects + 1) % self.memory_size
@@ -28,24 +34,29 @@ class ReplayMemory:
         if self.current_num_objects >= self.memory_size - 1:
             self.is_full_memory = True
 
-    def sample(self, batch_size):
+    def sample(self, batch_size, beta=None):
         """
         Sample a batch of data.
+
+        Parameters
+        ==========
+        batch_size: number of samples to retrieve in one batch
+        beta: unused, is present for conformity reasons
         """
         valid_max_index = (
             self.memory_size if self.is_full_memory else self.current_num_objects
         )
         if valid_max_index < batch_size:
             return None, None, None, None
-        transitions_and_priorities = random.sample(
-            self.memory[:valid_max_index], batch_size
-        )
-        transitions_and_priorities = list(zip(*transitions_and_priorities))
+        transitions = random.sample(self.memory[:valid_max_index], batch_size)
 
-        transitions = transitions_and_priorities[0]
-        priorities = transitions_and_priorities[1]
-        # return priorities for conformity reasons
-        return transitions, None, None, priorities
+        return transitions, None, None, None
 
     def __len__(self):
         return self.memory_size
+
+    def filled_size(self):
+        """
+        Return the number of elements stored in replay memory.
+        """
+        return self.current_num_objects

@@ -9,6 +9,7 @@ from time import time, sleep
 import logging
 import numpy as np
 from distributed.replay_memory import ReplayMemory
+from prioritized_replay_memory import PrioritizedReplayMemory
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 from torch.utils.tensorboard import SummaryWriter
 
@@ -55,9 +56,23 @@ def io_replay_memory(args):
 
     n_transitions_total = 0
     memory_size = args["replay_memory_size"]
+    memory_alpha = float(args["replay_memory_alpha"])
+    memory_beta = float(args["replay_memory_beta"])
     replay_size_before_sampling = args["replay_size_before_sampling"]
 
-    replay_memory = ReplayMemory(memory_size)
+    memory_type = args["replay_memory_type"]
+
+    if memory_type.lower() == "uniform":
+        replay_memory = ReplayMemory(memory_size)
+    elif "prio" in memory_type.lower():
+        replay_memory = PrioritizedReplayMemory(memory_size, memory_alpha)
+    else:
+        raise Exception(f"Error! Memory type '{memory_type}' not supported.")
+
+    logger.info(
+        f"Initialized replay memory of type {memory_type}, an instance of {type(replay_memory).__name__}."
+    )
+
     batch_size = args["batch_size"]
     stack_depth = args["stack_depth"]
     syndrome_size = args["syndrome_size"]
@@ -111,7 +126,8 @@ def io_replay_memory(args):
                 )
 
                 # save transitions to the replay memory store
-                replay_memory.save((_transitions, _priorities))
+                replay_memory.save(_transitions, _priorities)
+
                 n_transitions_total += 1
                 count_transition_received += 1
 
@@ -197,7 +213,7 @@ def io_replay_memory(args):
         # if the replay memory is sufficiently filled, trigger the actual learning
         if (
             not start_learning
-        ) and replay_memory.current_num_objects >= replay_size_before_sampling:
+        ) and replay_memory.filled_size() >= replay_size_before_sampling:
             start_learning = True
             logger.info("Start Learning")
         else:
@@ -206,11 +222,11 @@ def io_replay_memory(args):
         # prepare to send data to learner process repeatedly
         while start_learning and (io_learner_queue.qsize() < batch_in_queue_limit):
             transitions, memory_weights, indices, priorities = replay_memory.sample(
-                batch_size
+                batch_size, memory_beta
             )
             data = (transitions, memory_weights, indices)
             logger.debug(f"{io_learner_queue.qsize()=}")
-            logger.debug(f"{replay_memory.current_num_objects=}")
+            logger.debug(f"{replay_memory.filled_size()=}")
             io_learner_queue.put(data)
             logger.debug("Put data in io_learner_queue")
 

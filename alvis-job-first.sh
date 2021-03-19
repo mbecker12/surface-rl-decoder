@@ -45,6 +45,7 @@ fi
 mkdir -p ${LOG_PATH}
 mkdir -p ${NETWORK_PATH}
 
+
 if [ -z "$1" ]
     then
     echo ""
