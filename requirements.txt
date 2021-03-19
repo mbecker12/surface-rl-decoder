@@ -4,3 +4,4 @@ torch>=1.0.0
 config-env-parser >= 0.0.3
 gym >= 0.18.0
 tensorboard>=2.4.1
+pyyaml>=5.0.0

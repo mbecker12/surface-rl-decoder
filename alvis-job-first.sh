@@ -42,6 +42,10 @@ else
     DOCKER_IMAGE_NAME=docker://xero32/qec-mp:$2
 fi
 
+mkdir -p ${LOG_PATH}
+mkdir -p ${NETWORK_PATH}
+
+
 if [ -z "$1" ]
     then
     echo ""
@@ -52,7 +56,8 @@ if [ -z "$1" ]
     echo ""
 
     singularity run --nv \
-        -B ${LOG_PATH}:/${IMAGE_WORKDIR}/runs:rw \
+        -B ${LOG_PATH}:/${IMAGE_WORKDIR}/${LOG_PATH_SPECIFICATION_IMAGE}:rw \
+        -B ${NETWORK_PATH}:/${IMAGE_WORKDIR}/${NETWORK_SAVE_PATH_IMAGE}:rw \
         ${SINGULARITY_IMAGE_NAME} \
         /bin/bash -c \
         "cd /${IMAGE_WORKDIR}; \
@@ -70,6 +75,7 @@ else
 
     singularity run --nv \
         -B ${LOG_PATH}:/${IMAGE_WORKDIR}/runs:rw \
+        -B ${NETWORK_PATH}:/${IMAGE_WORKDIR}/networks:rw \
         --env-file $1 \
         ${SINGULARITY_IMAGE_NAME} \
         /bin/bash -c \
@@ -80,4 +86,3 @@ else
         python -c 'import torch.cuda as tc; id = tc.current_device(); print(tc.get_device_name(id))'; \
         python /${IMAGE_WORKDIR}/src/distributed/start_distributed_mp.py"
 fi
-

@@ -55,7 +55,9 @@ def data_to_batch(
     # the following is only meaningful in prioritized experience replay
     memory_weights = data[1]
     if memory_weights is not None:
-        memory_weights = torch.tensor(memory_weights, dtype=torch.float32)
+        memory_weights = torch.tensor(
+            memory_weights, dtype=torch.float32, device=device
+        )
         memory_weights = memory_weights.view(-1, 1)
 
     indices = data[2]
@@ -91,6 +93,8 @@ def perform_q_learning_step(
     code_size,
     batch_size,
     discount_factor,
+    logger=None,
+    verbosity=0,
 ):
     """
     Perform the actual stochastic gradient descent step.
@@ -124,24 +128,29 @@ def perform_q_learning_step(
         indices,
     ) = data_to_batch(data, device)
 
-    batch_actions = torch.tensor(
+    batch_action_indices = torch.tensor(
         [
             action_to_q_value_index(batch_actions[i], code_size)
             for i in range(batch_size)
         ]
     ).view(-1, 1)
-    batch_actions = batch_actions.to(device)
+    batch_action_indices = batch_action_indices.to(device)
 
     policy_net.train()
     target_net.eval()
 
     # compute policy net output
     policy_output = policy_net(batch_state)
-    policy_output = policy_output.gather(1, batch_actions)
+    assert policy_output.shape == (
+        batch_size,
+        3 * code_size * code_size + 1,
+    ), policy_output.shape
+    policy_output_gathered = policy_output.gather(1, batch_action_indices)
 
     # compute target network output
-    target_output = target_net(batch_next_state)
-    target_output = target_output.max(1)[0].detach()
+    with torch.no_grad():
+        target_output = target_net(batch_next_state)
+        target_output = target_output.max(1)[0].detach()
 
     # compute loss and update replay memory
     expected_q_values = (
@@ -150,10 +159,10 @@ def perform_q_learning_step(
 
     target_q_values = expected_q_values * batch_reward
     target_q_values = target_q_values.view(-1, 1)
-
     target_q_values = target_q_values.clamp(-100, 100)
 
-    loss = criterion(target_q_values, policy_output)
+    loss = criterion(target_q_values, policy_output_gathered)
+
     optimizer.zero_grad()
 
     # only used for prioritized experience replay
@@ -168,5 +177,8 @@ def perform_q_learning_step(
     # backpropagate
     loss.backward()
     optimizer.step()
+
+    if verbosity > 9:
+        logger.info(f"{policy_net.parameters()=}")
 
     return indices, priorities

@@ -28,7 +28,6 @@ def evaluate(
     Evaluate the current policy.
     """
 
-    model.to(device)
     model.eval()
 
     # TODO: publish gym environment
