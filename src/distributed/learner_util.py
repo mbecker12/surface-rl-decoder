@@ -179,6 +179,6 @@ def perform_q_learning_step(
     optimizer.step()
 
     if verbosity > 9:
-        logger.info(f"{policy_net.parameters()=}")
+        logger.info(f"{list(policy_net.parameters())[-1]=}")
 
     return indices, priorities
