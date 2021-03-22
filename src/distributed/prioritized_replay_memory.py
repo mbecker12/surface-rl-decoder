@@ -5,6 +5,7 @@ This implementation makes it more likely for
 high-loss events to be sampled so that the model
 can exncounter more events which it can learn a lot from.
 """
+import traceback
 import random
 from collections import namedtuple
 from distributed.sum_tree import SumTree
@@ -80,24 +81,41 @@ class PrioritizedReplayMemory(object):
         weights = []
         priorities = []
 
-        for _ in range(batch_size):
+        i = 0
+        while i < batch_size:
             rand = random.random()
-            data, priority, index = self.tree.find(rand)
-            priorities.append(priority)
-            weights.append(
-                (1.0 / self.memory_size / priority) ** beta if priority > 1e-16 else 0
-            )
-            indices.append(index)
-            out.append(data)
-            self.priority_update([index], [0])  # To avoid duplicating
+            try:
+                data, priority, index = self.tree.find(rand)
+                priorities.append(priority)
+
+                _weight = (
+                    (1.0 / self.memory_size / priority) ** beta
+                    if priority > 1e-16
+                    else 0.0
+                )
+                weights.append(_weight)
+                indices.append(index)
+                out.append(data)
+                self.priority_update([index], [0])  # To avoid duplicating
+            except AssertionError as _:
+                print(
+                    "Caught AssertionError while trying to sample from replay memory. Skipping to new sample."
+                )
+                continue
+            else:
+                i += 1
 
         self.priority_update(indices, priorities)  # Revert priorities
 
         weights_max = max(weights)
+        weights_max_inv = float(1.0 / weights_max)
+
         if weights_max == 0:
             weights = [0.0 for w in weights]
         else:
-            weights = [i / weights_max for i in weights]  # Normalize for stability
+            weights = [
+                float(i * weights_max_inv) for i in weights
+            ]  # Normalize for stability
 
         return out, weights, indices, priorities
 

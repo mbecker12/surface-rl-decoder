@@ -60,3 +60,6 @@ class ReplayMemory:
         Return the number of elements stored in replay memory.
         """
         return self.current_num_objects
+
+    def priority_update(self, *args):
+        pass
