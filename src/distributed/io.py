@@ -12,7 +12,7 @@ from distributed.replay_memory import ReplayMemory
 from prioritized_replay_memory import PrioritizedReplayMemory
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 from torch.utils.tensorboard import SummaryWriter
-
+import nvgpu
 import matplotlib.pyplot as plt
 
 from util import anneal_factor
@@ -83,6 +83,8 @@ def io_replay_memory(args):
     summary_path = args["summary_path"]
     summary_date = args["summary_date"]
 
+    nvidia_log_frequency = args["nvidia_log_frequency"]
+
     start_learning = False
 
     # initialize tensorboard for monitoring/logging
@@ -96,7 +98,16 @@ def io_replay_memory(args):
     count_transition_received = 0  # count the number of transitions that arrived in this io module from the actor process
     consumption_total = 0
     transitions_total = 0
+
     stop_watch = time()
+
+    nvidia_log_time = time()
+    try:
+        gpu_info = nvgpu.gpu_info()
+        gpu_available = True
+    except FileNotFoundError as _:
+        gpu_available = False
+
     while True:
 
         # process the transitions sent from the actor process
@@ -183,35 +194,46 @@ def io_replay_memory(args):
 
             logger.debug("Saved transitions to replay memory")
 
-        # TODO: log gpu metrics here
-        if verbosity:
-            transitions_total += count_transition_received
-            consumption_total += count_consumption_outgoing
+            if verbosity >= 1:
+                if gpu_available and nvidia_log_time > nvidia_log_frequency:
+                    nvidia_log_time = time()
+                    gpu_info = nvgpu.gpu_info()
+                    for i in gpu_info:
+                        gpu_info = "{} {}".format(i["type"], i["index"])
+                        mem_total = i["mem_total"]
+                        mem_used = i["mem_used"]
+                        tensorboard.add_scalars(
+                            gpu_info, {"mem_total": mem_total, "mem_used": mem_used}
+                        )
 
-            current_time = time()
-            tensorboard.add_scalars(
-                "data/total",
-                {
-                    "total batch consumption outgoing": consumption_total,
-                    "total # received transitions": transitions_total,
-                },
-                tensorboard_step,
-            )
-            tensorboard.add_scalars(
-                "data/speed",
-                {
-                    "batch consumption rate of outgoing transitions": count_consumption_outgoing
-                    / (current_time - stop_watch),
-                    "received transitions rate": count_transition_received
-                    / (current_time - stop_watch),
-                },
-                tensorboard_step,
-            )
+            if verbosity:
+                transitions_total += count_transition_received
+                consumption_total += count_consumption_outgoing
 
-            count_transition_received = 0
-            count_consumption_outgoing = 0
-            tensorboard_step += 1
-            stop_watch = time()
+                current_time = time()
+                tensorboard.add_scalars(
+                    "data/total",
+                    {
+                        "total batch consumption outgoing": consumption_total,
+                        "total # received transitions": transitions_total,
+                    },
+                    tensorboard_step,
+                )
+                tensorboard.add_scalars(
+                    "data/speed",
+                    {
+                        "batch consumption rate of outgoing transitions": count_consumption_outgoing
+                        / (current_time - stop_watch),
+                        "received transitions rate": count_transition_received
+                        / (current_time - stop_watch),
+                    },
+                    tensorboard_step,
+                )
+
+                count_transition_received = 0
+                count_consumption_outgoing = 0
+                tensorboard_step += 1
+                stop_watch = time()
 
         # if the replay memory is sufficiently filled, trigger the actual learning
         if (
@@ -236,6 +258,8 @@ def io_replay_memory(args):
             transitions, memory_weights, indices, priorities = replay_memory.sample(
                 batch_size, annealed_beta
             )
+
+            assert len(transitions) == batch_size
             data = (transitions, memory_weights, indices)
             logger.debug(f"{io_learner_queue.qsize()=}")
             logger.debug(f"{replay_memory.filled_size()=}")
@@ -254,9 +278,11 @@ def io_replay_memory(args):
             if msg == "priorities":
                 # Update priorities
                 logger.debug("received message 'priorities' from learner")
-                # logger.info(f"{item=}")
+                indices, priorities = item
+                replay_memory.priority_update(indices, priorities)
             elif msg == "terminate":
                 logger.info("received message 'terminate' from learner")
+                tensorboard.close()
                 logger.info(
                     f"Total amount of generated transitions: {n_transitions_total}"
                 )

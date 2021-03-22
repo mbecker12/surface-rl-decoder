@@ -4,6 +4,7 @@ reinforcement learning setup.
 """
 import os
 from time import time, sleep
+import traceback
 from typing import Dict
 import logging
 import numpy as np
@@ -177,24 +178,29 @@ def learner(args: Dict):
         # different learning strategies
 
         # perform the actual learning
-        indices, priorities = perform_q_learning_step(
-            policy_net,
-            target_net,
-            device,
-            criterion,
-            optimizer,
-            data,
-            code_size,
-            batch_size,
-            discount_factor,
-            logger=logger,
-            verbosity=verbosity,
-        )
+        try:
+            indices, priorities = perform_q_learning_step(
+                policy_net,
+                target_net,
+                device,
+                criterion,
+                optimizer,
+                data,
+                code_size,
+                batch_size,
+                discount_factor,
+                logger=logger,
+                verbosity=verbosity,
+            )
 
-        # update priorities in replay_memory
-        p_update = (indices, priorities)
-        msg = ("priorities", p_update)
-        learner_io_queue.put(msg)
+            # update priorities in replay_memory
+            p_update = (indices, priorities)
+            msg = ("priorities", p_update)
+            learner_io_queue.put(msg)
+        except TypeError as _:
+            error_traceback = traceback.format_exc()
+            logger.error("Caught exception in learning step")
+            logger.error(error_traceback)
 
         # evaluate policy network
         if eval_frequency != -1 and count_to_eval >= eval_frequency:
