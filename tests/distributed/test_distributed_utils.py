@@ -3,6 +3,7 @@ import pytest
 import torch
 from src.distributed.util import (
     action_to_q_value_index,
+    anneal_factor,
     q_value_index_to_action,
     select_actions,
 )
@@ -80,3 +81,51 @@ def test_action_and_idx():
 
         idx = action_to_q_value_index(action, system_size)
         assert idx == i
+
+
+def test_annealing():
+    timesteps = 1250
+
+    min_val = 0.0
+    for i in range(timesteps):
+        factor = anneal_factor(timesteps=i, decay_factor=0.99, min_value=min_val)
+        if i < 5:
+            assert pytest.approx(factor, abs=0.05) == 1.0
+    assert pytest.approx(factor, abs=1e-5) == min_val
+
+    min_val = 0.3
+    for i in range(timesteps):
+        factor = anneal_factor(timesteps=i, decay_factor=0.99, min_value=min_val)
+        if i < 5:
+            assert pytest.approx(factor, abs=0.05) == 1.0
+    assert pytest.approx(factor, abs=1e-5) == min_val
+
+    max_val = 1.0
+    base_factor = 0.4
+    for i in range(timesteps):
+        factor = anneal_factor(
+            timesteps=i,
+            decay_factor=1.01,
+            min_value=min_val,
+            max_value=max_val,
+            base_factor=base_factor,
+        )
+
+        if i < 5:
+            assert pytest.approx(factor, abs=0.05) == base_factor
+    assert pytest.approx(factor, abs=1e-6) == max_val
+
+    max_val = 1.0
+    base_factor = 0.4
+    for i in range(timesteps):
+        factor = anneal_factor(
+            time_difference=i,
+            decay_factor=1.01,
+            min_value=min_val,
+            max_value=max_val,
+            base_factor=base_factor,
+        )
+
+        if i < 5:
+            assert pytest.approx(factor, abs=0.05) == base_factor
+    assert pytest.approx(factor, abs=1e-6) == max_val
