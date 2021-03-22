@@ -67,7 +67,7 @@ def io_replay_memory(args):
 
     if memory_type.lower() == "uniform":
         replay_memory = ReplayMemory(memory_size)
-    elif "prio" in memory_type.lower():
+    elif "prio" in memory_type.lower() or "per" in memory_type.lower():
         replay_memory = PrioritizedReplayMemory(memory_size, memory_alpha)
     else:
         raise Exception(f"Error! Memory type '{memory_type}' not supported.")
