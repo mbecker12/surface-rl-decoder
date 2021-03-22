@@ -9,7 +9,7 @@ from distributed.util import action_to_q_value_index
 
 
 def data_to_batch(
-    data: Tuple, device: torch.device
+    data: Tuple, device: torch.device, batch_size: int
 ) -> Tuple[List, List, List, List, List, List, List]:
     """
     Transform the data received from the io-learner-queue to data forms
@@ -52,11 +52,17 @@ def data_to_batch(
     # indices:
     # [batch][state, action, reward, next_state, terminal]
     batch = data[0]
+    assert batch is not None and len(batch) == batch_size
+
     # the following is only meaningful in prioritized experience replay
     memory_weights = data[1]
     if memory_weights is not None:
-        memory_weights = torch.tensor(
-            memory_weights, dtype=torch.float32, device=device
+        assert len(memory_weights) == batch_size, len(memory_weights)
+
+        memory_weights = (
+            torch.tensor(memory_weights, dtype=torch.float32, device=device)
+            .clone()
+            .detach()
         )
         memory_weights = memory_weights.view(-1, 1)
 
@@ -126,7 +132,7 @@ def perform_q_learning_step(
         batch_terminal,
         weights,
         indices,
-    ) = data_to_batch(data, device)
+    ) = data_to_batch(data, device, batch_size)
 
     batch_action_indices = torch.tensor(
         [

@@ -36,7 +36,7 @@ def test_data_to_batch():
             batch_terminal,
             memory_weights,
             indices,
-        ) = data_to_batch(data, device)
+        ) = data_to_batch(data, device, batch_size)
 
         assert batch_state.shape == (
             batch_size,

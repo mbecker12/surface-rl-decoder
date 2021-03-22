@@ -101,6 +101,7 @@ def start_mp():
     replay_memory_alpha = float(memory_config["alpha"])
     replay_memory_beta = float(memory_config["beta"])
     replay_memory_decay_beta = float(memory_config.get("decay_beta", 1.0))
+    nvidia_log_frequency = int(memory_config.get("nvidia_log_frequency", 100))
 
     # set up learner configuration
     learner_verbosity = int(learner_config["verbosity"])
@@ -156,6 +157,8 @@ def start_mp():
         "replay_memory_type": replay_memory_type,
         "replay_memory_alpha": replay_memory_alpha,
         "replay_memory_beta": replay_memory_beta,
+        "replay_memory_decay_beta": replay_memory_decay_beta,
+        "nvidia_log_frequency": nvidia_log_frequency,
     }
 
     actor_args = {

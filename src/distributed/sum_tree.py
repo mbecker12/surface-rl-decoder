@@ -81,19 +81,20 @@ class SumTree(object):
     def find(self, value, norm=True):
         """"""
         # TODO docu
+        assert value >= 0.0, f"{value=}"
         if norm:
             value *= self.tree[0]
-        return self._find(value, 0)
+        return self._find(value, 0, original_value=value)
 
-    def _find(self, value, index):
+    def _find(self, value, index, original_value=0):
         """"""
         # TODO docu
         if 2 ** (self.tree_level - 1) - 1 <= index:
             data_index = index - (2 ** (self.tree_level - 1) - 1)
             assert (
                 0 <= data_index < len(self.data)
-            ), f"{data_index=}, {len(self.data)=}, {self.tree_level=}, {index=}\n\n \
-                    {self.print_tree()}"
+            ), f"{original_value=}, {self.tree[0]=}, {(original_value / self.tree[0])=}, {value=}, {data_index=}, {len(self.data)=}, {self.tree_level=}, {index=}\n"
+
             return (
                 self.data[data_index],
                 self.tree[index],
@@ -103,9 +104,11 @@ class SumTree(object):
         left = self.tree[2 * index + 1]
 
         if value <= left:
-            return self._find(value, 2 * index + 1)
+            return self._find(value, 2 * index + 1, original_value=original_value)
         else:
-            return self._find(value - left, 2 * (index + 1))
+            return self._find(
+                value - left, 2 * (index + 1), original_value=original_value
+            )
 
     def print_tree(self):
         """
