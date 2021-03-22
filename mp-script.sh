@@ -76,10 +76,10 @@ while getopts d:c:C:i:I:t:T:n:N:s:w:W:p:h FLAG; do
         h)
             HELP
             ;;
-	d)
-	    JOB_DESCRIPTION=$OPTARG
-	    echo "-d used: $OPTARG"
-	    ;;
+        d)
+            JOB_DESCRIPTION=$OPTARG
+            echo "-d used: $OPTARG"
+            ;;
         c)
             CONFIG_FILE_NAME=$OPTARG
             SET_CONFIG_FILE_NAME=1
@@ -186,7 +186,8 @@ if [ -z ${CONFIG_FILE} ]; then
     singularity run --nv \
       -B ${ABS_NETWORK_PATH_CLUSTER}:${ABS_NETWORK_PATH_IMAGE}:rw \
       -B ${ABS_TENSORBOARD_PATH_CLUSTER}:${ABS_TENSORBOARD_PATH_IMAGE}:rw \
-      --env CONFIG_GENERAL_SUMMARY_DATE=${SAVE_INFO_PATH} \
+      --env CONFIG_GENERAL_SUMMARY_DATE="${SAVE_INFO_PATH}" \
+      --env CONFIG_GENERAL_DESCRIPTION="${JOB_DESCRIPTION}" \
       ${PATH_TO_IMAGE} \
       /bin/bash -c \
         "cd ${IMAGE_WORKDIR}; \
@@ -211,7 +212,8 @@ else
     singularity run --nv \
       -B ${ABS_TENSORBOARD_PATH_CLUSTER}:${ABS_TENSORBOARD_PATH_IMAGE}:rw \
       -B ${ABS_NETWORK_PATH_CLUSTER}:${ABS_NETWORK_PATH_IMAGE}:rw \
-      --env CONFIG_GENERAL_SUMMARY_DATE=${SAVE_INFO_PATH} \
+      --env CONFIG_GENERAL_SUMMARY_DATE="${SAVE_INFO_PATH}" \
+      --env CONFIG_GENERAL_DESCRIPTION="${JOB_DESCRIPTION}" \
       --env-file ${CONFIG_FILE} \
       ${PATH_TO_IMAGE} \
       /bin/bash -c \
