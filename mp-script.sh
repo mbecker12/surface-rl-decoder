@@ -26,6 +26,7 @@ NETWORK_PATH_CLUSTER=tmp_networks
 TENSORBOARD_PATH_CLUSTER=tmp_runs
 DEPLOY_DATE=$(date '+%Y-%m-%d_%H:%M:%S')
 PROGRAM_PATH=src/distributed/start_distributed_mp.py
+JOB_DESCRIPTION=
 
 if [ -z ${SLURM_JOB_ID} ]; then
     SAVE_INFO_PATH=${DEPLOY_DATE}
@@ -51,6 +52,7 @@ function HELP {
     echo -e "Basic usage: sbatch ${SCRIPT}"
     echo -e "to schedule a run on the cluster."\\n
     echo -e "The following command line switches are recognized:"
+    echo "${REV}-d${NORM}  --Description of the current run. Required field."
     echo "${REV}-c${NORM}  --Pass an environment configuration file. Looks for the config flie in the working directory."
     echo "${REV}-C${NORM}  --Pass an environment configuration file. Expects full path."
     echo "${REV}-i${NORM}  --Define the name of the image to be used. Default is ${BOLD}${IMAGE_NAME}${NORM}"
@@ -69,11 +71,15 @@ function HELP {
 }
 
 ### Start getopts code ###
-while getopts c:C:i:I:t:T:n:N:s:w:W:p:h FLAG; do
+while getopts d:c:C:i:I:t:T:n:N:s:w:W:p:h FLAG; do
     case $FLAG in
         h)
             HELP
             ;;
+	d)
+	    JOB_DESCRIPTION=$OPTARG
+	    echo "-d used: $OPTARG"
+	    ;;
         c)
             CONFIG_FILE_NAME=$OPTARG
             SET_CONFIG_FILE_NAME=1
@@ -131,6 +137,11 @@ done
 shift $((OPTIND-1))  #This tells getopts to move on to the next argument.
 
 ### Post processing of some variables
+if [ -z "${JOB_DESCRIPTION}" ]; then
+    echo "Error! Job description is required. Pass it as a string argument after the -d flag."
+    exit 2
+fi
+
 if [ -z "$SET_FULL_IMAGE_PATH" ]; then
     PATH_TO_IMAGE=${CLUSTER_WORKDIR}/${IMAGE_NAME}
 else
