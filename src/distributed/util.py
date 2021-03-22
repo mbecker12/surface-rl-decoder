@@ -288,3 +288,46 @@ def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, system_siz
     priorities = np.absolute(rewards + gamma * qmax - selected_q_values)
 
     return priorities
+
+
+def anneal_factor(
+    time_difference=None,
+    timesteps=None,
+    decay_factor=1.0,
+    min_value=0.0,
+    max_value=1.0,
+    base_factor=1.0,
+):
+    """
+    Compute a general time-dependent anneal factor.
+    It can then be multiplied to a given hyperparameter to reduce its
+    effect over time.
+    Needs either a time difference or number of timesteps as input.
+
+    Parameters
+    ==========
+    time_difference: absolute time that has passed since the program was started
+    timesteps: number of time steps that have passed
+    decay_factor: the rate of decay; this will be exponentiated by the time value
+    min_value: lower bound of annealing effect
+    min_value: upper bound of annealing effect
+    base_factor: additional multiplicator, can be the actual hyperparameter
+        to anneal
+
+    Returns
+    =======
+    annealing_factor: multiplicator to adjust the effect of a hyperparameter
+    """
+    if time_difference is None:
+        assert timesteps is not None
+
+        annealing_factor = max(min_value, base_factor * decay_factor ** timesteps)
+        annealing_factor = min(max_value, annealing_factor)
+        return annealing_factor
+
+    if timesteps is None:
+        assert time_difference is not None
+
+        annealing_factor = max(min_value, base_factor * decay_factor ** time_difference)
+        annealing_factor = min(max_value, annealing_factor)
+        return annealing_factor

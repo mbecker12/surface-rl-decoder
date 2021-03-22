@@ -80,6 +80,17 @@ def start_mp():
     epsilon = float(actor_config["epsilon"])
     actor_load_model = int(actor_config["load_model"])
     num_actions_per_qubit = 3
+    discount_intermediate_reward = float(
+        actor_config.get("discount_intermediate_reward", 0.75)
+    )
+    min_value_factor_intermediate_reward = float(
+        actor_config.get("min_value_intermediate_reward", 0.0)
+    )
+    decay_factor_intermediate_reward = float(
+        actor_config.get("decay_factor_intermediate_reward", 1.0)
+    )
+    decay_factor_epsilon = float(actor_config.get("decay_factor_epsilon", 1.0))
+    min_value_factor_epsilon = float(actor_config.get("min_value_factor_epsilon", 0.0))
 
     # set up replay memory configuration
     replay_memory_size = int(memory_config["size"])
@@ -89,6 +100,7 @@ def start_mp():
     replay_memory_type = memory_config["memory_type"]
     replay_memory_alpha = float(memory_config["alpha"])
     replay_memory_beta = float(memory_config["beta"])
+    replay_memory_decay_beta = float(memory_config.get("decay_beta", 1.0))
 
     # set up learner configuration
     learner_verbosity = int(learner_config["verbosity"])
@@ -163,6 +175,11 @@ def start_mp():
         "load_model": actor_load_model,
         "old_model_path": old_model_path,
         "discount_factor": discount_factor,
+        "discount_intermediate_reward": discount_intermediate_reward,
+        "min_value_factor_intermediate_reward": min_value_factor_intermediate_reward,
+        "decay_factor_intermediate_reward": decay_factor_intermediate_reward,
+        "decay_factor_epsilon": decay_factor_epsilon,
+        "min_value_factor_epsilon": min_value_factor_epsilon,
     }
 
     learner_args = {
