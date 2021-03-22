@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from environment_set import EnvironmentSet
 from model_util import choose_model, extend_model_config, load_model
-from util import compute_priorities, select_actions
+from util import anneal_factor, compute_priorities, select_actions
 
 from surface_rl_decoder.surface_code import SurfaceCode
 
@@ -71,6 +71,15 @@ def actor(args):
     load_model_flag = args["load_model"]
     old_model_path = args["old_model_path"]
     discount_factor = args["discount_factor"]
+    discount_intermediate_reward = float(args.get("discount_intermediate_reward", 0.75))
+    min_value_factor_intermediate_reward = float(
+        args.get("min_value_intermediate_reward", 0.0)
+    )
+    decay_factor_intermediate_reward = float(
+        args.get("decay_factor_intermediate_reward", 1.0)
+    )
+    decay_factor_epsilon = float(args.get("decay_factor_epsilon", 1.0))
+    min_value_factor_epsilon = float(args.get("min_value_factor_epsilon", 0.0))
 
     logger.info("Fire up all the environments!")
 
@@ -152,15 +161,33 @@ def actor(args):
         # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32, device=device)
         start_select_action = time()
+        delta_t = start_select_action - heart
+
+        annealed_epsilon = anneal_factor(
+            delta_t,
+            decay_factor=decay_factor_epsilon,
+            min_value=min_value_factor_epsilon,
+            base_factor=epsilon,
+        )
         actions, q_values = select_actions(
-            _states, model, state_size - 1, epsilon=epsilon
+            _states, model, state_size - 1, epsilon=annealed_epsilon
         )
         if benchmarking:
             logger.info(f"time for select action: {time() - start_select_action}")
 
         # perform the chosen actions
         start_steps = time()
-        next_states, rewards, terminals, _ = environments.step(actions)
+
+        annealing_intermediate_reward = anneal_factor(
+            delta_t,
+            decay_factor=decay_factor_intermediate_reward,
+            min_value=min_value_factor_intermediate_reward,
+        )
+        next_states, rewards, terminals, _ = environments.step(
+            actions,
+            discount_intermediate_reward=discount_intermediate_reward,
+            annealing_intermediate_reward=annealing_intermediate_reward,
+        )
         if benchmarking:
             logger.info(f"time to step through environments: {time() - start_steps}")
 
@@ -184,10 +211,17 @@ def actor(args):
         # prepare to send local transitions to replay memory
         if buffer_idx >= size_local_memory_buffer:
             # get new weights for the policy model here
-            if learner_actor_queue.qsize() > 0:
+            if (learner_qsize := learner_actor_queue.qsize()) > 0:
+                # consume all the deprecated updates without effect
+                for _ in range(learner_qsize - 1):
+                    learner_actor_queue.get()
                 msg, network_params = learner_actor_queue.get()
+                assert msg is not None
+                assert network_params is not None
                 if msg == "network_update":
-                    logger.info("Received new network weights")
+                    logger.info(
+                        f"Received new network weights. Taken the latest of {learner_qsize} updates."
+                    )
                     vector_to_parameters(network_params, model.parameters())
                     model.to(device)
 

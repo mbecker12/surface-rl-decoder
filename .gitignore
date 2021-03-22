@@ -49,3 +49,8 @@ MANIFEST
 
 # Per-project virtualenvs
 .venv*/
+
+# directories related to the learning process
+networks/*
+runs/*
+**/tmp*/*

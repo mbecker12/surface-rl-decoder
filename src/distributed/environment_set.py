@@ -96,7 +96,12 @@ class EnvironmentSet:
                 self._states[i] = env.reset(p_error=p_error[i], p_msmt=p_msmt[i])
         return self._states
 
-    def step(self, actions: List) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
+    def step(
+        self,
+        actions: List,
+        discount_intermediate_reward=0.75,
+        annealing_intermediate_reward=1.0,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
         """
         Take a step in each environment instance.
 
@@ -104,6 +109,10 @@ class EnvironmentSet:
         ==========
         actions: list of action-defining tuples,
             required shape either (# environments, 3) or (# environments, 4)
+        discount_intermediate_reward: (optional) discount factor determining how much
+            early layers should be discounted when calculating the intermediate reward
+        annealing_intermediate_reward: (optional) variable that should decrease over time during
+            a training run to decrease the effect of the intermediate reward
 
         Returns
         =======
@@ -127,7 +136,11 @@ class EnvironmentSet:
         infos = [None] * self.num_environments
 
         for i, env in enumerate(self.environments):
-            next_state, reward, terminal, info = env.step(actions[i])
+            next_state, reward, terminal, info = env.step(
+                actions[i],
+                discount_intermediate_reward=discount_intermediate_reward,
+                annealing_intermediate_reward=annealing_intermediate_reward,
+            )
             states[i] = next_state
             rewards[i] = reward
             terminals[i] = terminal

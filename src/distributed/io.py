@@ -15,6 +15,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 import matplotlib.pyplot as plt
 
+from util import anneal_factor
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("io")
 logger.setLevel(logging.INFO)
@@ -58,6 +60,7 @@ def io_replay_memory(args):
     memory_size = args["replay_memory_size"]
     memory_alpha = float(args["replay_memory_alpha"])
     memory_beta = float(args["replay_memory_beta"])
+    decay_factor_beta = float(args.get("decay_factor_beta", 1.0))
     replay_size_before_sampling = args["replay_size_before_sampling"]
 
     memory_type = args["replay_memory_type"]
@@ -221,8 +224,17 @@ def io_replay_memory(args):
 
         # prepare to send data to learner process repeatedly
         while start_learning and (io_learner_queue.qsize() < batch_in_queue_limit):
+            delta_t = time() - heart
+            # want to anneal beta from ~0.4 to ~ 1,
+            # so decay_factor should be larger than 1
+            annealed_beta = anneal_factor(
+                time_difference=delta_t,
+                decay_factor=decay_factor_beta,
+                max_value=1.0,
+                base_factor=memory_beta,
+            )
             transitions, memory_weights, indices, priorities = replay_memory.sample(
-                batch_size, memory_beta
+                batch_size, annealed_beta
             )
             data = (transitions, memory_weights, indices)
             logger.debug(f"{io_learner_queue.qsize()=}")
