@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from environment_set import EnvironmentSet
 from model_util import choose_model, extend_model_config, load_model
-from util import anneal_factor, compute_priorities, select_actions
+from util import anneal_factor, compute_priorities, select_actions, time_ms
 
 from surface_rl_decoder.surface_code import SurfaceCode
 
@@ -143,8 +143,6 @@ def actor(args):
     heart = time()
     heartbeat_interval = 60  # seconds
 
-    priorities = np.empty((25, 128))  # priorities TODO probably for replay memory
-
     logger.info(f"Actor {actor_id} starting loop on device {device}")
     sent_data_chunks = 0
 
@@ -161,7 +159,8 @@ def actor(args):
         # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32, device=device)
         start_select_action = time()
-        delta_t = start_select_action - heart
+        current_time_ms = time_ms()
+        delta_t = start_select_action - performance_start
 
         annealed_epsilon = anneal_factor(
             delta_t,
@@ -172,6 +171,14 @@ def actor(args):
         actions, q_values = select_actions(
             _states, model, state_size - 1, epsilon=annealed_epsilon
         )
+
+        if verbosity >= 2:
+            tensorboard.add_scalars(
+                "actor/epsilon",
+                {"annealed_epsilon": annealed_epsilon},
+                delta_t,
+                walltime=current_time_ms,
+            )
         if benchmarking:
             logger.info(f"time for select action: {time() - start_select_action}")
 
@@ -188,6 +195,15 @@ def actor(args):
             discount_intermediate_reward=discount_intermediate_reward,
             annealing_intermediate_reward=annealing_intermediate_reward,
         )
+        if verbosity >= 2:
+            current_time = time()
+            tensorboard.add_scalars(
+                "actor/effect_intermediate_reward",
+                {"anneal_factor": annealing_intermediate_reward},
+                delta_t,
+                walltime=current_time_ms,
+            )
+
         if benchmarking:
             logger.info(f"time to step through environments: {time() - start_steps}")
 
@@ -245,8 +261,12 @@ def actor(args):
             actor_io_queue.put(to_send)
             if verbosity:
                 sent_data_chunks += buffer_idx
+                current_time_ms = time_ms()
                 tensorboard.add_scalar(
-                    "actor/actions", sent_data_chunks, tensorboard_step
+                    "actor/sent_data_chunks",
+                    sent_data_chunks,
+                    delta_t,
+                    walltime=current_time_ms,
                 )
                 tensorboard_step += 1
 

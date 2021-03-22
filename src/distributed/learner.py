@@ -22,6 +22,7 @@ from model_util import (
     optimizer_to,
     save_model,
 )
+from util import time_ms
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("learner")
@@ -136,7 +137,12 @@ def learner(args: Dict):
 
     # start the actual learning
     t = 0
+    perfromance_start = time()
+    eval_step = 0
     while t < timesteps:
+        current_time = time()
+        current_time_ms = time_ms()
+        delta_t = current_time - perfromance_start
         t += 1
         count_to_eval += 1
 
@@ -169,7 +175,10 @@ def learner(args: Dict):
 
             if verbosity:
                 tensorboard.add_scalar(
-                    "learner/received_data", received_data, tensorboard_step
+                    "learner/received_data",
+                    received_data,
+                    delta_t,
+                    walltime=current_time_ms,
                 )
                 tensorboard_step += 1
 
@@ -203,6 +212,7 @@ def learner(args: Dict):
             logger.error(error_traceback)
 
         # evaluate policy network
+
         if eval_frequency != -1 and count_to_eval >= eval_frequency:
             logger.info(f"Start Evaluation, Step {t}")
             count_to_eval = 0
@@ -218,16 +228,24 @@ def learner(args: Dict):
 
             for i, p_err in enumerate(p_error_list):
                 tensorboard.add_scalar(
-                    f"network/mean_q, p error {p_err}", mean_q_list[i], t
+                    f"network/mean_q, p error {p_err}",
+                    mean_q_list[i],
+                    eval_step,
+                    walltime=current_time_ms,
                 )
                 tensorboard.add_scalar(
-                    f"network/success_rate, p error {p_err}", success_rate[i], t
+                    f"network/success_rate, p error {p_err}",
+                    success_rate[i],
+                    eval_step,
+                    walltime=current_time_ms,
                 )
                 tensorboard.add_scalar(
                     f"network/ground_state_rate, p error {p_err}",
                     ground_state_rate[i],
-                    t,
+                    eval_step,
+                    walltime=current_time_ms,
                 )
+            eval_step += 1
 
         if time() - heart > heartbeat_interval:
             heart = time()

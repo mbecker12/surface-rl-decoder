@@ -1,3 +1,4 @@
+from time import time
 import torch
 import numpy as np
 import random
@@ -331,3 +332,7 @@ def anneal_factor(
         annealing_factor = max(min_value, base_factor * decay_factor ** time_difference)
         annealing_factor = min(max_value, annealing_factor)
         return annealing_factor
+
+
+def time_ms():
+    return int(time() * 1000)

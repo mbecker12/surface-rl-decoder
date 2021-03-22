@@ -18,7 +18,7 @@ def evaluate(
     device,
     p_error_list,
     p_msmt_list,
-    num_of_episodes=1,
+    num_of_episodes=10,
     num_actions=3,
     epsilon=0.0,
     num_of_steps=50,
