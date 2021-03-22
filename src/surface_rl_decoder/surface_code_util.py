@@ -14,6 +14,7 @@ RULE_TABLE = np.array(
 NON_TRIVIAL_LOOP_REWARD = -27
 SYNDROME_LEFT_REWARD = -5
 SOLVED_EPISODE_REWARD = 100
+SYNDROME_DIFF_REWARD = 1
 
 
 def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
@@ -302,3 +303,47 @@ def create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask):
         syndrome % 2
     )  # we can only measure parity, hence only odd number of errors per syndrome
     return syndrome
+
+
+def compute_intermediate_reward(
+    state, next_state, stack_depth, discount_factor=0.75, annealing_factor=1.0
+):
+    """
+    Calculate an intermediate reward based on the number of created/annihilated syndromes
+    in the syndrome stack.
+    This looks throughout the whole stack and looks for differences in
+    number of syndromes in each layer. The earlier the layer, the more discounted
+    its contribution to the reward will be.
+
+    Parameters
+    ==========
+    state: (h, d+1, d+1) current syndrome state
+    next_state: (h, d+1, d+1) subsequent syndrome state
+    stack_depth: number of layers in the syndrome stack, a.k.a. h
+    discount_factor: (optional) discount factor determining how much
+        early layers should be discounted when calculating the intermediate reward
+    annealing_factor: (optional) variable that should decrease over time during
+        a training run to decrease the effect of the intermediate reward
+
+    Returns
+    =======
+    intermediate_reward: (float) reward for annihilating/creating a syndrome across the stack
+    """
+
+    intermediate_reward = 0.0
+    for i, layer in enumerate(state):
+        diff = layer.sum() - next_state[i].sum()
+        assert isinstance(
+            diff, (float, np.float32, np.float64, int, np.uint8, np.int32, np.int64)
+        )
+
+        exponent = stack_depth - i - 1
+
+        intermediate_reward += (
+            annealing_factor
+            * SYNDROME_DIFF_REWARD
+            * diff
+            * (discount_factor ** exponent)
+        )
+
+    return intermediate_reward

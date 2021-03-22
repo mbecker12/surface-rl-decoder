@@ -14,6 +14,7 @@ from .surface_code_util import (
     SOLVED_EPISODE_REWARD,
     SYNDROME_LEFT_REWARD,
     check_final_state,
+    compute_intermediate_reward,
     create_syndrome_output_stack,
     perform_action,
     copy_array_values,
@@ -152,7 +153,12 @@ class SurfaceCode(gym.Env):
 
         self.ground_state = True
 
-    def step(self, action):
+    def step(
+        self,
+        action,
+        discount_intermediate_reward=0.75,
+        annealing_intermediate_reward=1.0,
+    ):
         """
         Apply a pauli operator to a qubit on the surface code with code distance d.
 
@@ -160,6 +166,10 @@ class SurfaceCode(gym.Env):
         ==========
         action: tuple containing (None, x-coordinate, y-coordinate, pauli operator),
             defining x- & y-coordinates and operator type
+        discount_intermediate_reward: (optional) discount factor determining how much
+            early layers should be discounted when calculating the intermediate reward
+        annealing_intermediate_reward: (optional) variable that should decrease over time during
+            a training run to decrease the effect of the intermediate reward
 
         Returns
         =======
@@ -171,13 +181,13 @@ class SurfaceCode(gym.Env):
         self.actions[self.current_action_index] = action[-3:]
         self.current_action_index += 1
 
-        # execute operation throughout the stack
         terminal = action[-1] == TERMINAL_ACTION
         reward = self.get_reward(action)
 
         if terminal:
             return self.state, reward, terminal, {}
 
+        # execute operation throughout the stack
         self.qubits = perform_action(self.qubits, action)
 
         syndrome = create_syndrome_output_stack(
@@ -185,6 +195,16 @@ class SurfaceCode(gym.Env):
         )
 
         self.next_state = np.logical_xor(syndrome, self.syndrome_errors)
+
+        intermediate_reward = compute_intermediate_reward(
+            self.state,
+            self.next_state,
+            self.stack_depth,
+            discount_factor=discount_intermediate_reward,
+            annealing_factor=annealing_intermediate_reward,
+        )
+        reward += intermediate_reward
+
         self.state = self.next_state
 
         # if we reach the action history limit
@@ -521,12 +541,8 @@ class SurfaceCode(gym.Env):
             markersize_symbols = 7
             linewidth = 2
 
-            vertex_matrix = np.multiply(
-                np.logical_xor(self.state, self.syndrome_errors), self.vertex_mask
-            )
-            plaquette_matrix = np.multiply(
-                np.logical_xor(self.state, self.syndrome_errors), self.plaquette_mask
-            )
+            vertex_matrix = np.multiply(self.state, self.vertex_mask)
+            plaquette_matrix = np.multiply(self.state, self.plaquette_mask)
 
             vertex_msmt_error_matrix = np.multiply(
                 self.syndrome_errors, self.vertex_mask
