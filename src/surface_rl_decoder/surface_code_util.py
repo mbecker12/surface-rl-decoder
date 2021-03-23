@@ -330,8 +330,8 @@ def compute_intermediate_reward(
     intermediate_reward: (float) reward for annihilating/creating a syndrome across the stack
     """
 
-    state_sums = np.sum(np.sum(state, axis=1), axis=1)
-    next_state_sums = np.sum(np.sum(next_state, axis=1), axis=1)
+    state_sums = np.sum(np.sum(state, axis=2), axis=1)
+    next_state_sums = np.sum(np.sum(next_state, axis=2), axis=1)
     diffs = state_sums - next_state_sums
 
     assert diffs.shape == (stack_depth,), diffs.shape
