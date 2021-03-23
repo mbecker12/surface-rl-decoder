@@ -188,3 +188,37 @@ def perform_q_learning_step(
         logger.info(f"{list(policy_net.parameters())[-1]=}")
 
     return indices, priorities
+
+
+def transform_list_dict(mapping):
+    """
+    Transform a dictionary of lists to a
+    list of dictionaries.
+
+    E.g.
+    {
+        'result1': array([10, 11, 12]),
+        'result2': array([20, 21, 22]),
+        'result3': array([30, 31, 32])
+    }
+
+    will be transformed to
+    [
+        {
+            'result1': 10,
+            'result2': 20,
+            'result3': 30
+        },
+        {
+            'result1': 11,
+            'result2': 21,
+            'result3': 31
+        },
+        {
+            'result1': 12,
+            'result2': 22,
+            'result3': 32
+        }
+    ]
+    """
+    return [dict(zip(mapping, t)) for t in zip(*mapping.values())]

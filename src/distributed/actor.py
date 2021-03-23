@@ -129,7 +129,9 @@ def actor(args):
     # initialize the policy agent
     model_name = args["model_name"]
     model_config = args["model_config"]
-    model_config = extend_model_config(model_config, state_size, stack_depth)
+    model_config = extend_model_config(
+        model_config, state_size, stack_depth, device=device
+    )
     model = choose_model(model_name, model_config)
 
     if load_model_flag:
@@ -194,7 +196,9 @@ def actor(args):
             actions,
             discount_intermediate_reward=discount_intermediate_reward,
             annealing_intermediate_reward=annealing_intermediate_reward,
+            punish_repeating_actions=0,
         )
+
         if verbosity >= 2:
             current_time = time()
             tensorboard.add_scalars(

@@ -12,6 +12,7 @@ from torch.nn.modules.loss import MSELoss
 from torch.optim import Adam
 from torch import nn
 import yaml
+from agents.conv_2d_agent import Conv2dAgent
 from distributed.dummy_agent import DummyModel
 
 
@@ -33,6 +34,8 @@ def choose_model(model_name, model_config):
 
     if "dummy" in model_name:
         model = DummyModel(model_config)
+    elif model_name.lower() in ("conv2d_lstm"):
+        model = Conv2dAgent(model_config)
     else:
         raise Exception(f"Error! Model '{model_name}' not supported or not recognized.")
 
@@ -40,7 +43,11 @@ def choose_model(model_name, model_config):
 
 
 def extend_model_config(
-    model_config, system_size, stack_depth, num_actions_per_qubit=3
+    model_config,
+    syndrome_size,
+    stack_depth,
+    num_actions_per_qubit=3,
+    device="cpu"
 ):
     """
     Extend an existing model or agent configuration dictionary
@@ -50,7 +57,7 @@ def extend_model_config(
     ==========
     model_config: (dict) dictionary contiaining information about
         model architecture and layer shapes
-    system_size: (int) size of the state, ususally code distance+1
+    syndrome_size: (int) size of the state, ususally code distance+1
     stack_depth: (int) number of layers in a state stack
     num_actions_per_qubit: (optional) (int), number of possible actions on one
         qubit. Defaults to 3 for Pauli-X, -Y, -Z.
@@ -61,9 +68,11 @@ def extend_model_config(
         of the model architecture
     """
 
-    model_config["syndrome_size"] = system_size
+    model_config["syndrome_size"] = syndrome_size
+    model_config["code_size"] = syndrome_size - 1
     model_config["stack_depth"] = stack_depth
     model_config["num_actions_per_qubit"] = num_actions_per_qubit
+    model_config["device"] = device
 
     return model_config
 

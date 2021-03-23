@@ -9,8 +9,17 @@ from time import time, sleep
 import logging
 import numpy as np
 from distributed.replay_memory import ReplayMemory
+from io_util import (
+    add_transition_images_to_tensorboard,
+    assert_transition_shapes,
+    handle_transition_monitoring,
+    monitor_cpu_memory,
+    monitor_data_io,
+    monitor_gpu_memory,
+)
 from prioritized_replay_memory import PrioritizedReplayMemory
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
+import torch
 from torch.utils.tensorboard import SummaryWriter
 import nvgpu
 import psutil
@@ -118,29 +127,12 @@ def io_replay_memory(args):
             transitions = actor_io_queue.get()
             if verbosity and (transitions is not None):
                 random_sample_indices = np.random.choice(range(len(transitions)), 10)
-
+                if verbosity >= 2:
+                    priority_sample = np.zeros(len(transitions))
             for i, _ in enumerate(transitions):
                 assert transitions[i] is not None
                 _transitions, _priorities = transitions[i]
-
-                ## if the zip method is chosen in the actor
-                assert _transitions[0].shape == (
-                    stack_depth,
-                    syndrome_size,
-                    syndrome_size,
-                ), _transitions[0].shape
-                assert _transitions[1].shape == (3,), _transitions[1].shape
-                assert isinstance(
-                    _transitions[2], (float, np.float64, np.float32)
-                ), type(_transitions[2])
-                assert _transitions[3].shape == (
-                    stack_depth,
-                    syndrome_size,
-                    syndrome_size,
-                ), _transitions[3].shape
-                assert isinstance(_transitions[4], (bool, np.bool_)), type(
-                    _transitions[4]
-                )
+                assert_transition_shapes(_transitions, stack_depth, syndrome_size)
 
                 # save transitions to the replay memory store
                 replay_memory.save(_transitions, _priorities)
@@ -148,64 +140,39 @@ def io_replay_memory(args):
                 n_transitions_total += 1
                 count_transition_received += 1
 
-                # TODO sample random i's to see random transitions
                 if verbosity and (i in random_sample_indices):
                     current_time_ms = time_ms()
-                    tensorboard.add_scalars(
-                        "transition/reward",
-                        {"reward": _transitions[2]},
+                    handle_transition_monitoring(
+                        tensorboard,
+                        _transitions,
+                        verbosity,
+                        tensorboard_step,
+                        current_time_ms,
+                        TERMINAL_ACTION,
+                    )
+                    tensorboard_step += 1
+
+                if verbosity >= 2:
+                    assert isinstance(
+                        _priorities,
+                        float,
+                    ), f"{type(_priorities)=}"
+                    assert _priorities > 0, f"{_priorities=}"
+                    priority_sample[i] = _priorities
+                # end if; logging
+            # end for loop; transitions
+            if verbosity >= 2:
+                received_priorities = np.array(priority_sample, dtype=np.float32)
+                percentile = np.percentile(received_priorities, 95)
+                received_priorities_idx = np.where(received_priorities < percentile)
+                received_priorities = received_priorities[received_priorities_idx]
+                if len(received_priorities) > 0:
+                    tensorboard.add_histogram(
+                        "io/received_priorities",
+                        received_priorities,
                         tensorboard_step,
                         walltime=current_time_ms,
                     )
-
-                    if verbosity >= 2:
-                        tensorboard.add_scalars(
-                            "transition/action",
-                            {
-                                "x": _transitions[1][0],
-                                "y": _transitions[1][1],
-                                "action": _transitions[1][2],
-                            },
-                            tensorboard_step,
-                            walltime=current_time_ms,
-                        )
-
-                    if verbosity >= 5:
-                        transition_shape = _transitions[0][-1].shape
-
-                        _state_float = _transitions[0][-1].astype(np.float32)
-                        _next_state_float = _transitions[3][-1].astype(np.float32)
-
-                        tensorboard.add_image(
-                            "transition/state",
-                            _state_float,
-                            tensorboard_step,
-                            dataformats="HW",
-                            walltime=current_time_ms,
-                        )
-                        tensorboard.add_image(
-                            "transition/next_state",
-                            _next_state_float,
-                            tensorboard_step,
-                            dataformats="HW",
-                            walltime=current_time_ms,
-                        )
-                        action_matrix = np.zeros(
-                            (transition_shape[0] - 1, transition_shape[1] - 1),
-                            dtype=np.float32,
-                        )
-                        action = _transitions[1]
-                        action_matrix[action[0], action[1]] = action[-1] / max(
-                            TERMINAL_ACTION, 3
-                        )
-                        tensorboard.add_image(
-                            "transition/action_viz",
-                            action_matrix,
-                            tensorboard_step,
-                            dataformats="HW",
-                            walltime=current_time_ms,
-                        )
-                    tensorboard_step += 1
 
             logger.debug("Saved transitions to replay memory")
 
@@ -215,63 +182,33 @@ def io_replay_memory(args):
 
                 # log gpu stats
                 if gpu_available and nvidia_log_time > nvidia_log_frequency:
-                    gpu_info = nvgpu.gpu_info()
-                    for i in gpu_info:
-                        gpu_info = "io/{} {}".format(i["type"], i["index"])
-                        gpu_mem_total = i["mem_total"]
-                        gpu_mem_used = i["mem_used"]
-                        tensorboard.add_scalars(
-                            gpu_info,
-                            {
-                                "gpu_mem_total": gpu_mem_total,
-                                "gpu_mem_used": gpu_mem_used,
-                            },
-                            current_time - performance_start,
-                            walltime=current_time_ms,
-                        )
+                    monitor_gpu_memory(
+                        tensorboard, current_time, performance_start, current_time_ms
+                    )
                 if verbosity >= 2:
-                    mem_usage = psutil.virtual_memory()
-                    memory_total = mem_usage.total >> 20
-                    mem_available = mem_usage.available >> 20
-                    mem_used = mem_usage.used >> 20
-                    tensorboard.add_scalars(
-                        "io/cpu",
-                        {
-                            "mem_total / MB": memory_total,
-                            "mem_available / MB": mem_available,
-                            "mem_used / MB": mem_used,
-                        },
-                        current_time - performance_start,
-                        walltime=current_time_ms,
+                    monitor_cpu_memory(
+                        tensorboard, current_time, performance_start, current_time_ms
                     )
 
                 # log data churning
                 transitions_total += count_transition_received
                 consumption_total += count_consumption_outgoing
-                tensorboard.add_scalars(
-                    "io/total",
-                    {
-                        "total batch consumption outgoing": consumption_total,
-                        "total # received transitions": transitions_total,
-                    },
-                    current_time - performance_start,
-                    walltime=current_time_ms,
-                )
-                tensorboard.add_scalars(
-                    "io/speed",
-                    {
-                        "batch consumption rate of outgoing transitions": count_consumption_outgoing
-                        / (current_time - stop_watch),
-                        "received transitions rate": count_transition_received
-                        / (current_time - stop_watch),
-                    },
-                    current_time - performance_start,
-                    walltime=current_time_ms,
+                monitor_data_io(
+                    tensorboard,
+                    consumption_total,
+                    transitions_total,
+                    count_consumption_outgoing,
+                    count_transition_received,
+                    stop_watch,
+                    current_time,
+                    performance_start,
+                    current_time_ms,
                 )
 
                 count_transition_received = 0
                 count_consumption_outgoing = 0
                 stop_watch = time()
+        # end while; actor_io_queue
 
         # if the replay memory is sufficiently filled, trigger the actual learning
         if (
@@ -295,7 +232,7 @@ def io_replay_memory(args):
             )
 
             transitions, memory_weights, indices, priorities = replay_memory.sample(
-                batch_size, annealed_beta
+                batch_size, annealed_beta, tensorboard=tensorboard, verbosity=verbosity
             )
 
             current_time_ms = time_ms()
@@ -306,6 +243,19 @@ def io_replay_memory(args):
                     delta_t,
                     walltime=current_time_ms,
                 )
+
+                if priorities is not None:
+                    sending_priorities = np.array(priorities, dtype=np.float32)
+                    percentile = np.percentile(sending_priorities, 80)
+                    sending_priorities_idx = np.where(sending_priorities < percentile)
+                    sending_priorities = sending_priorities[sending_priorities_idx]
+                    if len(sending_priorities) > 0:
+                        tensorboard.add_histogram(
+                            "io/sent_data_priorities",
+                            sending_priorities,
+                            delta_t,
+                            walltime=current_time_ms,
+                        )
 
             assert len(transitions) == batch_size
             data = (transitions, memory_weights, indices)

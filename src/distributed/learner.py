@@ -14,7 +14,7 @@ from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
 from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
-from distributed.learner_util import perform_q_learning_step
+from distributed.learner_util import perform_q_learning_step, transform_list_dict
 from model_util import (
     choose_model,
     extend_model_config,
@@ -106,7 +106,9 @@ def learner(args: Dict):
         timesteps = np.Infinity
 
     # initialize models and other learning gadgets
-    model_config = extend_model_config(model_config, syndrome_size, stack_depth)
+    model_config = extend_model_config(
+        model_config, syndrome_size, stack_depth, device=device
+    )
 
     policy_net = choose_model(model_name, model_config)
     target_net = choose_model(model_name, model_config)
@@ -212,11 +214,11 @@ def learner(args: Dict):
             logger.error(error_traceback)
 
         # evaluate policy network
-
         if eval_frequency != -1 and count_to_eval >= eval_frequency:
             logger.info(f"Start Evaluation, Step {t}")
             count_to_eval = 0
-            success_rate, ground_state_rate, _, mean_q_list, _ = evaluate(
+
+            episode_results, step_results, p_error_results = evaluate(
                 policy_net,
                 "",
                 device,
@@ -226,26 +228,56 @@ def learner(args: Dict):
                 epsilon=learner_epsilon,
             )
 
+            episode_results = transform_list_dict(episode_results)
+            step_results = transform_list_dict(step_results)
+            p_error_results = transform_list_dict(p_error_results)
+
             for i, p_err in enumerate(p_error_list):
-                tensorboard.add_scalar(
-                    f"network/mean_q, p error {p_err}",
-                    mean_q_list[i],
+                tensorboard.add_scalars(
+                    f"network/episode, p_error {p_err}",
+                    episode_results[i],
                     eval_step,
                     walltime=current_time_ms,
                 )
-                tensorboard.add_scalar(
-                    f"network/success_rate, p error {p_err}",
-                    success_rate[i],
+
+                tensorboard.add_scalars(
+                    f"network/step, p_error {p_err}",
+                    step_results[i],
                     eval_step,
                     walltime=current_time_ms,
                 )
-                tensorboard.add_scalar(
-                    f"network/ground_state_rate, p error {p_err}",
-                    ground_state_rate[i],
+
+                tensorboard.add_scalars(
+                    f"network/p_err, p_error {p_err}",
+                    p_error_results[i],
                     eval_step,
                     walltime=current_time_ms,
                 )
+
             eval_step += 1
+
+            # monitor policy network parameters
+            if verbosity >= 5:
+                policy_params = list(policy_net.parameters())
+                n_layers = len(policy_params)
+                for i, param in enumerate(policy_params):
+                    if i == 0:
+                        first_layer_params = param.detach().cpu().numpy()
+                        tensorboard.add_histogram(
+                            "learner/first_layer",
+                            first_layer_params.reshape(-1, 1),
+                            tensorboard_step,
+                            walltime=current_time_ms,
+                        )
+
+                    if i == n_layers - 2:
+                        last_layer_params = param.detach().cpu().numpy()
+                        tensorboard.add_histogram(
+                            "learner/last_layer",
+                            last_layer_params.reshape(-1, 1),
+                            tensorboard_step,
+                            walltime=current_time_ms,
+                        )
 
         if time() - heart > heartbeat_interval:
             heart = time()
