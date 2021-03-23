@@ -330,20 +330,19 @@ def compute_intermediate_reward(
     intermediate_reward: (float) reward for annihilating/creating a syndrome across the stack
     """
 
-    intermediate_reward = 0.0
-    for i, layer in enumerate(state):
-        diff = layer.sum() - next_state[i].sum()
-        assert isinstance(
-            diff, (float, np.float32, np.float64, int, np.uint8, np.int32, np.int64)
-        )
+    state_sums = np.sum(np.sum(state, axis=1), axis=1)
+    next_state_sums = np.sum(np.sum(next_state, axis=1), axis=1)
+    diffs = state_sums - next_state_sums
 
-        exponent = stack_depth - i - 1
+    assert diffs.shape == (stack_depth,), diffs.shape
+    assert diffs.dtype in (int, float), diffs.dtype
+    layer_exponents = np.arange(stack_depth - 1, -1, -1)
+    layer_rewards = (
+        annealing_factor
+        * SYNDROME_DIFF_REWARD
+        * diffs
+        * np.power(discount_factor, layer_exponents)
+    )
 
-        intermediate_reward += (
-            annealing_factor
-            * SYNDROME_DIFF_REWARD
-            * diff
-            * (discount_factor ** exponent)
-        )
-
+    intermediate_reward = np.sum(layer_rewards)
     return intermediate_reward
