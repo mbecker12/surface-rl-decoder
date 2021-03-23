@@ -118,13 +118,22 @@ class Conv2dAgent(nn.Module):
         )
 
         self.comp_conv_layer_x = nn.Conv2d(
-            self.output_channels3, self.output_channels4, self.kernel_size, padding=self.padding_size
+            self.output_channels3,
+            self.output_channels4,
+            self.kernel_size,
+            padding=self.padding_size,
         )
         self.comp_conv_layer_z = nn.Conv2d(
-            self.output_channels3, self.output_channels4, self.kernel_size, padding=self.padding_size
+            self.output_channels3,
+            self.output_channels4,
+            self.kernel_size,
+            padding=self.padding_size,
         )
         self.comp_conv_layer_both = nn.Conv2d(
-            self.output_channels3, self.output_channels4, self.kernel_size, padding=self.padding_size
+            self.output_channels3,
+            self.output_channels4,
+            self.kernel_size,
+            padding=self.padding_size,
         )
 
         self.lstm_layer = nn.LSTM(
@@ -174,7 +183,9 @@ class Conv2dAgent(nn.Module):
         #     self.stack_depth, -1, (self.size + 1) * (self.size + 1)
         # )  # adjust the dimensions due to lstm wanting 3 dimensions with batch on the second
         complete = complete.view(
-            -1, self.stack_depth, (self.size + 1) * (self.size + 1) * self.output_channels4
+            -1,
+            self.stack_depth,
+            (self.size + 1) * (self.size + 1) * self.output_channels4,
         )
         output, (_h, _c) = self.lstm_layer(complete)
         assert (

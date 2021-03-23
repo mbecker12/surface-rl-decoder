@@ -43,11 +43,7 @@ def choose_model(model_name, model_config):
 
 
 def extend_model_config(
-    model_config,
-    syndrome_size,
-    stack_depth,
-    num_actions_per_qubit=3,
-    device="cpu"
+    model_config, syndrome_size, stack_depth, num_actions_per_qubit=3, device="cpu"
 ):
     """
     Extend an existing model or agent configuration dictionary
