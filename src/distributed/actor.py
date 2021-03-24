@@ -22,11 +22,6 @@ Transition = namedtuple(
     "Transition", ["state", "action", "reward", "next_state", "terminal"]
 )
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("actor")
-logger.setLevel(logging.INFO)
-
-
 def actor(args):
     """
     Define the actor function to be run by a mp process.
@@ -80,7 +75,12 @@ def actor(args):
     )
     decay_factor_epsilon = float(args.get("decay_factor_epsilon", 1.0))
     min_value_factor_epsilon = float(args.get("min_value_factor_epsilon", 0.0))
-
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("actor")
+    if verbosity >= 4:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
     logger.info("Fire up all the environments!")
 
     env = SurfaceCode()  # TODO: need published gym environment here
@@ -241,7 +241,7 @@ def actor(args):
                 assert msg is not None
                 assert network_params is not None
                 if msg == "network_update":
-                    logger.info(
+                    logger.debug(
                         f"Received new network weights. Taken the latest of {learner_qsize} updates."
                     )
                     vector_to_parameters(network_params, model.parameters())

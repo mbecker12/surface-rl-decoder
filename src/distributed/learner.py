@@ -28,10 +28,6 @@ from model_util import (
 )
 from util import time_ms
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("learner")
-logger.setLevel(logging.INFO)
-
 # pylint: disable=too-many-locals, too-many-statements
 def learner(args: Dict):
     """
@@ -92,6 +88,13 @@ def learner(args: Dict):
     p_msmt_list = args["learner_eval_p_msmt"]
     learner_epsilon = args["learner_epsilon"]
     count_to_eval = 0
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("learner")
+    if verbosity >= 4:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
     summary_path = args["summary_path"]
     summary_date = args["summary_date"]
@@ -170,7 +173,7 @@ def learner(args: Dict):
 
             # notify the actor process that its network parameters should be updated
             msg = ("network_update", params.detach())
-            logger.info("Send network weights to actor process")
+            logger.debug("Send network weights to actor process")
             learner_actor_queue.put(msg)
 
         if io_learner_queue.qsize == 0:

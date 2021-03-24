@@ -26,10 +26,6 @@ import psutil
 
 from util import anneal_factor, time_ms
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("io")
-logger.setLevel(logging.INFO)
-
 
 def io_replay_memory(args):
     """
@@ -81,6 +77,12 @@ def io_replay_memory(args):
     else:
         raise Exception(f"Error! Memory type '{memory_type}' not supported.")
 
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("io")
+    if verbosity >= 4:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
     logger.info(
         f"Initialized replay memory of type {memory_type}, an instance of {type(replay_memory).__name__}."
     )
