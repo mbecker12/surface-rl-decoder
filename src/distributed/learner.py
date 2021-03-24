@@ -137,7 +137,7 @@ def learner(args: Dict):
         optimizer = Adam(policy_net.parameters(), lr=learning_rate)
 
     # initialize tensorboard
-    tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "learner"))
+    tensorboard = SummaryWriter(os.path.join(summary_path, str(code_size), summary_date, "learner"))
     tensorboard_step = 0
     received_data = 0
 

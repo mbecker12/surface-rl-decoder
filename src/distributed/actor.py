@@ -151,7 +151,7 @@ def actor(args):
     # initialize tensorboard for monitoring/logging
     summary_path = args["summary_path"]
     summary_date = args["summary_date"]
-    tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "actor"))
+    tensorboard = SummaryWriter(os.path.join(summary_path, str(code_size), summary_date, "actor"))
     tensorboard_step = 0
 
     # start the main exploration loop
