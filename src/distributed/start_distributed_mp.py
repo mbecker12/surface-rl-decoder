@@ -65,8 +65,8 @@ def start_mp():
     env_config = global_config.get("env")
 
     size_action_history = int(env_config.get("max_actions", "256"))
-    system_size = int(env_config["size"])
-    syndrome_size = system_size + 1
+    code_size = int(env_config["size"])
+    syndrome_size = code_size + 1
     stack_depth = int(env_config["stack_depth"])
 
     # set up actor configuration
@@ -215,7 +215,7 @@ def start_mp():
 
     # set up tensorboard for monitoring
     tensorboard = SummaryWriter(
-        os.path.join(summary_path, summary_date, summary_run_info)
+        os.path.join(summary_path, str(code_size), summary_date, summary_run_info)
     )
     tensorboard_string = "global config: " + str(global_config) + "\n"
     tensorboard.add_text("run_info/hyper_parameters", tensorboard_string)
@@ -255,7 +255,7 @@ def start_mp():
         logger.error(error_traceback)
         # log the actual error to the tensorboard
         tensorboard = SummaryWriter(
-            os.path.join(summary_path, summary_date, summary_run_info)
+            os.path.join(summary_path, str(code_size), summary_date, summary_run_info)
         )
         tensorboard.add_text("run_info/error_message", error_traceback)
 
@@ -263,8 +263,9 @@ def start_mp():
 
     save_model_path_date_meta = os.path.join(
         save_model_path,
+        str(code_size),
         summary_date,
-        f"{model_name}_{system_size}_meta.yaml",
+        f"{model_name}_{code_size}_meta.yaml",
     )
 
     logger.info("Saving Metadata")
