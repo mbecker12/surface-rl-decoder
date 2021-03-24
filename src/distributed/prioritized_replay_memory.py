@@ -95,7 +95,6 @@ class PrioritizedReplayMemory:
                 data, priority, index = self.tree.find(rand)
                 priorities[i] = priority
 
-
                 _weight = (
                     (1.0 / self.memory_size / priority) ** beta
                     if priority > 1e-16

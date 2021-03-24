@@ -223,7 +223,6 @@ def learner(args: Dict):
                     f"Time for q-learning step: {learning_step_stop - learning_step_start} s."
                 )
 
-
             # update priorities in replay_memory
             p_update = (indices, priorities)
             msg = ("priorities", p_update)

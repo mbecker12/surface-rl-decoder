@@ -219,7 +219,6 @@ def io_replay_memory(args):
                     current_time,
                     performance_start,
                     current_time_ms,
-
                 )
 
                 count_transition_received = 0
