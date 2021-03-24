@@ -172,7 +172,9 @@ def io_replay_memory(args):
             # end for loop; transitions
             if benchmarking:
                 save_actor_data_stop = time()
-                logger.info(f"Time for saving actor data: {save_actor_data_stop - save_actor_data_start} s.")
+                logger.info(
+                    f"Time for saving actor data: {save_actor_data_stop - save_actor_data_start} s."
+                )
 
             if verbosity >= 4:
                 received_priorities = np.array(priority_sample, dtype=np.float32)
@@ -282,7 +284,9 @@ def io_replay_memory(args):
 
         if benchmarking:
             send_data_to_learner_stop = time()
-            logger.debug(f"Time to send data to learner: {send_data_to_learner_stop - send_data_to_learner_start} s.")
+            logger.debug(
+                f"Time to send data to learner: {send_data_to_learner_stop - send_data_to_learner_start} s."
+            )
 
         # check if the queue from the learner is empty
         terminate = False
@@ -299,7 +303,9 @@ def io_replay_memory(args):
                 replay_memory.priority_update(indices, priorities)
                 if benchmarking:
                     prio_update_stop = time()
-                    logger.debug(f"Time to update priorities: {prio_update_stop - prio_update_start} s.")
+                    logger.debug(
+                        f"Time to update priorities: {prio_update_stop - prio_update_start} s."
+                    )
             elif msg == "terminate":
                 logger.info("received message 'terminate' from learner")
                 tensorboard.close()

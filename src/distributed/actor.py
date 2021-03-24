@@ -22,6 +22,7 @@ Transition = namedtuple(
     "Transition", ["state", "action", "reward", "next_state", "terminal"]
 )
 
+
 def actor(args):
     """
     Define the actor function to be run by a mp process.
@@ -179,7 +180,9 @@ def actor(args):
 
         if benchmarking:
             select_action_stop = time()
-            logger.info(f"time for select action: {select_action_stop - select_action_start}")
+            logger.info(
+                f"time for select action: {select_action_stop - select_action_start}"
+            )
 
         if verbosity >= 2:
             tensorboard.add_scalars(
@@ -206,7 +209,9 @@ def actor(args):
 
         if benchmarking:
             steps_stop = time()
-            logger.info(f"time to step through environments: {steps_stop - steps_start}")
+            logger.info(
+                f"time to step through environments: {steps_stop - steps_start}"
+            )
 
         if verbosity >= 2:
             current_time_ms = time_ms()

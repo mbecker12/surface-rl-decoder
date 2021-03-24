@@ -151,7 +151,7 @@ def learner(args: Dict):
     received_data = 0
 
     # start the actual learning
-    t = 0 # no worries, t gets incremented at the end of the while loop
+    t = 0  # no worries, t gets incremented at the end of the while loop
     perfromance_start = time()
     eval_step = 0
     while t < timesteps:
@@ -173,7 +173,9 @@ def learner(args: Dict):
             target_net.to(device)
             if benchmarking:
                 update_target_net_stop = time()
-                logger.debug(f"Time for updating target net parameters: {update_target_net_stop - update_target_net_start} s.")
+                logger.debug(
+                    f"Time for updating target net parameters: {update_target_net_stop - update_target_net_start} s."
+                )
 
             # notify the actor process that its network parameters should be updated
             msg = ("network_update", params.detach())
@@ -223,7 +225,9 @@ def learner(args: Dict):
 
             if benchmarking and t % eval_frequency == 0:
                 learning_step_stop = time()
-                logger.info(f"Time for q-learning step: {learning_step_stop - learning_step_start} s.")
+                logger.info(
+                    f"Time for q-learning step: {learning_step_stop - learning_step_start} s."
+                )
 
             # update priorities in replay_memory
             p_update = (indices, priorities)
@@ -239,7 +243,6 @@ def learner(args: Dict):
             logger.info(f"Start Evaluation, Step {t+1}")
             count_to_eval = 0
 
-
             evaluation_start = time()
             episode_results, step_results, p_error_results = evaluate(
                 policy_net,
@@ -252,7 +255,9 @@ def learner(args: Dict):
             )
             if benchmarking:
                 evaluation_stop = time()
-                logger.info(f"Time for evaluation: {evaluation_stop - evaluation_start} s.")
+                logger.info(
+                    f"Time for evaluation: {evaluation_stop - evaluation_start} s."
+                )
 
             episode_results = transform_list_dict(episode_results)
             step_results = transform_list_dict(step_results)
