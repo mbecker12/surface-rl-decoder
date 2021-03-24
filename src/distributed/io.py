@@ -161,7 +161,7 @@ def io_replay_memory(args):
                     priority_sample[i] = _priorities
                 # end if; logging
             # end for loop; transitions
-            if verbosity >= 2:
+            if verbosity >= 4:
                 received_priorities = np.array(priority_sample, dtype=np.float32)
                 percentile = np.percentile(received_priorities, 95)
                 received_priorities_idx = np.where(received_priorities < percentile)
@@ -185,7 +185,7 @@ def io_replay_memory(args):
                     monitor_gpu_memory(
                         tensorboard, current_time, performance_start, current_time_ms
                     )
-                if verbosity >= 2:
+                if verbosity >= 3:
                     monitor_cpu_memory(
                         tensorboard, current_time, performance_start, current_time_ms
                     )
@@ -244,7 +244,7 @@ def io_replay_memory(args):
                     walltime=current_time_ms,
                 )
 
-                if priorities is not None:
+                if priorities is not None and verbosity >= 4:
                     sending_priorities = np.array(priorities, dtype=np.float32)
                     percentile = np.percentile(sending_priorities, 80)
                     sending_priorities_idx = np.where(sending_priorities < percentile)

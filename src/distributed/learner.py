@@ -14,7 +14,11 @@ from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
 from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
-from distributed.learner_util import perform_q_learning_step, transform_list_dict
+from distributed.learner_util import (
+    log_evaluation_data,
+    perform_q_learning_step,
+    transform_list_dict,
+)
 from model_util import (
     choose_model,
     extend_model_config,
@@ -175,7 +179,7 @@ def learner(args: Dict):
             received_data += data_size
             assert data_size == batch_size, data_size
 
-            if verbosity:
+            if verbosity >= 3:
                 tensorboard.add_scalar(
                     "learner/received_data",
                     received_data,
@@ -232,32 +236,21 @@ def learner(args: Dict):
             step_results = transform_list_dict(step_results)
             p_error_results = transform_list_dict(p_error_results)
 
-            for i, p_err in enumerate(p_error_list):
-                tensorboard.add_scalars(
-                    f"network/episode, p_error {p_err}",
-                    episode_results[i],
+            if verbosity:
+                log_evaluation_data(
+                    tensorboard,
+                    p_error_list,
+                    episode_results,
+                    step_results,
+                    p_error_results,
                     eval_step,
-                    walltime=current_time_ms,
-                )
-
-                tensorboard.add_scalars(
-                    f"network/step, p_error {p_err}",
-                    step_results[i],
-                    eval_step,
-                    walltime=current_time_ms,
-                )
-
-                tensorboard.add_scalars(
-                    f"network/p_err, p_error {p_err}",
-                    p_error_results[i],
-                    eval_step,
-                    walltime=current_time_ms,
+                    current_time_ms,
                 )
 
             eval_step += 1
 
             # monitor policy network parameters
-            if verbosity >= 5:
+            if verbosity >= 4:
                 policy_params = list(policy_net.parameters())
                 n_layers = len(policy_params)
                 for i, param in enumerate(policy_params):

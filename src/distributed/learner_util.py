@@ -222,3 +222,38 @@ def transform_list_dict(mapping):
     ]
     """
     return [dict(zip(mapping, t)) for t in zip(*mapping.values())]
+
+
+def log_evaluation_data(
+    tensorboard,
+    p_error_list,
+    episode_results,
+    step_results,
+    p_error_results,
+    eval_step,
+    current_time_ms,
+):
+    """
+    Utility function to send the evaluation data to tensorboard.
+    """
+    for i, p_err in enumerate(p_error_list):
+        tensorboard.add_scalars(
+            f"network/episode, p_error {p_err}",
+            episode_results[i],
+            eval_step,
+            walltime=current_time_ms,
+        )
+
+        tensorboard.add_scalars(
+            f"network/step, p_error {p_err}",
+            step_results[i],
+            eval_step,
+            walltime=current_time_ms,
+        )
+
+        tensorboard.add_scalars(
+            f"network/p_err, p_error {p_err}",
+            p_error_results[i],
+            eval_step,
+            walltime=current_time_ms,
+        )

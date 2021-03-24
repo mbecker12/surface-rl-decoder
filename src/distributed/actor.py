@@ -263,7 +263,7 @@ def actor(args):
 
             logger.debug("Put data in actor_io_queue")
             actor_io_queue.put(to_send)
-            if verbosity:
+            if verbosity >= 4:
                 sent_data_chunks += buffer_idx
                 current_time_ms = time_ms()
                 tensorboard.add_scalar(

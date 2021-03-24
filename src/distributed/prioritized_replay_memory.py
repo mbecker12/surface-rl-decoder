@@ -64,11 +64,14 @@ class PrioritizedReplayMemory(object):
 
         Parameters
         ----------
-        beta : float
+        batch_size: batch_size to be sampled
+        beta: float, PER parameter
+        tensorboard: (optional)(torch.utils.SummaryWriter) tensorboard instance for logging/monitoring
+        verbosity: (optional)(int) verbosity level
 
         Returns
         -------
-        out :
+        out:
             list of samples
         weights:
             list of weight
@@ -113,20 +116,21 @@ class PrioritizedReplayMemory(object):
 
         if tensorboard is not None:
             if verbosity >= 4:
+                current_time = time()
                 tensorboard.add_histogram(
                     "per/sampled_priorities",
                     np.array(priorities, dtype=np.float32),
-                    walltime=int(time() * 1000),
+                    walltime=int(current_time * 1000),
                 )
                 tensorboard.add_histogram(
                     "per/sampled_weights",
                     np.array(weights, dtype=np.float32),
-                    walltime=int(time() * 1000),
+                    walltime=int(current_time * 1000),
                 )
                 tensorboard.add_histogram(
                     "per/sampled_indices",
                     np.array(indices, dtype=np.float32),
-                    walltime=int(time() * 1000),
+                    walltime=int(current_time * 1000),
                 )
 
         self.priority_update(indices, priorities)  # Revert priorities

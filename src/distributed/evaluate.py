@@ -99,12 +99,10 @@ def evaluate(
                 q_value = q_values[0, q_value_index]
                 experimental_q_values.append(q_value)
 
-                # old_env = deepcopy(env)
                 next_state, reward, terminal, _ = env.step(actions[0])
                 energy_surface.append(np.sum(state) - np.sum(next_state))
 
                 diffs = compute_layer_diff(state, next_state, stack_depth)
-                # print(f"{diffs.sum()=}")
                 if np.all(actions[0] == previous_action):
                     chosen_previous_action += 1
 
@@ -120,16 +118,12 @@ def evaluate(
 
                 syndromes_annihilated[j_episode] += n_annihilated_syndromes
                 syndromes_created[j_episode] += n_created_syndromes
-                # TODO count number of corrected errors
                 state = next_state
                 previous_action = actions[0]
                 mean_q_value_per_p_error = incremental_mean(
                     q_value, mean_q_value_per_p_error, steps_counter
                 )
 
-            # logger.info(
-            #     f"{chosen_previous_action / (steps_counter - 1 + 1e-20)=}, {previous_action=}"
-            # )
             if plot_one_episode and i_err_list == 0 and j_episode == 0:
                 env.render(block=True)
 

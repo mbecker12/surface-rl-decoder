@@ -141,7 +141,7 @@ def handle_transition_monitoring(
         walltime=current_time_ms,
     )
 
-    if verbosity >= 2:
+    if verbosity >= 3:
         tensorboard.add_scalars(
             "transition/action",
             {
