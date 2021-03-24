@@ -4,6 +4,8 @@ Utility functions for the learner process
 from typing import List, Tuple
 import numpy as np
 import torch
+
+# pylint: disable=no-name-in-module
 from torch import from_numpy
 from distributed.util import action_to_q_value_index
 
@@ -42,7 +44,8 @@ def data_to_batch(
     memory_weights: values of memory weights to alter the loss value for backpropagation
     indices: indices of transitions in memory replay
     """
-
+    # because we can indeed call torch.tensor()  -_- ...
+    # pylint: disable=not-callable
     def to_network_input(batch):
         batch_input = np.stack(batch, axis=0)
         tensor = from_numpy(batch_input)
@@ -88,19 +91,17 @@ def data_to_batch(
     )
 
 
-# pylint: disable=too-many-locals, too-many-statements
+# pylint: disable=too-many-locals, too-many-statements, too-many-arguments
 def perform_q_learning_step(
-    policy_net,
-    target_net,
+    policy_network,
+    target_network,
     device,
     criterion,
     optimizer,
-    data,
+    input_data,
     code_size,
     batch_size,
     discount_factor,
-    logger=None,
-    verbosity=0,
 ):
     """
     Perform the actual stochastic gradient descent step.
@@ -111,10 +112,10 @@ def perform_q_learning_step(
     policy_net: online network to peform the actual training step on
     target_net: offline network with frozen parameters,
         serves as the target Q value term in the Bellman equation.
-    device: torch devic
+    device: torch device
     criterion: loss function
     optimizer: optimizer for training
-    data: (Tuple) data received io-learner-queue
+    input_data: (Tuple) data received io-learner-queue
     code_size: code distance, number of qubits in one row/column
     batch_size: number of different states in a batch
     discount_factor: γ-factor in reinforcement learning
@@ -132,8 +133,9 @@ def perform_q_learning_step(
         batch_terminal,
         weights,
         indices,
-    ) = data_to_batch(data, device, batch_size)
+    ) = data_to_batch(input_data, device, batch_size)
 
+    # pylint: disable=not-callable
     batch_action_indices = torch.tensor(
         [
             action_to_q_value_index(batch_actions[i], code_size)
@@ -142,11 +144,11 @@ def perform_q_learning_step(
     ).view(-1, 1)
     batch_action_indices = batch_action_indices.to(device)
 
-    policy_net.train()
-    target_net.eval()
+    policy_network.train()
+    target_network.eval()
 
     # compute policy net output
-    policy_output = policy_net(batch_state)
+    policy_output = policy_network(batch_state)
     assert policy_output.shape == (
         batch_size,
         3 * code_size * code_size + 1,
@@ -155,7 +157,7 @@ def perform_q_learning_step(
 
     # compute target network output
     with torch.no_grad():
-        target_output = target_net(batch_next_state)
+        target_output = target_network(batch_next_state)
         target_output = target_output.max(1)[0].detach()
 
     # compute loss and update replay memory
@@ -183,9 +185,6 @@ def perform_q_learning_step(
     # backpropagate
     loss.backward()
     optimizer.step()
-
-    if verbosity > 9:
-        logger.info(f"{list(policy_net.parameters())[-1]=}")
 
     return indices, priorities
 
@@ -226,34 +225,34 @@ def transform_list_dict(mapping):
 
 def log_evaluation_data(
     tensorboard,
-    p_error_list,
+    list_of_p_errors,
     episode_results,
     step_results,
     p_error_results,
-    eval_step,
+    evaluation_step,
     current_time_ms,
 ):
     """
     Utility function to send the evaluation data to tensorboard.
     """
-    for i, p_err in enumerate(p_error_list):
+    for i, p_err in enumerate(list_of_p_errors):
         tensorboard.add_scalars(
             f"network/episode, p_error {p_err}",
             episode_results[i],
-            eval_step,
+            evaluation_step,
             walltime=current_time_ms,
         )
 
         tensorboard.add_scalars(
             f"network/step, p_error {p_err}",
             step_results[i],
-            eval_step,
+            evaluation_step,
             walltime=current_time_ms,
         )
 
         tensorboard.add_scalars(
             f"network/p_err, p_error {p_err}",
             p_error_results[i],
-            eval_step,
+            evaluation_step,
             walltime=current_time_ms,
         )

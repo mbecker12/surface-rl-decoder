@@ -62,4 +62,8 @@ class ReplayMemory:
         return self.current_num_objects
 
     def priority_update(self, *args):
+        """
+        This just here so it won't get fined
+        """
+        # pylint: disable=unnecessary-pass
         pass

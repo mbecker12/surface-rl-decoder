@@ -6,13 +6,10 @@ high-loss events to be sampled so that the model
 can exncounter more events which it can learn a lot from.
 """
 from time import time
-import traceback
 import random
-import numpy as np
 from collections import namedtuple
+import numpy as np
 from distributed.sum_tree import SumTree
-
-# from torch.utils.tensorboard import SummaryWriter
 
 Transition = namedtuple(
     "Transition", ["state", "action", "reward", "next_state", "terminal"]
@@ -21,7 +18,7 @@ Transition = namedtuple(
 EPSILON = 1e-16
 
 
-class PrioritizedReplayMemory(object):
+class PrioritizedReplayMemory:
     """The class represents prioritized experience replay buffer.
 
     The class has functions: store samples, pick samples with
@@ -41,7 +38,7 @@ class PrioritizedReplayMemory(object):
             sample size to be stored
         alpha: float
             exponent determine how much prioritization.
-            Prob_i \sim priority_i**alpha/sum(priority**alpha)
+            Prob_i sim priority_i**alpha/sum(priority**alpha)
         """
         self.tree = SumTree(memory_size)
         self.memory_size = memory_size
@@ -66,7 +63,8 @@ class PrioritizedReplayMemory(object):
         ----------
         batch_size: batch_size to be sampled
         beta: float, PER parameter
-        tensorboard: (optional)(torch.utils.SummaryWriter) tensorboard instance for logging/monitoring
+        tensorboard: (optional)(torch.utils.SummaryWriter)
+            tensorboard instance for logging/monitoring
         verbosity: (optional)(int) verbosity level
 
         Returns
@@ -108,7 +106,8 @@ class PrioritizedReplayMemory(object):
                 self.priority_update([index], [0])  # To avoid duplicating
             except AssertionError as _:
                 print(
-                    "Caught AssertionError while trying to sample from replay memory. Skipping to new sample."
+                    "Caught AssertionError while trying to sample from replay memory. "
+                    "Skipping to new sample."
                 )
                 continue
             else:

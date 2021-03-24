@@ -1,9 +1,20 @@
+"""
+A collection of very low-key utility functions for the io,
+aka replay-memory module
+"""
 import psutil
 import nvgpu
 import numpy as np
 
 
 def assert_transition_shapes(transition, stack_depth, syndrome_size):
+    """
+    Assert that the incoming transitions conform to the expected array shape.
+
+    transition: incoming transition to check
+    stack_depth: syndrome state stack depth, umber of layers in stack
+    syndrome_size: number of rows/columns in the syndrome state
+    """
     ## if the zip method is chosen in the actor
     assert transition[0].shape == (
         stack_depth,
@@ -25,6 +36,12 @@ def assert_transition_shapes(transition, stack_depth, syndrome_size):
 def add_transition_images_to_tensorboard(
     tensorboard, transition, tensorboard_step, terminal_action, current_time_ms
 ):
+    """
+    Generate little images from state, next_state, and action and send them to tensorboard.
+    To have a quick glance if the action and step functionality in the environment
+    works properly.
+    Should probably only be run at a very high verbosity level.
+    """
     transition_shape = transition[0][-1].shape
 
     _state_float = transition[0][-1].astype(np.float32)
@@ -60,6 +77,9 @@ def add_transition_images_to_tensorboard(
 
 
 def monitor_gpu_memory(tensorboard, current_time, performance_start, current_time_ms):
+    """
+    Access and output the status of the VRAM of the GPU to tensorboard.
+    """
     gpu_info = nvgpu.gpu_info()
     for i in gpu_info:
         gpu_info = "io/{} {}".format(i["type"], i["index"])
@@ -77,6 +97,9 @@ def monitor_gpu_memory(tensorboard, current_time, performance_start, current_tim
 
 
 def monitor_cpu_memory(tensorboard, current_time, performance_start, current_time_ms):
+    """
+    Output the status of RAM.
+    """
     mem_usage = psutil.virtual_memory()
     memory_total = mem_usage.total >> 20
     mem_available = mem_usage.available >> 20
@@ -95,22 +118,25 @@ def monitor_cpu_memory(tensorboard, current_time, performance_start, current_tim
 
 def monitor_data_io(
     tensorboard,
-    consumption_total,
+    data_consumption_total,
     transitions_total,
     count_consumption_outgoing,
     count_transition_received,
     stop_watch,
     current_time,
-    performance_start,
+    performance_start_time,
     current_time_ms,
 ):
+    """
+    Utility function to log data input/output via tensorboard.
+    """
     tensorboard.add_scalars(
         "io/total",
         {
-            "total batch consumption outgoing": consumption_total,
+            "total batch consumption outgoing": data_consumption_total,
             "total # received transitions": transitions_total,
         },
-        current_time - performance_start,
+        current_time - performance_start_time,
         walltime=current_time_ms,
     )
     tensorboard.add_scalars(
@@ -121,7 +147,7 @@ def monitor_data_io(
             "received transitions rate": count_transition_received
             / (current_time - stop_watch),
         },
-        current_time - performance_start,
+        current_time - performance_start_time,
         walltime=current_time_ms,
     )
 
@@ -134,6 +160,10 @@ def handle_transition_monitoring(
     current_time_ms,
     terminal_action,
 ):
+    """
+    Output information about a transition set, made up of
+    (state, action, reward, next_state, is_terminal)
+    """
     tensorboard.add_scalars(
         "transition/reward",
         {"reward": transition[2]},

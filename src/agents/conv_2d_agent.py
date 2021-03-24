@@ -1,3 +1,8 @@
+"""
+Implementation of an agent containing convolutional layers
+followed by an LSTM to account for the time dependency
+and linear layers to generate q values.
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,28 +14,35 @@ class Conv2dAgent(nn.Module):
     """
     Description:
         Third iteration of an agent. Consists of multiple 2D convolutional layers and an LSTM layer.
-        Splits the input into x, z and both errors which it then proceeds to feed each part into a neural network
-        before convolving them to a single feature map and adding them together, feeding them into the LSTM layer and finally into 2 linear layers
+        Splits the input into x, z and both errors which it then proceeds to feed each part into a
+        neural network before convolving them to a single feature map and adding them together,
+        feeding them into the LSTM layer and finally into 2 linear layers
         from which only the final (with regards to time) output is used.
-        For the instantiation it requires a dictionary containing the several parameters that the network will need to build itself.
+        For the instantiation it requires a dictionary containing the several
+        parameters that the network will need to build itself.
+
     Parameters
     ==========
     config: dictionary containing configuration for the network. Expected keys:
         code_size: the code distance of the surface code
-        num_actions_per_qubit: in most cases should be 3 but can be adjusted, it is the number of types of correction actions that can be applied on the qubit
+        num_actions_per_qubit: in most cases should be 3 but can be adjusted,
+            it is the number of types of correction actions that can be applied on the qubit
         stack_depth: the length of the dimension with aspect to time
-        input_channels: the size of the number of channels at the input. Should be 1 in most cases but can be adjusted if one wishes
+        input_channels: the size of the number of channels at the input.
+            Should be 1 in most cases but can be adjusted if one wishes
         output_channels: the number of output channels from the first 2d convolution
         output_channels2: the number of output channels from the second 2d convolution
         output_channels3: the number of output channels from the third 2d convolution
-        lstm_num_layers: the lstm network has a parameter which queries for how many lstm layers should be stacked on top of each other
+        lstm_num_layers: the lstm network has a parameter which queries for
+            how many lstm layers should be stacked on top of each other
         lstm_num_directions: can be 1 or 2, for uni- or bidirectional LSTM
         lstm_output_size: number of features in the hidden state of the LSTM;
             used synonymously as the size of the LSTM output vector
         neurons_lin_layer: number of neurons in the second-to-last linear layer
 
         kernel_size: the size of the convolution kernel
-        padding_size: the amount of padding, should be a number such that the shortening in dimension length due to the kernel is negated
+        padding_size: the amount of padding, should be a number
+            such that the shortening in dimension length due to the kernel is negated
     """
 
     def __init__(self, config):
@@ -38,10 +50,10 @@ class Conv2dAgent(nn.Module):
         self.device = config.get("device")
         assert self.device is not None
         self.size = int(config.get("code_size"))
+        # pylint: disable=not-callable
         self.plaquette_mask = torch.tensor(plaquette_mask, device=self.device)
         self.vertex_mask = torch.tensor(vertex_mask, device=self.device)
 
-        syndrome_surface_size = (self.size + 1) * (self.size + 1)
         self.nr_actions_per_qubit = int(config.get("num_actions_per_qubit"))
         self.stack_depth = int(config.get("stack_depth"))
 
@@ -150,6 +162,9 @@ class Conv2dAgent(nn.Module):
         self.final_layer = nn.Linear(self.neurons_lin_layer, self.neurons_output)
 
     def forward(self, state):
+        """
+        Perform a forward pass with the current batch of syndrome states.
+        """
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
         x, z, both = self.interface(state)

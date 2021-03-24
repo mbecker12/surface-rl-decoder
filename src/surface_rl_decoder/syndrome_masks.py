@@ -61,6 +61,7 @@ for i in range(1, d):
         for j in range(0, d + 1, 2):
             vertex_mask[i, j] = 1
 
+# pylint: disable=not-callable
 vertex_mask_torch = torch.tensor(vertex_mask, device=device)
 vertex_mask_torch_float = torch.tensor(vertex_mask, device=device, dtype=torch.float32)
 vertex_mask_torch_int = torch.tensor(vertex_mask, device=device, dtype=torch.int64)

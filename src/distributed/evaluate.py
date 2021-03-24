@@ -1,9 +1,10 @@
-import numpy as np
-from copy import deepcopy
-import torch
-from torch import from_numpy
-import gym
+"""
+Define an evaluation routine to keep track of the agent's ability
+to decode syndromes
+"""
 import logging
+import numpy as np
+import torch
 from distributed.util import action_to_q_value_index, incremental_mean, select_actions
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import (
@@ -16,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("eval")
 logger.setLevel(logging.INFO)
 
-
+# pylint: disable=too-many-locals, too-many-statements
 def evaluate(
     model,
     env,
@@ -24,7 +25,6 @@ def evaluate(
     p_error_list,
     p_msmt_list,
     num_of_episodes=10,
-    num_actions=3,
     epsilon=0.0,
     num_of_steps=50,
     plot_one_episode=True,
@@ -32,17 +32,13 @@ def evaluate(
     """
     Evaluate the current policy.
     """
-
+    # pylint: disable=not-callable
+    # for torch.tensor()
     model.eval()
-
-    # TODO: publish gym environment
-    # TODO: make environment configurable
-    # env = gym.make(env, config=conf)
 
     env = SurfaceCode()
     system_size = env.system_size
     stack_depth = env.stack_depth
-    n_qubits_total = stack_depth * system_size * system_size
     assert (
         system_size % 2 == 1
     ), "System size (i.e. number of qubits) needs to be an odd number."
@@ -56,7 +52,6 @@ def evaluate(
     logical_errors_list = np.zeros(len(p_error_list))
     average_number_of_steps_list = np.zeros(len(p_error_list))
     mean_q_list = np.zeros(len(p_error_list))
-    failed_syndromes = []
 
     for i_err_list, p_error in enumerate(p_error_list):
         p_msmt = p_msmt_list[i_err_list]
@@ -70,7 +65,6 @@ def evaluate(
         mean_q_value_per_p_error = 0
         steps_counter = 0
 
-        # TODO: maybe one can evaluate in batches
         for j_episode in range(num_of_episodes):
             steps_counter = 0
             logger.debug(f"{p_error=}, episode: {j_episode}")
@@ -99,7 +93,7 @@ def evaluate(
                 q_value = q_values[0, q_value_index]
                 experimental_q_values.append(q_value)
 
-                next_state, reward, terminal, _ = env.step(actions[0])
+                next_state, _, terminal, _ = env.step(actions[0])
                 energy_surface.append(np.sum(state) - np.sum(next_state))
 
                 diffs = compute_layer_diff(state, next_state, stack_depth)
@@ -131,7 +125,7 @@ def evaluate(
             mean_steps_per_p_error = incremental_mean(
                 num_steps_per_episode, mean_steps_per_p_error, j_episode + 1
             )
-            # TODO: need better measure for reaching terminal state
+
             fully_corrected[j_episode] = terminal_state
             _, _ground_state, (n_syndromes, n_loops) = check_final_state(
                 env.actual_errors, env.actions, env.vertex_mask, env.plaquette_mask
@@ -139,12 +133,6 @@ def evaluate(
             ground_state[j_episode] = _ground_state
             remaining_syndromes[j_episode] = n_syndromes
             logical_errors[j_episode] = n_loops
-            # TODO: keep track of failed syndromes for later analysis
-            # if not terminal_state or not _ground_state:
-            #     # init qubit state
-            #     failed_syndromes.append(
-            #         create_syndrome_output_stack(env.actual_errors, env.vertex_mask, env.plaquette_mask)
-            #     )
 
         assert np.any(syndromes_annihilated > 0), syndromes_annihilated
         assert np.any(syndromes_created > 0), syndromes_created

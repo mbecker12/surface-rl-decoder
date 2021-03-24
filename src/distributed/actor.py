@@ -7,16 +7,17 @@ from time import time
 from collections import namedtuple
 import logging
 import numpy as np
+
+# pylint: disable=not-callable
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from environment_set import EnvironmentSet
-from model_util import choose_model, extend_model_config, load_model
-from util import anneal_factor, compute_priorities, select_actions, time_ms
-
+from distributed.model_util import choose_model, extend_model_config, load_model
+from distributed.util import anneal_factor, compute_priorities, select_actions, time_ms
 from surface_rl_decoder.surface_code import SurfaceCode
 
-# pylint: disable=too-many-statements,too-many-locals
+# pylint: disable=too-many-statements,too-many-locals,too-many-branches
 
 Transition = namedtuple(
     "Transition", ["state", "action", "reward", "next_state", "terminal"]
@@ -84,7 +85,7 @@ def actor(args):
         logger.setLevel(logging.INFO)
     logger.info("Fire up all the environments!")
 
-    env = SurfaceCode()  # TODO: need published gym environment here
+    env = SurfaceCode()
     state_size = env.syndrome_size
     code_size = state_size - 1
     stack_depth = env.stack_depth
@@ -142,7 +143,6 @@ def actor(args):
     model.to(device)
 
     performance_start = time()
-    performance_stop = None
     heart = time()
     heartbeat_interval = 60  # seconds
 
@@ -251,7 +251,8 @@ def actor(args):
                 assert network_params is not None
                 if msg == "network_update":
                     logger.debug(
-                        f"Received new network weights. Taken the latest of {learner_qsize} updates."
+                        "Received new network weights. "
+                        f"Taken the latest of {learner_qsize} updates."
                     )
                     vector_to_parameters(network_params, model.parameters())
                     model.to(device)

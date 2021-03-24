@@ -34,7 +34,7 @@ def choose_model(model_name, model_config):
 
     if "dummy" in model_name:
         model = DummyModel(model_config)
-    elif model_name.lower() in ("conv2d_lstm"):
+    elif model_name.lower() in "conv2d_lstm":
         model = Conv2dAgent(model_config)
     else:
         raise Exception(f"Error! Model '{model_name}' not supported or not recognized.")
@@ -165,6 +165,8 @@ def optimizer_to(optim, device):
     """
     Send a torch.optim object to the target device.
     """
+    # you gotta do what you gotta do...
+    # pylint: disable=protected-access
     for param in optim.state.values():
         # Not sure there are any global tensors in the state dict
         if isinstance(param, torch.Tensor):

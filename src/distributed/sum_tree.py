@@ -7,7 +7,7 @@ Based on https://github.com/Lindeby/toric-RL-decoder/blob/master/src/SumTree.py
 import math
 
 
-class SumTree(object):
+class SumTree:
     """
     Initialize a sum tree object to store
     data points in a tree structure.
@@ -70,7 +70,7 @@ class SumTree(object):
 
     def reconstruct(self, tindex, diff):
         """
-        # TODO No idea
+        # No idea, please refer to proper documentation on sum trees
         """
         # TODO docu
         self.tree[tindex] += diff
@@ -79,21 +79,27 @@ class SumTree(object):
             self.reconstruct(tindex, diff)
 
     def find(self, value, norm=True):
-        """"""
-        # TODO docu
+        """
+        Find an element in the tree based on an input value.
+        If norm is True, the input value is expected to be between 0 and 1.
+        """
         assert value >= 0.0, f"{value=}"
         if norm:
             value *= self.tree[0]
         return self._find(value, 0, original_value=value)
 
     def _find(self, value, index, original_value=0):
-        """"""
+        """
+        No idea, please refer to proper documentation on sum trees
+        """
         # TODO docu
         if 2 ** (self.tree_level - 1) - 1 <= index:
             data_index = index - (2 ** (self.tree_level - 1) - 1)
-            assert (
-                0 <= data_index < len(self.data)
-            ), f"{original_value=}, {self.tree[0]=}, {(original_value / self.tree[0])=}, {value=}, {data_index=}, {len(self.data)=}, {self.tree_level=}, {index=}\n"
+            assert 0 <= data_index < len(self.data), (
+                f"{original_value=}, {self.tree[0]=}, "
+                f"{(original_value / self.tree[0])=}, {value=}, "
+                f"{data_index=}, {len(self.data)=}, {self.tree_level=}, {index=}\n"
+            )
 
             return (
                 self.data[data_index],
@@ -103,6 +109,7 @@ class SumTree(object):
 
         left = self.tree[2 * index + 1]
 
+        # pylint: disable=no-else-return
         if value <= left:
             return self._find(value, 2 * index + 1, original_value=original_value)
         else:

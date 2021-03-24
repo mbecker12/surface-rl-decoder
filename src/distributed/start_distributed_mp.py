@@ -4,24 +4,23 @@ for reinforcement learning.
 """
 import os
 import json
-import yaml
 import traceback
-from time import sleep
 from copy import deepcopy
 import logging
 import multiprocessing as mp
+import yaml
 from iniparser import Config
 from torch.utils.tensorboard import SummaryWriter
 from distributed.actor import actor
 from distributed.learner import learner
 from distributed.io import io_replay_memory
-from model_util import save_metadata
+from distributed.model_util import save_metadata
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
 
-
+# pylint: disable=too-many-locals, too-many-statements
 def start_mp():
     """
     Start the actual sub processes.

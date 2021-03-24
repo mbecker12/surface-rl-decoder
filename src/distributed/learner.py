@@ -3,7 +3,7 @@ Define the learner process in the multi-process
 reinforcement learning setup.
 """
 import os
-from time import time, sleep
+from time import time
 import traceback
 from typing import Dict
 import logging
@@ -12,23 +12,21 @@ from torch.optim import Adam
 from torch import nn
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
-from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
 from distributed.learner_util import (
     log_evaluation_data,
     perform_q_learning_step,
     transform_list_dict,
 )
-from model_util import (
+from distributed.model_util import (
     choose_model,
     extend_model_config,
     load_model,
-    optimizer_to,
     save_model,
 )
-from util import time_ms
+from distributed.util import time_ms
 
-# pylint: disable=too-many-locals, too-many-statements
+# pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def learner(args: Dict):
     """
     Start the learner process. Here, the key learning is performed:
@@ -174,7 +172,8 @@ def learner(args: Dict):
             if benchmarking:
                 update_target_net_stop = time()
                 logger.debug(
-                    f"Time for updating target net parameters: {update_target_net_stop - update_target_net_start} s."
+                    "Time for updating target net parameters: "
+                    f"{update_target_net_stop - update_target_net_start} s."
                 )
 
             # notify the actor process that its network parameters should be updated
@@ -202,10 +201,6 @@ def learner(args: Dict):
                 )
                 tensorboard_step += 1
 
-        # TODO: in this whole nn section,
-        # we might need an abstraction layer to support
-        # different learning strategies
-
         # perform the actual learning
         try:
             learning_step_start = time()
@@ -219,8 +214,6 @@ def learner(args: Dict):
                 code_size,
                 batch_size,
                 discount_factor,
-                logger=logger,
-                verbosity=verbosity,
             )
 
             if benchmarking and t % eval_frequency == 0:

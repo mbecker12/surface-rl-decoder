@@ -8,25 +8,21 @@ import os
 from time import time, sleep
 import logging
 import numpy as np
-from distributed.replay_memory import ReplayMemory
-from io_util import (
-    add_transition_images_to_tensorboard,
+from torch.utils.tensorboard import SummaryWriter
+import nvgpu
+from distributed.io_util import (
     assert_transition_shapes,
     handle_transition_monitoring,
     monitor_cpu_memory,
     monitor_data_io,
     monitor_gpu_memory,
 )
-from prioritized_replay_memory import PrioritizedReplayMemory
+from distributed.replay_memory import ReplayMemory
+from distributed.prioritized_replay_memory import PrioritizedReplayMemory
+from distributed.util import anneal_factor, time_ms
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
-import torch
-from torch.utils.tensorboard import SummaryWriter
-import nvgpu
-import psutil
 
-from util import anneal_factor, time_ms
-
-
+# pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def io_replay_memory(args):
     """
     Start an instance of the replay memory process.
@@ -85,7 +81,8 @@ def io_replay_memory(args):
     else:
         logger.setLevel(logging.INFO)
     logger.info(
-        f"Initialized replay memory of type {memory_type}, an instance of {type(replay_memory).__name__}."
+        f"Initialized replay memory of type {memory_type}, "
+        f"an instance of {type(replay_memory).__name__}."
     )
 
     batch_size = args["batch_size"]
@@ -107,10 +104,11 @@ def io_replay_memory(args):
     tensorboard_step = 0
 
     # prepare data throughput metrics
-    count_consumption_outgoing = (
-        0  # count the consumption of batches to be sent to the learner process
-    )
-    count_transition_received = 0  # count the number of transitions that arrived in this io module from the actor process
+
+    # count the consumption of batches to be sent to the learner process
+    count_consumption_outgoing = 0
+    # count the number of transitions that arrived in this io module from the actor process
+    count_transition_received = 0
     consumption_total = 0
     transitions_total = 0
 
@@ -118,7 +116,7 @@ def io_replay_memory(args):
     performance_start = time()
     nvidia_log_time = time()
     try:
-        gpu_info = nvgpu.gpu_info()
+        nvgpu.gpu_info()
         gpu_available = True
     except FileNotFoundError as _:
         gpu_available = False
@@ -129,7 +127,8 @@ def io_replay_memory(args):
         while not actor_io_queue.empty():
 
             # explainer for indices of transitions
-            # [n_environment][n local memory buffer][states, actions, rewards, next_states, terminals]
+            # [n_environment][n local memory buffer]
+            #       [states, actions, rewards, next_states, terminals]
             transitions = actor_io_queue.get()
             if verbosity and (transitions is not None):
                 random_sample_indices = np.random.choice(range(len(transitions)), 10)
@@ -285,11 +284,11 @@ def io_replay_memory(args):
         if benchmarking:
             send_data_to_learner_stop = time()
             logger.debug(
-                f"Time to send data to learner: {send_data_to_learner_stop - send_data_to_learner_start} s."
+                "Time to send data to learner: "
+                f"{send_data_to_learner_stop - send_data_to_learner_start} s."
             )
 
         # check if the queue from the learner is empty
-        terminate = False
         while not learner_io_queue.empty():
 
             # look for priority updates for prioritized replay memory

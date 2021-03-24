@@ -1,13 +1,19 @@
+"""
+General utility functions for the distributed program setup.
+Contains many of the actor utilities.
+"""
 from time import time
+from typing import List, Tuple, Union
 import torch
 import numpy as np
-import random
-from typing import List, Tuple, Union
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
 
-def incremental_mean(val, mu, n):
-    return mu + (val - mu) / (n)
+def incremental_mean(value, mean, num_elements):
+    """
+    Iteratively update the mean of a value.
+    """
+    return mean + (value - mean) / (num_elements)
 
 
 def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0.0):
@@ -181,7 +187,8 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
         or q_value_index > num_actions_per_qubit * system_size * system_size
     ):
         raise Exception(
-            f"Error! Index {q_value_index} is invalid for surface code with system size {system_size}."
+            f"Error! Index {q_value_index} "
+            "is invalid for surface code with system size {system_size}."
         )
 
     actor = q_value_index % num_actions_per_qubit
@@ -223,14 +230,14 @@ def assert_not_all_states_equal(states_batch):
         assert prev_state is not None
         assert current_state is not None
 
-        for h in range(depth):
+        for height in range(depth):
             if isinstance(states_batch, torch.Tensor):
-                if torch.all(prev_state[h] == current_state[h]):
+                if torch.all(prev_state[height] == current_state[height]):
                     count_same += 1
 
                 total += 1
             elif isinstance(states_batch, np.ndarray):
-                if np.all(prev_state[h] == current_state[h]):
+                if np.all(prev_state[height] == current_state[height]):
                     count_same += 1
 
                 total += 1
@@ -333,6 +340,15 @@ def anneal_factor(
         annealing_factor = min(max_value, annealing_factor)
         return annealing_factor
 
+    raise Exception(
+        "Error! You need to either define the timesteps or the time_difference that has passed."
+    )
+
 
 def time_ms():
+    """
+    Get the current time in milliseconds.
+    Because tensorboard needs that.
+    But still it can't handle it properly... ¯\\_(ツ)_/¯
+    """
     return int(time() * 1000)

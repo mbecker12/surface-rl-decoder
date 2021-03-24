@@ -375,6 +375,20 @@ def compute_layer_diff(state, next_state, stack_depth):
 
 
 def check_repeating_action(action, action_history, max_action_index):
+    """
+    Check the action history of an environment if the proposed action
+    has been executed before.
+
+    Parameters
+    ==========
+    action: Tuple, shape: (3, ), (x-coord, y-coord, operator) action to perform on a qubit
+    action_history: array that stores the previously executed action-tuples
+    max_action_index: the index up to which the action history is filled
+
+    Returns
+    =======
+    n_repeating_actions: the number of how often action has already occured in the action histoy
+    """
     n_repeating_actions = sum(
         [np.all(action == action_history[i]) for i in range(max_action_index)]
     )
