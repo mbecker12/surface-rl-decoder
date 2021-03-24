@@ -5,7 +5,7 @@ from src.distributed.model_util import extend_model_config, choose_model
 
 
 def test_conv2d_agent():
-    model_name = "conv2d-lstm"
+    model_name = "conv2d_lstm"
     with open("src/config/model_spec/conv_agents.json") as model_conf_file:
         model_config = json.load(model_conf_file)[model_name]
 
