@@ -98,7 +98,9 @@ def io_replay_memory(args):
     start_learning = False
 
     # initialize tensorboard for monitoring/logging
-    tensorboard = SummaryWriter(os.path.join(summary_path, str(code_size), summary_date, "io"))
+    tensorboard = SummaryWriter(
+        os.path.join(summary_path, str(code_size), summary_date, "io")
+    )
     tensorboard_step = 0
 
     # prepare data throughput metrics
