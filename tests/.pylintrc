@@ -18,7 +18,7 @@ ignore-patterns=
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
-#init-hook=import src.surface_rl_decoder;
+init-hook='import sys; sys.path.append("."); import src.surface_rl_decoder;'
 
 # Use multiple processes to speed up Pylint. Specifying 0 will auto-detect the
 # number of processors available to use.
@@ -143,7 +143,8 @@ disable=print-statement,
         comprehension-escape,
         missing-function-docstring,
         missing-module-docstring,
-        import-error
+        import-error,
+        protected-access
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

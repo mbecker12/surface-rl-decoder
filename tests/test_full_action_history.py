@@ -1,19 +1,23 @@
 from src.surface_rl_decoder.surface_code import SurfaceCode
-from src.surface_rl_decoder.surface_code_util import MAX_ACTIONS
 from tests.data_episode_test import _actions
 
 
 def test_full_action_history(sc):
     sc.actual_errors[:, 0, 0] = 1
 
-    actions = [(0, 1, 1) for i in range(MAX_ACTIONS)]
+    actions = [(0, 1, 1) for i in range(sc.max_actions)]
     assert sc.current_action_index == 0
 
     for i, action in enumerate(actions):
         j = i + 1
-        _, reward, terminal, _ = sc.step(action)
+        _, reward, terminal, _ = sc.step(
+            action,
+            discount_intermediate_reward=1.0,
+            annealing_intermediate_reward=0.0,
+            punish_repeating_actions=0,
+        )
         assert sc.current_action_index == j, sc.current_action_index
-        if j < MAX_ACTIONS:
+        if j < sc.max_actions:
             assert not terminal, j
             assert reward == 0
         else:
@@ -22,7 +26,7 @@ def test_full_action_history(sc):
             assert reward < 0
 
     assert not sc.ground_state
-    assert sc.current_action_index == MAX_ACTIONS
+    assert sc.current_action_index == sc.max_actions
 
 
 def test_full_action_history_ground_state(

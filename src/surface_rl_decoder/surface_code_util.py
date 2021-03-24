@@ -4,7 +4,6 @@ Utility functions for the surface code environment
 import numpy as np
 
 TERMINAL_ACTION = 4
-MAX_ACTIONS = 256
 
 # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
 RULE_TABLE = np.array(
@@ -12,9 +11,11 @@ RULE_TABLE = np.array(
 )
 
 # reward scores
-NON_TRIVIAL_LOOP_REWARD = -27
-SYNDROME_LEFT_REWARD = -5
-SOLVED_EPISODE_REWARD = 100
+NON_TRIVIAL_LOOP_REWARD = -37
+SYNDROME_LEFT_REWARD = -10
+SOLVED_EPISODE_REWARD = 200
+SYNDROME_DIFF_REWARD = 1
+REPEATING_ACTION_REWARD = -2
 
 
 def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
@@ -303,3 +304,92 @@ def create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask):
         syndrome % 2
     )  # we can only measure parity, hence only odd number of errors per syndrome
     return syndrome
+
+
+def compute_intermediate_reward(
+    state, next_state, stack_depth, discount_factor=0.75, annealing_factor=1.0
+):
+    """
+    Calculate an intermediate reward based on the number of created/annihilated syndromes
+    in the syndrome stack.
+    This looks throughout the whole stack and looks for differences in
+    number of syndromes in each layer. The earlier the layer, the more discounted
+    its contribution to the reward will be.
+
+    Parameters
+    ==========
+    state: (h, d+1, d+1) current syndrome state
+    next_state: (h, d+1, d+1) subsequent syndrome state
+    stack_depth: number of layers in the syndrome stack, a.k.a. h
+    discount_factor: (optional) discount factor determining how much
+        early layers should be discounted when calculating the intermediate reward
+    annealing_factor: (optional) variable that should decrease over time during
+        a training run to decrease the effect of the intermediate reward
+
+    Returns
+    =======
+    intermediate_reward: (float) reward for annihilating/creating a syndrome across the stack
+    """
+
+    diffs = compute_layer_diff(state, next_state, stack_depth)
+    layer_exponents = np.arange(stack_depth - 1, -1, -1)
+    layer_rewards = (
+        annealing_factor
+        * SYNDROME_DIFF_REWARD
+        * diffs
+        * np.power(discount_factor, layer_exponents)
+    )
+
+    intermediate_reward = np.sum(layer_rewards)
+    return intermediate_reward
+
+
+def compute_layer_diff(state, next_state, stack_depth):
+    """
+    Utility function to compute the layerwise difference
+    in the number of syndrome measurements between a state and
+    its subsequent state.
+
+    diffs = state - next_state
+    Hence, a positive number means a decrease in syndrome measurements.
+
+    Parameters
+    ==========
+    state: (h, d+1, d+1) current syndrome state
+    next_state: (h, d+1, d+1) subsequent syndrome state
+    stack_depth: number of layers in the syndrome stack, a.k.a. h
+
+    Return
+    ======
+    diffs: (h,) difference in number of
+        syndrome measurements between subsequent layers
+    """
+
+    state_sums = np.sum(np.sum(state, axis=2), axis=1)
+    next_state_sums = np.sum(np.sum(next_state, axis=2), axis=1)
+    diffs = state_sums - next_state_sums
+    assert diffs.shape == (stack_depth,), diffs.shape
+    assert diffs.dtype in (int, float, np.uint64), diffs.dtype
+
+    return diffs
+
+
+def check_repeating_action(action, action_history, max_action_index):
+    """
+    Check the action history of an environment if the proposed action
+    has been executed before.
+
+    Parameters
+    ==========
+    action: Tuple, shape: (3, ), (x-coord, y-coord, operator) action to perform on a qubit
+    action_history: array that stores the previously executed action-tuples
+    max_action_index: the index up to which the action history is filled
+
+    Returns
+    =======
+    n_repeating_actions: the number of how often action has already occured in the action histoy
+    """
+    n_repeating_actions = sum(
+        [np.all(action == action_history[i]) for i in range(max_action_index)]
+    )
+    return n_repeating_actions

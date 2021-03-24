@@ -21,7 +21,7 @@ def test_episode(sc):
     assert sc.next_state.sum() == 0
 
     actions = [(0, 0, 0), (1, 3, 2), (4, 0, 1), (1, 1, 3), (3, 2, 1)]
-    h_max = sc.stack_depth - len(actions) + 1
+    h_max = len(actions) - 1
 
     # prepare qubit grid
     for i, action in enumerate(actions):
@@ -44,7 +44,6 @@ def test_episode(sc):
         previous_qb_sum = sc.qubits.sum()
         sc.step(action)
         assert previous_qb_sum >= sc.qubits.sum()
-
     # send terminal action to stop the episode
     sc.step(action=(9, 9, TERMINAL_ACTION))
 
@@ -54,7 +53,7 @@ def test_episode(sc):
 
     # in the bottommost layers, new pseudo-errors will have been created
     # make sure that those do exist in the final stack
-    for h in range(sc.stack_depth - len(actions)):
+    for h in range(h_max):
         qb_sum = sc.qubits[h].sum()
 
         assert qb_sum != 0, h

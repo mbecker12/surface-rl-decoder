@@ -11,14 +11,16 @@ from iniparser import Config
 from .syndrome_masks import vertex_mask, plaquette_mask
 from .surface_code_util import (
     NON_TRIVIAL_LOOP_REWARD,
+    REPEATING_ACTION_REWARD,
     SOLVED_EPISODE_REWARD,
     SYNDROME_LEFT_REWARD,
     check_final_state,
+    check_repeating_action,
+    compute_intermediate_reward,
     create_syndrome_output_stack,
     perform_action,
     copy_array_values,
     RULE_TABLE,
-    MAX_ACTIONS,
     TERMINAL_ACTION,
 )
 
@@ -82,6 +84,7 @@ class SurfaceCode(gym.Env):
         self.p_msmt = float(env_config.get("p_msmt"))
         self.stack_depth = int(env_config.get("stack_depth"))
         self.error_channel = env_config.get("error_channel")
+        self.max_actions = int(env_config.get("max_actions"))
 
         # Sweke definition
         self.num_actions = 3 * self.system_size ** 2 + 1
@@ -147,12 +150,18 @@ class SurfaceCode(gym.Env):
         self.rule_table = RULE_TABLE
 
         # container to save action history
-        self.actions = np.zeros((MAX_ACTIONS, 3), dtype=np.uint8)
+        self.actions = np.zeros((self.max_actions, 3), dtype=np.uint8)
         self.current_action_index = 0
 
         self.ground_state = True
 
-    def step(self, action):
+    def step(
+        self,
+        action,
+        discount_intermediate_reward=0.75,
+        annealing_intermediate_reward=1.0,
+        punish_repeating_actions=1,
+    ):
         """
         Apply a pauli operator to a qubit on the surface code with code distance d.
 
@@ -160,6 +169,12 @@ class SurfaceCode(gym.Env):
         ==========
         action: tuple containing (None, x-coordinate, y-coordinate, pauli operator),
             defining x- & y-coordinates and operator type
+        discount_intermediate_reward: (optional) discount factor determining how much
+            early layers should be discounted when calculating the intermediate reward
+        annealing_intermediate_reward: (optional) variable that should decrease over time during
+            a training run to decrease the effect of the intermediate reward
+        punish_repeating_actions: (optional) (1 or 0) flag acting as multiplier to
+            enable punishment for repeating actions that already exist in the action history
 
         Returns
         =======
@@ -168,16 +183,21 @@ class SurfaceCode(gym.Env):
         terminal: bool, determines if it is terminal state or not
         {}: empty dictionary, for conformity reasons; supposed to be used for info
         """
+        n_repeating_actions = check_repeating_action(
+            action, self.actions, self.current_action_index
+        )
         self.actions[self.current_action_index] = action[-3:]
         self.current_action_index += 1
 
-        # execute operation throughout the stack
         terminal = action[-1] == TERMINAL_ACTION
         reward = self.get_reward(action)
-
+        reward += (
+            n_repeating_actions * REPEATING_ACTION_REWARD * punish_repeating_actions
+        )
         if terminal:
             return self.state, reward, terminal, {}
 
+        # execute operation throughout the stack
         self.qubits = perform_action(self.qubits, action)
 
         syndrome = create_syndrome_output_stack(
@@ -185,12 +205,22 @@ class SurfaceCode(gym.Env):
         )
 
         self.next_state = np.logical_xor(syndrome, self.syndrome_errors)
+
+        intermediate_reward = compute_intermediate_reward(
+            self.state,
+            self.next_state,
+            self.stack_depth,
+            discount_factor=discount_intermediate_reward,
+            annealing_factor=annealing_intermediate_reward,
+        )
+        reward += intermediate_reward
+
         self.state = self.next_state
 
         # if we reach the action history limit
         # force the episode to be over and determine
         # the reward based on the state after the latest action
-        if self.current_action_index == MAX_ACTIONS:
+        if self.current_action_index >= self.max_actions:
             reward = self.get_reward(action=(-1, -1, TERMINAL_ACTION))
             terminal = True
 
@@ -411,7 +441,7 @@ class SurfaceCode(gym.Env):
 
         return faulty_syndrome
 
-    def reset(self, error_channel="dp"):
+    def reset(self, error_channel="dp", p_error=-1, p_msmt=-1):
         """
         Reset the environment and generate new qubit and syndrome stacks with errors.
 
@@ -421,6 +451,10 @@ class SurfaceCode(gym.Env):
         """
 
         self.ground_state = True
+        if p_msmt >= 0:
+            self.p_msmt = p_msmt
+        if p_error >= 0:
+            self.p_error = p_error
 
         self.qubits = np.zeros(
             (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
@@ -432,9 +466,10 @@ class SurfaceCode(gym.Env):
         self.next_state = np.zeros_like(self.state)
 
         self.actions = np.zeros_like(self.actions)
+        self.current_action_index = 0
         self.syndrome_errors = np.zeros_like(self.state)
 
-        if self.p_msmt > 0 and self.p_error > 0:
+        if self.p_error > 0:
             self.actual_errors = self.generate_qubit_error_stack(
                 error_channel=error_channel, min_n_errors=self.min_qbit_errors
             )
@@ -442,7 +477,11 @@ class SurfaceCode(gym.Env):
         true_syndrome = create_syndrome_output_stack(
             self.actual_errors, self.vertex_mask, self.plaquette_mask
         )
-        self.state = self.generate_measurement_error(true_syndrome)
+        if self.p_msmt > 0:
+            self.state = self.generate_measurement_error(true_syndrome)
+        else:
+            self.state = true_syndrome
+
         # save the introduced syndrome errors by checking the difference
         # between the true syndrome from qubit errors
         # and the updated syndrome with measurement errors
@@ -512,12 +551,8 @@ class SurfaceCode(gym.Env):
             markersize_symbols = 7
             linewidth = 2
 
-            vertex_matrix = np.multiply(
-                np.logical_xor(self.state, self.syndrome_errors), self.vertex_mask
-            )
-            plaquette_matrix = np.multiply(
-                np.logical_xor(self.state, self.syndrome_errors), self.plaquette_mask
-            )
+            vertex_matrix = np.multiply(self.state, self.vertex_mask)
+            plaquette_matrix = np.multiply(self.state, self.plaquette_mask)
 
             vertex_msmt_error_matrix = np.multiply(
                 self.syndrome_errors, self.vertex_mask
