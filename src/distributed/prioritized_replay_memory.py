@@ -95,6 +95,7 @@ class PrioritizedReplayMemory:
                 data, priority, index = self.tree.find(rand)
                 priorities[i] = priority
 
+
                 _weight = (
                     (1.0 / self.memory_size / priority) ** beta
                     if priority > 1e-16
@@ -135,6 +136,7 @@ class PrioritizedReplayMemory:
         self.priority_update(indices, priorities)  # Revert priorities
 
         weights_max = np.max(weights)
+
         if weights_max == 0:
             weights = np.zeros(batch_size, dtype=np.float64)
         else:

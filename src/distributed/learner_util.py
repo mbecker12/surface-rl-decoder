@@ -135,6 +135,7 @@ def perform_q_learning_step(
         indices,
     ) = data_to_batch(input_data, device, batch_size)
 
+
     # pylint: disable=not-callable
     batch_action_indices = torch.tensor(
         [

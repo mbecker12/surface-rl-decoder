@@ -22,6 +22,7 @@ from distributed.prioritized_replay_memory import PrioritizedReplayMemory
 from distributed.util import anneal_factor, time_ms
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
+
 # pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def io_replay_memory(args):
     """
@@ -117,6 +118,7 @@ def io_replay_memory(args):
     nvidia_log_time = time()
     try:
         nvgpu.gpu_info()
+
         gpu_available = True
     except FileNotFoundError as _:
         gpu_available = False
@@ -217,6 +219,7 @@ def io_replay_memory(args):
                     current_time,
                     performance_start,
                     current_time_ms,
+
                 )
 
                 count_transition_received = 0
@@ -305,6 +308,7 @@ def io_replay_memory(args):
                     logger.debug(
                         f"Time to update priorities: {prio_update_stop - prio_update_start} s."
                     )
+
             elif msg == "terminate":
                 logger.info("received message 'terminate' from learner")
                 tensorboard.close()

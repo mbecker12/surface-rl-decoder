@@ -204,6 +204,7 @@ def learner(args: Dict):
         # perform the actual learning
         try:
             learning_step_start = time()
+
             indices, priorities = perform_q_learning_step(
                 policy_net,
                 target_net,
@@ -221,6 +222,7 @@ def learner(args: Dict):
                 logger.info(
                     f"Time for q-learning step: {learning_step_stop - learning_step_start} s."
                 )
+
 
             # update priorities in replay_memory
             p_update = (indices, priorities)
