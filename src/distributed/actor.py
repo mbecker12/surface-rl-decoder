@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
-from environment_set import EnvironmentSet
+from distributed.environment_set import EnvironmentSet
 from distributed.model_util import choose_model, extend_model_config, load_model
 from distributed.util import anneal_factor, compute_priorities, select_actions, time_ms
 from surface_rl_decoder.surface_code import SurfaceCode
