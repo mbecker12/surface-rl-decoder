@@ -55,7 +55,8 @@ An example of how to deploy a job script:
 
     sbatch Example: mp-script.sh -c conf.env -i qec-mp.sif -t runs -T tmp_runs -n networks -N tmp_networks -w surface-rl-decoder -d "describe the purpose of the current run"
 
-The actual job script is ``mp-script.sh`` and supports the functionality to adjust paths and configurations in the ``singularity`` container.
+The actual job script is ``mp-script.sh`` and supports the functionality to adjust paths and configurations in the ``singularity`` container
+(see below for more details on how to build a singularity image).
 
 Inside the job script, a ``conf.env`` file is mounted into the container.
 Since we make use of the config-ini-parser, we can override the settings with environment variables which
