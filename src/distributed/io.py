@@ -60,6 +60,7 @@ def io_replay_memory(args):
     actor_io_queue = args["actor_io_queue"]
     batch_in_queue_limit = 10
     verbosity = args["verbosity"]
+    benchmarking = args["benchmarking"]
 
     n_transitions_total = 0
     memory_size = args["replay_memory_size"]
@@ -134,13 +135,16 @@ def io_replay_memory(args):
                 random_sample_indices = np.random.choice(range(len(transitions)), 10)
                 if verbosity >= 2:
                     priority_sample = np.zeros(len(transitions))
-            for i, _ in enumerate(transitions):
-                assert transitions[i] is not None
-                _transitions, _priorities = transitions[i]
-                assert_transition_shapes(_transitions, stack_depth, syndrome_size)
+
+            save_actor_data_start = time()
+
+            for i, transition in enumerate(transitions):
+                assert transition is not None
+                _transition, _priorities = transition
+                assert_transition_shapes(_transition, stack_depth, syndrome_size)
 
                 # save transitions to the replay memory store
-                replay_memory.save(_transitions, _priorities)
+                replay_memory.save(_transition, _priorities)
 
                 n_transitions_total += 1
                 count_transition_received += 1
@@ -149,7 +153,7 @@ def io_replay_memory(args):
                     current_time_ms = time_ms()
                     handle_transition_monitoring(
                         tensorboard,
-                        _transitions,
+                        _transition,
                         verbosity,
                         tensorboard_step,
                         current_time_ms,
@@ -166,6 +170,10 @@ def io_replay_memory(args):
                     priority_sample[i] = _priorities
                 # end if; logging
             # end for loop; transitions
+            if benchmarking:
+                save_actor_data_stop = time()
+                logger.info(f"Time for saving actor data: {save_actor_data_stop - save_actor_data_start} s.")
+
             if verbosity >= 4:
                 received_priorities = np.array(priority_sample, dtype=np.float32)
                 percentile = np.percentile(received_priorities, 95)
@@ -225,6 +233,7 @@ def io_replay_memory(args):
             sleep(1)
 
         # prepare to send data to learner process repeatedly
+        send_data_to_learner_start = time()
         while start_learning and (io_learner_queue.qsize() < batch_in_queue_limit):
             delta_t = time() - performance_start
             # want to anneal beta from ~0.4 to ~ 1,
@@ -271,6 +280,10 @@ def io_replay_memory(args):
 
             count_consumption_outgoing += batch_size
 
+        if benchmarking:
+            send_data_to_learner_stop = time()
+            logger.debug(f"Time to send data to learner: {send_data_to_learner_stop - send_data_to_learner_start} s.")
+
         # check if the queue from the learner is empty
         terminate = False
         while not learner_io_queue.empty():
@@ -282,7 +295,11 @@ def io_replay_memory(args):
                 # Update priorities
                 logger.debug("received message 'priorities' from learner")
                 indices, priorities = item
+                prio_update_start = time()
                 replay_memory.priority_update(indices, priorities)
+                if benchmarking:
+                    prio_update_stop = time()
+                    logger.debug(f"Time to update priorities: {prio_update_stop - prio_update_start} s.")
             elif msg == "terminate":
                 logger.info("received message 'terminate' from learner")
                 tensorboard.close()

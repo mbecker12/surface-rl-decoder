@@ -162,9 +162,9 @@ def actor(args):
 
         # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32, device=device)
-        start_select_action = time()
+        select_action_start = time()
         current_time_ms = time_ms()
-        delta_t = start_select_action - performance_start
+        delta_t = select_action_start - performance_start
 
         annealed_epsilon = anneal_factor(
             delta_t,
@@ -172,9 +172,14 @@ def actor(args):
             min_value=min_value_factor_epsilon,
             base_factor=epsilon,
         )
+
         actions, q_values = select_actions(
             _states, model, state_size - 1, epsilon=annealed_epsilon
         )
+
+        if benchmarking:
+            select_action_stop = time()
+            logger.info(f"time for select action: {select_action_stop - select_action_start}")
 
         if verbosity >= 2:
             tensorboard.add_scalars(
@@ -183,11 +188,9 @@ def actor(args):
                 delta_t,
                 walltime=current_time_ms,
             )
-        if benchmarking:
-            logger.info(f"time for select action: {time() - start_select_action}")
 
         # perform the chosen actions
-        start_steps = time()
+        steps_start = time()
 
         annealing_intermediate_reward = anneal_factor(
             delta_t,
@@ -201,17 +204,18 @@ def actor(args):
             punish_repeating_actions=0,
         )
 
+        if benchmarking:
+            steps_stop = time()
+            logger.info(f"time to step through environments: {steps_stop - steps_start}")
+
         if verbosity >= 2:
-            current_time = time()
+            current_time_ms = time_ms()
             tensorboard.add_scalars(
                 "actor/effect_intermediate_reward",
                 {"anneal_factor": annealing_intermediate_reward},
                 delta_t,
                 walltime=current_time_ms,
             )
-
-        if benchmarking:
-            logger.info(f"time to step through environments: {time() - start_steps}")
 
         # save transitions to local buffer
         transitions = np.asarray(

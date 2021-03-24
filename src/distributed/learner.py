@@ -69,6 +69,7 @@ def learner(args: Dict):
     io_learner_queue = args["io_learner_queue"]
     learner_actor_queue = args["learner_actor_queue"]
     verbosity = args["verbosity"]
+    benchmarking = args["benchmarking"]
     load_model_flag = args["load_model"]
     old_model_path = args["old_model_path"]
     save_model_path = args["save_model_path"]
@@ -150,14 +151,13 @@ def learner(args: Dict):
     received_data = 0
 
     # start the actual learning
-    t = 0
+    t = 0 # no worries, t gets incremented at the end of the while loop
     perfromance_start = time()
     eval_step = 0
     while t < timesteps:
         current_time = time()
         current_time_ms = time_ms()
         delta_t = current_time - perfromance_start
-        t += 1
         count_to_eval += 1
 
         if time() - start_time > max_time:
@@ -167,9 +167,13 @@ def learner(args: Dict):
         # after a certain number of steps, update the frozen target network
         if t % target_update_steps == 0 and t > 0:
             logger.debug("Update target network parameters")
+            update_target_net_start = time()
             params = parameters_to_vector(policy_net.parameters())
             vector_to_parameters(params, target_net.parameters())
             target_net.to(device)
+            if benchmarking:
+                update_target_net_stop = time()
+                logger.debug(f"Time for updating target net parameters: {update_target_net_stop - update_target_net_start} s.")
 
             # notify the actor process that its network parameters should be updated
             msg = ("network_update", params.detach())
@@ -202,6 +206,7 @@ def learner(args: Dict):
 
         # perform the actual learning
         try:
+            learning_step_start = time()
             indices, priorities = perform_q_learning_step(
                 policy_net,
                 target_net,
@@ -216,6 +221,10 @@ def learner(args: Dict):
                 verbosity=verbosity,
             )
 
+            if benchmarking and t % eval_frequency == 0:
+                learning_step_stop = time()
+                logger.info(f"Time for q-learning step: {learning_step_stop - learning_step_start} s.")
+
             # update priorities in replay_memory
             p_update = (indices, priorities)
             msg = ("priorities", p_update)
@@ -227,9 +236,11 @@ def learner(args: Dict):
 
         # evaluate policy network
         if eval_frequency != -1 and count_to_eval >= eval_frequency:
-            logger.info(f"Start Evaluation, Step {t}")
+            logger.info(f"Start Evaluation, Step {t+1}")
             count_to_eval = 0
 
+
+            evaluation_start = time()
             episode_results, step_results, p_error_results = evaluate(
                 policy_net,
                 "",
@@ -239,6 +250,9 @@ def learner(args: Dict):
                 plot_one_episode=False,
                 epsilon=learner_epsilon,
             )
+            if benchmarking:
+                evaluation_stop = time()
+                logger.info(f"Time for evaluation: {evaluation_stop - evaluation_start} s.")
 
             episode_results = transform_list_dict(episode_results)
             step_results = transform_list_dict(step_results)
@@ -283,6 +297,8 @@ def learner(args: Dict):
         if time() - heart > heartbeat_interval:
             heart = time()
             logger.debug("I'm alive my friend. I can see the shadows everywhere!")
+
+        t += 1
 
     logger.info("Reach maximum number of training steps. Terminate!")
     msg = ("terminate", None)
