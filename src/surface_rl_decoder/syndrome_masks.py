@@ -6,13 +6,15 @@ a given syndrome calculation in order to aid vectorization.
 """
 import numpy as np
 from iniparser import Config
+import torch
 
 c = Config()
 _config = c.scan(".", True).read()
 config = c.config_rendered
 
 env_config = config.get("config").get("env")
-
+learner_config = config.get("config").get("learner")
+device = learner_config.get("device")
 d = int(env_config.get("size"))
 
 # pylint: disable=pointless-string-statement
@@ -59,6 +61,10 @@ for i in range(1, d):
         for j in range(0, d + 1, 2):
             vertex_mask[i, j] = 1
 
+# pylint: disable=not-callable
+vertex_mask_torch = torch.tensor(vertex_mask, device=device)
+vertex_mask_torch_float = torch.tensor(vertex_mask, device=device, dtype=torch.float32)
+vertex_mask_torch_int = torch.tensor(vertex_mask, device=device, dtype=torch.int64)
 
 """
 Need to cover the following indices in a d=7 surface code to denote plaquettes
@@ -108,3 +114,11 @@ for j in range(1, d - 1, 2):
     plaquette_mask[0, j] = 1
 for j in range(2, d + 1, 2):
     plaquette_mask[d, j] = 1
+
+plaquette_mask_torch = torch.tensor(plaquette_mask, device=device)
+plaquette_mask_torch_float = torch.tensor(
+    plaquette_mask, device=device, dtype=torch.float32
+)
+plaquette_mask_torch_int = torch.tensor(
+    plaquette_mask, device=device, dtype=torch.int64
+)

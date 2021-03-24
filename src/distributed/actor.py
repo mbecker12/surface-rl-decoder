@@ -7,24 +7,21 @@ from time import time
 from collections import namedtuple
 import logging
 import numpy as np
+
+# pylint: disable=not-callable
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
-from environment_set import EnvironmentSet
-from model_util import choose_model, extend_model_config, load_model
-from util import anneal_factor, compute_priorities, select_actions
-
+from distributed.environment_set import EnvironmentSet
+from distributed.model_util import choose_model, extend_model_config, load_model
+from distributed.util import anneal_factor, compute_priorities, select_actions, time_ms
 from surface_rl_decoder.surface_code import SurfaceCode
 
-# pylint: disable=too-many-statements,too-many-locals
+# pylint: disable=too-many-statements,too-many-locals,too-many-branches
 
 Transition = namedtuple(
     "Transition", ["state", "action", "reward", "next_state", "terminal"]
 )
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("actor")
-logger.setLevel(logging.INFO)
 
 
 def actor(args):
@@ -80,10 +77,15 @@ def actor(args):
     )
     decay_factor_epsilon = float(args.get("decay_factor_epsilon", 1.0))
     min_value_factor_epsilon = float(args.get("min_value_factor_epsilon", 0.0))
-
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("actor")
+    if verbosity >= 4:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
     logger.info("Fire up all the environments!")
 
-    env = SurfaceCode()  # TODO: need published gym environment here
+    env = SurfaceCode()
     state_size = env.syndrome_size
     code_size = state_size - 1
     stack_depth = env.stack_depth
@@ -129,7 +131,9 @@ def actor(args):
     # initialize the policy agent
     model_name = args["model_name"]
     model_config = args["model_config"]
-    model_config = extend_model_config(model_config, state_size, stack_depth)
+    model_config = extend_model_config(
+        model_config, state_size, stack_depth, device=device
+    )
     model = choose_model(model_name, model_config)
 
     if load_model_flag:
@@ -139,11 +143,8 @@ def actor(args):
     model.to(device)
 
     performance_start = time()
-    performance_stop = None
     heart = time()
     heartbeat_interval = 60  # seconds
-
-    priorities = np.empty((25, 128))  # priorities TODO probably for replay memory
 
     logger.info(f"Actor {actor_id} starting loop on device {device}")
     sent_data_chunks = 0
@@ -151,7 +152,9 @@ def actor(args):
     # initialize tensorboard for monitoring/logging
     summary_path = args["summary_path"]
     summary_date = args["summary_date"]
-    tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "actor"))
+    tensorboard = SummaryWriter(
+        os.path.join(summary_path, str(code_size), summary_date, "actor")
+    )
     tensorboard_step = 0
 
     # start the main exploration loop
@@ -160,8 +163,9 @@ def actor(args):
 
         # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32, device=device)
-        start_select_action = time()
-        delta_t = start_select_action - heart
+        select_action_start = time()
+        current_time_ms = time_ms()
+        delta_t = select_action_start - performance_start
 
         annealed_epsilon = anneal_factor(
             delta_t,
@@ -169,14 +173,27 @@ def actor(args):
             min_value=min_value_factor_epsilon,
             base_factor=epsilon,
         )
+
         actions, q_values = select_actions(
             _states, model, state_size - 1, epsilon=annealed_epsilon
         )
+
         if benchmarking:
-            logger.info(f"time for select action: {time() - start_select_action}")
+            select_action_stop = time()
+            logger.info(
+                f"time for select action: {select_action_stop - select_action_start}"
+            )
+
+        if verbosity >= 2:
+            tensorboard.add_scalars(
+                "actor/epsilon",
+                {"annealed_epsilon": annealed_epsilon},
+                delta_t,
+                walltime=current_time_ms,
+            )
 
         # perform the chosen actions
-        start_steps = time()
+        steps_start = time()
 
         annealing_intermediate_reward = anneal_factor(
             delta_t,
@@ -187,9 +204,23 @@ def actor(args):
             actions,
             discount_intermediate_reward=discount_intermediate_reward,
             annealing_intermediate_reward=annealing_intermediate_reward,
+            punish_repeating_actions=0,
         )
+
         if benchmarking:
-            logger.info(f"time to step through environments: {time() - start_steps}")
+            steps_stop = time()
+            logger.info(
+                f"time to step through environments: {steps_stop - steps_start}"
+            )
+
+        if verbosity >= 2:
+            current_time_ms = time_ms()
+            tensorboard.add_scalars(
+                "actor/effect_intermediate_reward",
+                {"anneal_factor": annealing_intermediate_reward},
+                delta_t,
+                walltime=current_time_ms,
+            )
 
         # save transitions to local buffer
         transitions = np.asarray(
@@ -219,8 +250,9 @@ def actor(args):
                 assert msg is not None
                 assert network_params is not None
                 if msg == "network_update":
-                    logger.info(
-                        f"Received new network weights. Taken the latest of {learner_qsize} updates."
+                    logger.debug(
+                        "Received new network weights. "
+                        f"Taken the latest of {learner_qsize} updates."
                     )
                     vector_to_parameters(network_params, model.parameters())
                     model.to(device)
@@ -243,10 +275,14 @@ def actor(args):
 
             logger.debug("Put data in actor_io_queue")
             actor_io_queue.put(to_send)
-            if verbosity:
+            if verbosity >= 4:
                 sent_data_chunks += buffer_idx
+                current_time_ms = time_ms()
                 tensorboard.add_scalar(
-                    "actor/actions", sent_data_chunks, tensorboard_step
+                    "actor/sent_data_chunks",
+                    sent_data_chunks,
+                    delta_t,
+                    walltime=current_time_ms,
                 )
                 tensorboard_step += 1
 

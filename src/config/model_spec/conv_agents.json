@@ -1,0 +1,15 @@
+{
+    "conv2d_lstm": {
+        "input_channels": 1,
+        "kernel_size": 3,
+        "padding_size": 1,
+        "output_channels": 32,
+        "output_channels2": 64,
+        "output_channels3": 128,
+        "output_channels4": 8,
+        "lstm_num_layers": 4,
+        "lstm_num_directions": 2,
+        "lstm_output_size": 1024,
+        "neurons_lin_layer": 1024
+    }
+}

@@ -4,24 +4,23 @@ for reinforcement learning.
 """
 import os
 import json
-import yaml
 import traceback
-from time import sleep
 from copy import deepcopy
 import logging
 import multiprocessing as mp
+import yaml
 from iniparser import Config
 from torch.utils.tensorboard import SummaryWriter
 from distributed.actor import actor
 from distributed.learner import learner
 from distributed.io import io_replay_memory
-from model_util import save_metadata
+from distributed.model_util import save_metadata
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 logger.setLevel(logging.INFO)
 
-
+# pylint: disable=too-many-locals, too-many-statements
 def start_mp():
     """
     Start the actual sub processes.
@@ -65,8 +64,8 @@ def start_mp():
     env_config = global_config.get("env")
 
     size_action_history = int(env_config.get("max_actions", "256"))
-    system_size = int(env_config["size"])
-    syndrome_size = system_size + 1
+    code_size = int(env_config["size"])
+    syndrome_size = code_size + 1
     stack_depth = int(env_config["stack_depth"])
 
     # set up actor configuration
@@ -115,8 +114,8 @@ def start_mp():
     eval_frequency = int(learner_config["eval_frequency"])
     max_timesteps = int(learner_config["max_timesteps"])
     learner_epsilon = float(learner_config["learner_epsilon"])
-    learner_eval_p_errors = [0.01, 0.02, 0.03]
-    learner_eval_p_msmt = [0.01, 0.02, 0.03]
+    learner_eval_p_errors = [0.005, 0.01, 0.02]
+    learner_eval_p_msmt = [0.005, 0.01, 0.02]
     learner_load_model = int(learner_config["load_model"])
     old_model_path = learner_config["load_model_path"]
     save_model_path = learner_config["save_model_path"]
@@ -215,7 +214,7 @@ def start_mp():
 
     # set up tensorboard for monitoring
     tensorboard = SummaryWriter(
-        os.path.join(summary_path, summary_date, summary_run_info)
+        os.path.join(summary_path, str(code_size), summary_date, summary_run_info)
     )
     tensorboard_string = "global config: " + str(global_config) + "\n"
     tensorboard.add_text("run_info/hyper_parameters", tensorboard_string)
@@ -255,7 +254,7 @@ def start_mp():
         logger.error(error_traceback)
         # log the actual error to the tensorboard
         tensorboard = SummaryWriter(
-            os.path.join(summary_path, summary_date, summary_run_info)
+            os.path.join(summary_path, str(code_size), summary_date, summary_run_info)
         )
         tensorboard.add_text("run_info/error_message", error_traceback)
 
@@ -263,8 +262,9 @@ def start_mp():
 
     save_model_path_date_meta = os.path.join(
         save_model_path,
+        str(code_size),
         summary_date,
-        f"{model_name}_{system_size}_meta.yaml",
+        f"{model_name}_{code_size}_meta.yaml",
     )
 
     logger.info("Saving Metadata")

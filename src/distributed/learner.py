@@ -3,7 +3,7 @@ Define the learner process in the multi-process
 reinforcement learning setup.
 """
 import os
-from time import time, sleep
+from time import time
 import traceback
 from typing import Dict
 import logging
@@ -12,22 +12,21 @@ from torch.optim import Adam
 from torch import nn
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
-from distributed.dummy_agent import DummyModel
 from distributed.evaluate import evaluate
-from distributed.learner_util import perform_q_learning_step
-from model_util import (
+from distributed.learner_util import (
+    log_evaluation_data,
+    perform_q_learning_step,
+    transform_list_dict,
+)
+from distributed.model_util import (
     choose_model,
     extend_model_config,
     load_model,
-    optimizer_to,
     save_model,
 )
+from distributed.util import time_ms
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("learner")
-logger.setLevel(logging.INFO)
-
-# pylint: disable=too-many-locals, too-many-statements
+# pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def learner(args: Dict):
     """
     Start the learner process. Here, the key learning is performed:
@@ -68,6 +67,7 @@ def learner(args: Dict):
     io_learner_queue = args["io_learner_queue"]
     learner_actor_queue = args["learner_actor_queue"]
     verbosity = args["verbosity"]
+    benchmarking = args["benchmarking"]
     load_model_flag = args["load_model"]
     old_model_path = args["old_model_path"]
     save_model_path = args["save_model_path"]
@@ -88,10 +88,20 @@ def learner(args: Dict):
     learner_epsilon = args["learner_epsilon"]
     count_to_eval = 0
 
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("learner")
+    if verbosity >= 4:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+
     summary_path = args["summary_path"]
     summary_date = args["summary_date"]
     save_model_path_date = os.path.join(
-        save_model_path, summary_date, f"{model_name}_{code_size}_{summary_date}.pt"
+        save_model_path,
+        str(code_size),
+        summary_date,
+        f"{model_name}_{code_size}_{summary_date}.pt",
     )
 
     start_time = time()
@@ -105,7 +115,9 @@ def learner(args: Dict):
         timesteps = np.Infinity
 
     # initialize models and other learning gadgets
-    model_config = extend_model_config(model_config, syndrome_size, stack_depth)
+    model_config = extend_model_config(
+        model_config, syndrome_size, stack_depth, device=device
+    )
 
     policy_net = choose_model(model_name, model_config)
     target_net = choose_model(model_name, model_config)
@@ -130,14 +142,20 @@ def learner(args: Dict):
         optimizer = Adam(policy_net.parameters(), lr=learning_rate)
 
     # initialize tensorboard
-    tensorboard = SummaryWriter(os.path.join(summary_path, summary_date, "learner"))
+    tensorboard = SummaryWriter(
+        os.path.join(summary_path, str(code_size), summary_date, "learner")
+    )
     tensorboard_step = 0
     received_data = 0
 
     # start the actual learning
-    t = 0
+    t = 0  # no worries, t gets incremented at the end of the while loop
+    perfromance_start = time()
+    eval_step = 0
     while t < timesteps:
-        t += 1
+        current_time = time()
+        current_time_ms = time_ms()
+        delta_t = current_time - perfromance_start
         count_to_eval += 1
 
         if time() - start_time > max_time:
@@ -147,13 +165,20 @@ def learner(args: Dict):
         # after a certain number of steps, update the frozen target network
         if t % target_update_steps == 0 and t > 0:
             logger.debug("Update target network parameters")
+            update_target_net_start = time()
             params = parameters_to_vector(policy_net.parameters())
             vector_to_parameters(params, target_net.parameters())
             target_net.to(device)
+            if benchmarking:
+                update_target_net_stop = time()
+                logger.debug(
+                    "Time for updating target net parameters: "
+                    f"{update_target_net_stop - update_target_net_start} s."
+                )
 
             # notify the actor process that its network parameters should be updated
             msg = ("network_update", params.detach())
-            logger.info("Send network weights to actor process")
+            logger.debug("Send network weights to actor process")
             learner_actor_queue.put(msg)
 
         if io_learner_queue.qsize == 0:
@@ -167,18 +192,19 @@ def learner(args: Dict):
             received_data += data_size
             assert data_size == batch_size, data_size
 
-            if verbosity:
+            if verbosity >= 3:
                 tensorboard.add_scalar(
-                    "learner/received_data", received_data, tensorboard_step
+                    "learner/received_data",
+                    received_data,
+                    delta_t,
+                    walltime=current_time_ms,
                 )
                 tensorboard_step += 1
 
-        # TODO: in this whole nn section,
-        # we might need an abstraction layer to support
-        # different learning strategies
-
         # perform the actual learning
         try:
+            learning_step_start = time()
+
             indices, priorities = perform_q_learning_step(
                 policy_net,
                 target_net,
@@ -189,9 +215,13 @@ def learner(args: Dict):
                 code_size,
                 batch_size,
                 discount_factor,
-                logger=logger,
-                verbosity=verbosity,
             )
+
+            if benchmarking and t % eval_frequency == 0:
+                learning_step_stop = time()
+                logger.info(
+                    f"Time for q-learning step: {learning_step_stop - learning_step_start} s."
+                )
 
             # update priorities in replay_memory
             p_update = (indices, priorities)
@@ -204,9 +234,11 @@ def learner(args: Dict):
 
         # evaluate policy network
         if eval_frequency != -1 and count_to_eval >= eval_frequency:
-            logger.info(f"Start Evaluation, Step {t}")
+            logger.info(f"Start Evaluation, Step {t+1}")
             count_to_eval = 0
-            success_rate, ground_state_rate, _, mean_q_list, _ = evaluate(
+
+            evaluation_start = time()
+            episode_results, step_results, p_error_results = evaluate(
                 policy_net,
                 "",
                 device,
@@ -215,23 +247,57 @@ def learner(args: Dict):
                 plot_one_episode=False,
                 epsilon=learner_epsilon,
             )
+            if benchmarking:
+                evaluation_stop = time()
+                logger.info(
+                    f"Time for evaluation: {evaluation_stop - evaluation_start} s."
+                )
 
-            for i, p_err in enumerate(p_error_list):
-                tensorboard.add_scalar(
-                    f"network/mean_q, p error {p_err}", mean_q_list[i], t
+            episode_results = transform_list_dict(episode_results)
+            step_results = transform_list_dict(step_results)
+            p_error_results = transform_list_dict(p_error_results)
+
+            if verbosity:
+                log_evaluation_data(
+                    tensorboard,
+                    p_error_list,
+                    episode_results,
+                    step_results,
+                    p_error_results,
+                    eval_step,
+                    current_time_ms,
                 )
-                tensorboard.add_scalar(
-                    f"network/success_rate, p error {p_err}", success_rate[i], t
-                )
-                tensorboard.add_scalar(
-                    f"network/ground_state_rate, p error {p_err}",
-                    ground_state_rate[i],
-                    t,
-                )
+
+            eval_step += 1
+
+            # monitor policy network parameters
+            if verbosity >= 4:
+                policy_params = list(policy_net.parameters())
+                n_layers = len(policy_params)
+                for i, param in enumerate(policy_params):
+                    if i == 0:
+                        first_layer_params = param.detach().cpu().numpy()
+                        tensorboard.add_histogram(
+                            "learner/first_layer",
+                            first_layer_params.reshape(-1, 1),
+                            tensorboard_step,
+                            walltime=current_time_ms,
+                        )
+
+                    if i == n_layers - 2:
+                        last_layer_params = param.detach().cpu().numpy()
+                        tensorboard.add_histogram(
+                            "learner/last_layer",
+                            last_layer_params.reshape(-1, 1),
+                            tensorboard_step,
+                            walltime=current_time_ms,
+                        )
 
         if time() - heart > heartbeat_interval:
             heart = time()
             logger.debug("I'm alive my friend. I can see the shadows everywhere!")
+
+        t += 1
 
     logger.info("Reach maximum number of training steps. Terminate!")
     msg = ("terminate", None)

@@ -11,9 +11,11 @@ from iniparser import Config
 from .syndrome_masks import vertex_mask, plaquette_mask
 from .surface_code_util import (
     NON_TRIVIAL_LOOP_REWARD,
+    REPEATING_ACTION_REWARD,
     SOLVED_EPISODE_REWARD,
     SYNDROME_LEFT_REWARD,
     check_final_state,
+    check_repeating_action,
     compute_intermediate_reward,
     create_syndrome_output_stack,
     perform_action,
@@ -158,6 +160,7 @@ class SurfaceCode(gym.Env):
         action,
         discount_intermediate_reward=0.75,
         annealing_intermediate_reward=1.0,
+        punish_repeating_actions=1,
     ):
         """
         Apply a pauli operator to a qubit on the surface code with code distance d.
@@ -170,6 +173,8 @@ class SurfaceCode(gym.Env):
             early layers should be discounted when calculating the intermediate reward
         annealing_intermediate_reward: (optional) variable that should decrease over time during
             a training run to decrease the effect of the intermediate reward
+        punish_repeating_actions: (optional) (1 or 0) flag acting as multiplier to
+            enable punishment for repeating actions that already exist in the action history
 
         Returns
         =======
@@ -178,12 +183,17 @@ class SurfaceCode(gym.Env):
         terminal: bool, determines if it is terminal state or not
         {}: empty dictionary, for conformity reasons; supposed to be used for info
         """
+        n_repeating_actions = check_repeating_action(
+            action, self.actions, self.current_action_index
+        )
         self.actions[self.current_action_index] = action[-3:]
         self.current_action_index += 1
 
         terminal = action[-1] == TERMINAL_ACTION
         reward = self.get_reward(action)
-
+        reward += (
+            n_repeating_actions * REPEATING_ACTION_REWARD * punish_repeating_actions
+        )
         if terminal:
             return self.state, reward, terminal, {}
 

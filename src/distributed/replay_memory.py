@@ -34,7 +34,7 @@ class ReplayMemory:
         if self.current_num_objects >= self.memory_size - 1:
             self.is_full_memory = True
 
-    def sample(self, batch_size, beta=None):
+    def sample(self, batch_size, beta=None, tensorboard=None, verbosity=None):
         """
         Sample a batch of data.
 
@@ -62,4 +62,8 @@ class ReplayMemory:
         return self.current_num_objects
 
     def priority_update(self, *args):
+        """
+        This just here so it won't get fined
+        """
+        # pylint: disable=unnecessary-pass
         pass

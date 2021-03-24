@@ -11,10 +11,11 @@ RULE_TABLE = np.array(
 )
 
 # reward scores
-NON_TRIVIAL_LOOP_REWARD = -27
-SYNDROME_LEFT_REWARD = -5
-SOLVED_EPISODE_REWARD = 100
+NON_TRIVIAL_LOOP_REWARD = -37
+SYNDROME_LEFT_REWARD = -10
+SOLVED_EPISODE_REWARD = 200
 SYNDROME_DIFF_REWARD = 1
+REPEATING_ACTION_REWARD = -2
 
 
 def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
@@ -330,20 +331,65 @@ def compute_intermediate_reward(
     intermediate_reward: (float) reward for annihilating/creating a syndrome across the stack
     """
 
-    intermediate_reward = 0.0
-    for i, layer in enumerate(state):
-        diff = layer.sum() - next_state[i].sum()
-        assert isinstance(
-            diff, (float, np.float32, np.float64, int, np.uint8, np.int32, np.int64)
-        )
+    diffs = compute_layer_diff(state, next_state, stack_depth)
+    layer_exponents = np.arange(stack_depth - 1, -1, -1)
+    layer_rewards = (
+        annealing_factor
+        * SYNDROME_DIFF_REWARD
+        * diffs
+        * np.power(discount_factor, layer_exponents)
+    )
 
-        exponent = stack_depth - i - 1
-
-        intermediate_reward += (
-            annealing_factor
-            * SYNDROME_DIFF_REWARD
-            * diff
-            * (discount_factor ** exponent)
-        )
-
+    intermediate_reward = np.sum(layer_rewards)
     return intermediate_reward
+
+
+def compute_layer_diff(state, next_state, stack_depth):
+    """
+    Utility function to compute the layerwise difference
+    in the number of syndrome measurements between a state and
+    its subsequent state.
+
+    diffs = state - next_state
+    Hence, a positive number means a decrease in syndrome measurements.
+
+    Parameters
+    ==========
+    state: (h, d+1, d+1) current syndrome state
+    next_state: (h, d+1, d+1) subsequent syndrome state
+    stack_depth: number of layers in the syndrome stack, a.k.a. h
+
+    Return
+    ======
+    diffs: (h,) difference in number of
+        syndrome measurements between subsequent layers
+    """
+
+    state_sums = np.sum(np.sum(state, axis=2), axis=1)
+    next_state_sums = np.sum(np.sum(next_state, axis=2), axis=1)
+    diffs = state_sums - next_state_sums
+    assert diffs.shape == (stack_depth,), diffs.shape
+    assert diffs.dtype in (int, float, np.uint64), diffs.dtype
+
+    return diffs
+
+
+def check_repeating_action(action, action_history, max_action_index):
+    """
+    Check the action history of an environment if the proposed action
+    has been executed before.
+
+    Parameters
+    ==========
+    action: Tuple, shape: (3, ), (x-coord, y-coord, operator) action to perform on a qubit
+    action_history: array that stores the previously executed action-tuples
+    max_action_index: the index up to which the action history is filled
+
+    Returns
+    =======
+    n_repeating_actions: the number of how often action has already occured in the action histoy
+    """
+    n_repeating_actions = sum(
+        [np.all(action == action_history[i]) for i in range(max_action_index)]
+    )
+    return n_repeating_actions

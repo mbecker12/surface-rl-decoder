@@ -11,7 +11,10 @@ def test_full_action_history(sc):
     for i, action in enumerate(actions):
         j = i + 1
         _, reward, terminal, _ = sc.step(
-            action, discount_intermediate_reward=1.0, annealing_intermediate_reward=0.0
+            action,
+            discount_intermediate_reward=1.0,
+            annealing_intermediate_reward=0.0,
+            punish_repeating_actions=0,
         )
         assert sc.current_action_index == j, sc.current_action_index
         if j < sc.max_actions:

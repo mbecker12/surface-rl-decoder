@@ -117,10 +117,11 @@ def test_annealing():
 
     max_val = 1.0
     base_factor = 0.4
+    timesteps = 50000
     for i in range(timesteps):
         factor = anneal_factor(
             time_difference=i,
-            decay_factor=1.01,
+            decay_factor=1.00002,
             min_value=min_val,
             max_value=max_val,
             base_factor=base_factor,
@@ -128,4 +129,5 @@ def test_annealing():
 
         if i < 5:
             assert pytest.approx(factor, abs=0.05) == base_factor
+    assert factor > base_factor
     assert pytest.approx(factor, abs=1e-6) == max_val

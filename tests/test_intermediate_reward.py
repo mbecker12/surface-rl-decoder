@@ -18,7 +18,7 @@ def test_intermediate_reward_simplest(configure_env, restore_env):
     action = (2, 2, 3)
     discount_factor = 0.75
     annealing_factor = 1.0
-    new_state, reward, terminal, _ = sc.step(
+    _, reward, _, _ = sc.step(
         action,
         discount_intermediate_reward=discount_factor,
         annealing_intermediate_reward=annealing_factor,
@@ -44,7 +44,7 @@ def test_intermediate_reward_halfway(configure_env, restore_env):
     action = (3, 1, 1)
     discount_factor = 0.75
     annealing_factor = 0.9
-    new_state, reward, terminal, _ = sc.step(
+    _, reward, _, _ = sc.step(
         action,
         discount_intermediate_reward=discount_factor,
         annealing_intermediate_reward=annealing_factor,
@@ -78,7 +78,7 @@ def test_reward_w_syndrome_error(configure_env, restore_env):
 
     discount_factor = 0.75
     annealing_factor = 1.0
-    new_state, reward1, terminal, _ = sc.step(
+    _, reward1, _, _ = sc.step(
         action1,
         discount_intermediate_reward=discount_factor,
         annealing_intermediate_reward=annealing_factor,
@@ -89,7 +89,7 @@ def test_reward_w_syndrome_error(configure_env, restore_env):
         == 0 + 2 * discount_factor + 2 * discount_factor ** 2 + 2 * discount_factor ** 3
     )
 
-    new_state, reward2, terminal, _ = sc.step(
+    _, reward2, _, _ = sc.step(
         action2,
         discount_intermediate_reward=discount_factor,
         annealing_intermediate_reward=annealing_factor,
