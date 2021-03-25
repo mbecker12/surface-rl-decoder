@@ -160,7 +160,7 @@ class SurfaceCode(gym.Env):
         action,
         discount_intermediate_reward=0.75,
         annealing_intermediate_reward=1.0,
-        punish_repeating_actions=1,
+        punish_repeating_actions=0,
     ):
         """
         Apply a pauli operator to a qubit on the surface code with code distance d.
