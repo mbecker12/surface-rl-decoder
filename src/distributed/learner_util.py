@@ -1,6 +1,7 @@
 """
 Utility functions for the learner process
 """
+from copy import deepcopy
 from typing import List, Tuple
 import numpy as np
 import torch
@@ -8,6 +9,12 @@ import torch
 # pylint: disable=no-name-in-module
 from torch import from_numpy
 from distributed.util import action_to_q_value_index
+from surface_rl_decoder.surface_code import SurfaceCode
+from surface_rl_decoder.surface_code_util import (
+    SOLVED_EPISODE_REWARD,
+    SYNDROME_DIFF_REWARD,
+    create_syndrome_output_stack,
+)
 
 
 def data_to_batch(
@@ -256,3 +263,153 @@ def log_evaluation_data(
             evaluation_step,
             walltime=current_time_ms,
         )
+
+
+def create_user_eval_state(
+    env: SurfaceCode,
+    idx_episode,
+    discount_factor_gamma=0.9,
+    discount_intermediate_reward=0.75,
+    annealing_intermediate_reward=1.0,
+    punish_repeating_actions=0,
+):
+    # TODO: docstring
+    env.reset()
+    stack_depth = env.stack_depth
+    system_size = env.system_size
+    (
+        env.qubits,
+        expected_actions,
+        theoretical_max_q_value,
+    ) = provide_deterministic_qubit_errors(
+        idx_episode,
+        stack_depth,
+        system_size,
+        discount_factor_gamma=discount_factor_gamma,
+        discount_intermediate_reward=discount_intermediate_reward,
+        annealing_intermediate_reward=annealing_intermediate_reward,
+        punish_repeating_actions=punish_repeating_actions,
+    )
+    env.actual_errors = deepcopy(env.qubits)
+    env.state = create_syndrome_output_stack(
+        env.qubits, env.vertex_mask, env.plaquette_mask
+    )
+    env.syndrome_errors = np.zeros_like(env.state, dtype=bool)
+
+    return env.state, expected_actions, theoretical_max_q_value
+
+
+def provide_deterministic_qubit_errors(
+    index,
+    stack_depth,
+    system_size,
+    discount_factor_gamma=0.9,
+    discount_intermediate_reward=0.75,
+    annealing_intermediate_reward=1.0,
+    punish_repeating_actions=0,
+):
+    # TODO: docstring
+    qubits = np.zeros((stack_depth, system_size, system_size), dtype=np.uint8)
+
+    # single X error
+    if index == 0:
+        halfway_point = int(system_size / 2)
+        qubits[-1, halfway_point, halfway_point] = 1
+        theoretical_max_q_value = (
+            SOLVED_EPISODE_REWARD
+            + 2 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+        )
+        expected_actions = [(halfway_point, halfway_point, 1)]
+
+    if index == 1:
+        qubits[-1, 0, 0] = 1
+        theoretical_max_q_value = (
+            SOLVED_EPISODE_REWARD
+            + 1 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+        )
+        expected_actions = [(0, 0, 1)]
+
+    # single Z error
+    if index == 2:
+        halfway_point = int(system_size / 2)
+        qubits[-1, halfway_point, halfway_point] = 3
+        theoretical_max_q_value = (
+            SOLVED_EPISODE_REWARD
+            + 2 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+        )
+        expected_actions = [(halfway_point, halfway_point, 3)]
+
+    if index == 3:
+        qubits[-1, 0, 0] = 3
+        theoretical_max_q_value = (
+            SOLVED_EPISODE_REWARD
+            + 1 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+        )
+        expected_actions = [(0, 0, 3)]
+
+    # one X and one Z error
+    if index == 4:
+        qubits[-1, 0, system_size - 1] = 1
+        qubits[-1, system_size - 1, 0] = 3
+        theoretical_max_q_value = (
+            1 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+            + discount_factor_gamma
+            * (
+                SOLVED_EPISODE_REWARD
+                + 1 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+            )
+        )
+        expected_actions = [(0, system_size - 1, 1), (system_size - 1, 0, 3)]
+
+    if index == 5:
+        qubits[-1, 0, system_size - 1] = 3
+        qubits[-1, system_size - 1, 0] = 1
+        expected_actions = [(0, system_size - 1, 3), (system_size - 1, 0, 1)]
+        theoretical_max_q_value = (
+            1 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+            + discount_factor_gamma
+            * (
+                SOLVED_EPISODE_REWARD
+                + 1 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+            )
+        )
+    # single Y error
+    if index == 6:
+        halfway_point = int(system_size / 2)
+        qubits[-1, halfway_point, halfway_point] = 2
+        theoretical_max_q_value = (
+            SOLVED_EPISODE_REWARD
+            + 4 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+        )
+        expected_actions = [(halfway_point, halfway_point, 2)]
+
+    if index == 7:
+        qubits[-1, 0, 0] = 2
+        theoretical_max_q_value = (
+            SOLVED_EPISODE_REWARD
+            + 2 * annealing_intermediate_reward * SYNDROME_DIFF_REWARD
+        )
+        expected_actions = [(0, 0, 2)]
+
+    return qubits, expected_actions, theoretical_max_q_value
+
+
+def calculate_theoretical_max_q_value(state, gamma):
+    n_syndromes = state.sum()
+    # assert isinstance(n_syndromes, (int, float, np.uint8, np.uint64)), f"{n_syndromes=}, {type(n_syndromes)=}"
+    # the best possible q value should be
+    # when annihilating at least one syndrome
+    # with one action
+    # until no syndromes remain
+    # for simplicity, this has to disregard
+    # syndrome measurement errors which are
+    # present in the state
+
+    # $n_syndromes nominal actions
+    gamma_sum = np.sum([gamma ** i for i in range(0, n_syndromes)])
+    q_value = SYNDROME_DIFF_REWARD * gamma_sum
+
+    # terminal action called on corrected state at the end
+    # of the correction sequence
+    q_value += SOLVED_EPISODE_REWARD * gamma ** n_syndromes
+    return q_value

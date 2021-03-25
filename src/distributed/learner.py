@@ -246,6 +246,7 @@ def learner(args: Dict):
                 p_msmt_list,
                 plot_one_episode=False,
                 epsilon=learner_epsilon,
+                discount_factor_gamma=discount_factor
             )
             if benchmarking:
                 evaluation_stop = time()
