@@ -18,19 +18,19 @@ transition_type = np.dtype(
 def test_compute_priorities():
     num_environments = 17
     buffer_size = 10
-    system_size = 5
+    code_size = 5
 
     actions = np.random.randint(1, 5, size=(num_environments, buffer_size - 1, 3))
     rewards = np.random.randint(
         0, 2, size=(num_environments, buffer_size - 1), dtype=bool
     )
     qvalues = np.random.random_sample(
-        size=(num_environments, buffer_size, 3 * system_size * system_size + 1)
+        size=(num_environments, buffer_size, 3 * code_size * code_size + 1)
     )
     gamma = 1.0
     new_qvalues = np.roll(qvalues, -1, axis=1)[:, :-1]
     priorities = compute_priorities(
-        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, system_size
+        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, code_size
     )
     assert priorities.shape == (
         num_environments,
@@ -41,7 +41,7 @@ def test_compute_priorities():
 def test_deterministic_priorities():
     num_environments = 4
     buffer_size = 3
-    system_size = 3
+    code_size = 3
     gamma = 1
 
     actions = np.array(
@@ -55,7 +55,7 @@ def test_deterministic_priorities():
 
     rewards = np.array([[100, 50], [20, 10], [100, 50], [100, 50]])
 
-    max_q = 3 * system_size * system_size
+    max_q = 3 * code_size * code_size
     qvalues = np.array(
         [
             [
@@ -88,7 +88,7 @@ def test_deterministic_priorities():
     assert qvalues.shape == (
         num_environments,
         buffer_size,
-        3 * system_size ** 2 + 1,
+        3 * code_size ** 2 + 1,
     )
 
     # priorities = TD error
@@ -105,9 +105,9 @@ def test_deterministic_priorities():
 
     new_qvalues = np.roll(qvalues, -1, axis=1)[:, :-1]
     priorities = compute_priorities(
-        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, system_size
+        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, code_size
     )
-    # priorities = compute_priorities(actions, rewards, qvalues, gamma, system_size)
+    # priorities = compute_priorities(actions, rewards, qvalues, gamma, code_size)
     assert np.all(
         priorities == expected_priorities
     ), f"{priorities=}, {expected_priorities=}"
@@ -119,7 +119,7 @@ def test_sampling():
     alpha = 0.5
     num_environments = 25
 
-    system_size = 5
+    code_size = 5
     replay_memory = PrioritizedReplayMemory(memory_size, alpha)
 
     actions = np.random.randint(1, 5, size=(num_environments, buffer_size - 1, 3))
@@ -127,13 +127,13 @@ def test_sampling():
         0, 2, size=(num_environments, buffer_size - 1), dtype=bool
     )
     qvalues = np.random.random_sample(
-        size=(num_environments, buffer_size, 3 * system_size * system_size + 1)
+        size=(num_environments, buffer_size, 3 * code_size * code_size + 1)
     )
     gamma = 1.0
 
     new_qvalues = np.roll(qvalues, -1, axis=1)[:, :-1]
     priorities = compute_priorities(
-        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, system_size
+        actions, rewards, qvalues[:, :-1], new_qvalues, gamma, code_size
     )
 
     states = np.random.randint(
