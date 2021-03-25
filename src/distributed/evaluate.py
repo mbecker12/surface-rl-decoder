@@ -10,7 +10,7 @@ from distributed.util import (
     incremental_mean,
     select_actions,
 )
-from distributed.learner_util import (
+from distributed.eval_util import (
     calculate_theoretical_max_q_value,
     create_user_eval_state,
 )
@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 # pylint: disable=too-many-locals, too-many-statements, too-many-arguments, too-many-branches
 def evaluate(
     model,
-    env,
+    environment_def,
     device,
     p_error_list,
     p_msmt_list,
@@ -43,18 +43,21 @@ def evaluate(
     """
     Evaluate the current policy.
     """
+    # TODO: replace current implementation
+    # with the optimized one in eval_util
+
     # need to do this for torch.tensor()
     # pylint: disable=not-callable
 
     model.eval()
 
     total_num_of_episodes = num_of_episodes + num_of_user_episodes
-
-    env = SurfaceCode()
-    system_size = env.system_size
-    stack_depth = env.stack_depth
+    if environment_def is None or environment_def == "":
+        environment_def = SurfaceCode()
+    code_size = environment_def.code_size
+    stack_depth = environment_def.stack_depth
     assert (
-        system_size % 2 == 1
+        code_size % 2 == 1
     ), "System size (i.e. number of qubits) needs to be an odd number."
 
     # initialize arrays for scoring metrics
@@ -102,7 +105,7 @@ def evaluate(
             is_user_episode = False
             actions_in_one_episode = np.zeros(num_of_steps) - 1
 
-            state = env.reset(p_error=p_error, p_msmt=p_msmt)
+            state = environment_def.reset(p_error=p_error, p_msmt=p_msmt)
 
             # if desired, initialize some manually prepared episodes
             # to get a better look at how the agent fares
@@ -112,7 +115,7 @@ def evaluate(
                 is_user_episode = True
                 correct_actions = 0
                 state, expected_actions, theoretical_q_value = create_user_eval_state(
-                    env,
+                    environment_def,
                     j_episode - num_of_episodes,
                     discount_factor_gamma=discount_factor_gamma,
                     discount_intermediate_reward=discount_intermediate_reward,
@@ -130,9 +133,9 @@ def evaluate(
 
                 # let the agent do its work
                 actions, q_values = select_actions(
-                    torch_state, model, system_size, epsilon=epsilon
+                    torch_state, model, code_size, epsilon=epsilon
                 )
-                q_value_idx = action_to_q_value_index(actions[0], system_size)
+                q_value_idx = action_to_q_value_index(actions[0], code_size)
                 actions_in_one_episode[num_steps_per_episode - 1] = q_value_idx
 
                 # check if we're in a user-prepared episode
@@ -145,14 +148,14 @@ def evaluate(
                 # calculate q values and difference
                 # between theoretical and empirical q values.
                 # keep in mind that theoretical q values are just approximations,
-                q_value_index = action_to_q_value_index(actions[0], system_size)
+                q_value_index = action_to_q_value_index(actions[0], code_size)
                 q_value = q_values[0, q_value_index]
 
                 # override theoretical q_value if it's not a user episode.
                 # if it's a user episode, override the theor. q value after the first step
                 if not (is_user_episode and num_steps_per_episode == 1):
                     theoretical_q_value = calculate_theoretical_max_q_value(
-                        state, discount_factor_gamma
+                        state, discount_factor_gamma, discount_intermediate_reward
                     )
 
                 q_value_diff = q_value - theoretical_q_value
@@ -161,7 +164,7 @@ def evaluate(
                 )
 
                 # apply the chosen action
-                next_state, _, terminal, _ = env.step(
+                next_state, _, terminal, _ = environment_def.step(
                     actions[0],
                     discount_intermediate_reward=discount_intermediate_reward,
                     annealing_intermediate_reward=annealing_intermediate_reward,
@@ -194,7 +197,7 @@ def evaluate(
                 )
             # end while; iterate through one episode
             if plot_one_episode and i_err_list == 0 and j_episode == 0:
-                env.render(block=True)
+                environment_def.render(block=True)
 
             # take the most-occuring action/q_value_idx in common_actions
             unique, counts = np.unique(actions_in_one_episode, return_counts=True)
@@ -209,7 +212,10 @@ def evaluate(
 
             fully_corrected[j_episode] = terminal_state
             _, _ground_state, (n_syndromes, n_loops) = check_final_state(
-                env.actual_errors, env.actions, env.vertex_mask, env.plaquette_mask
+                environment_def.actual_errors,
+                environment_def.actions,
+                environment_def.vertex_mask,
+                environment_def.plaquette_mask,
             )
             ground_state[j_episode] = _ground_state
             remaining_syndromes[j_episode] = n_syndromes

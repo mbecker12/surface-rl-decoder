@@ -15,7 +15,7 @@ class EnvironmentSet:
     """
 
     def __init__(self, env: SurfaceCode, num_environments):
-        self.system_size = env.system_size
+        self.code_size = env.code_size
         self.stack_depth = env.stack_depth
         self.syndrome_size = env.syndrome_size
         self.num_environments = num_environments
