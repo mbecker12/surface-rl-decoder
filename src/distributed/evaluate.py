@@ -143,9 +143,13 @@ def evaluate(
                 q_value_index = action_to_q_value_index(actions[0], system_size)
                 q_value = q_values[0, q_value_index]
 
-                theoretical_q_value = calculate_theoretical_max_q_value(
-                    state, discount_factor_gamma
-                )
+                # override theoretical q_value if it's not a user episode.
+                # if it's a user episode, override the theor. q value after the first step
+                if not (is_user_episode and num_steps_per_episode == 1):
+                    theoretical_q_value = calculate_theoretical_max_q_value(
+                        state, discount_factor_gamma
+                    )
+
                 q_value_diff = q_value - theoretical_q_value
                 mean_q_value_diff = incremental_mean(
                     q_value_diff, mean_q_value_diff, steps_counter
@@ -222,7 +226,7 @@ def evaluate(
 
         unique = np.unique(common_actions)
         if not len(unique) > 1:
-            print("Warning! Only one action was chosen in all episodes.")
+            logger.warning("Warning! Only one action was chosen in all episodes.")
 
         remaining_syndromes_list[i_err_list] = np.mean(remaining_syndromes)
         syndromes_annihilated_list[i_err_list] = (
