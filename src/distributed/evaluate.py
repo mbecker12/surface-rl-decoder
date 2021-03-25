@@ -7,7 +7,6 @@ import numpy as np
 import torch
 from distributed.util import (
     action_to_q_value_index,
-    assert_not_all_elements_equal,
     incremental_mean,
     select_actions,
 )
@@ -27,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("eval")
 logger.setLevel(logging.INFO)
 
-# pylint: disable=too-many-locals, too-many-statements
+# pylint: disable=too-many-locals, too-many-statements, too-many-arguments, too-many-branches
 def evaluate(
     model,
     env,
@@ -44,8 +43,9 @@ def evaluate(
     """
     Evaluate the current policy.
     """
+    # need to do this for torch.tensor()
     # pylint: disable=not-callable
-    # for torch.tensor()
+
     model.eval()
 
     total_num_of_episodes = num_of_episodes + num_of_user_episodes

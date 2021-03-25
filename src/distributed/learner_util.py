@@ -267,13 +267,39 @@ def log_evaluation_data(
 
 def create_user_eval_state(
     env: SurfaceCode,
-    idx_episode,
+    idx_episode: int,
     discount_factor_gamma=0.9,
     discount_intermediate_reward=0.75,
     annealing_intermediate_reward=1.0,
-    punish_repeating_actions=0,
-):
-    # TODO: docstring
+    punish_repeating_actions: int = 0,
+) -> Tuple[np.ndarray, List, float]:
+    """
+    Create a state from a predefined qubit error configuration
+    to have some episodes that we can analyze and compare with the
+    expected optimal outcome.
+
+    Parameters
+    ==========
+    env: instance of the surface code class
+    idx_episode: index to determine which of the user-defined qubit
+        configurations to choose; starting at 0
+    discount_factor_gamma: gamma factor in reinforcement learning,
+        to discount the effect of steps in the future
+    discount_intermediate_reward: (optional) discount factor determining how much
+        early layers should be discounted when calculating the intermediate reward
+    annealing_intermediate_reward: (optional) variable that should decrease over time during
+        a training run to decrease the effect of the intermediate reward
+    punish_repeating_actions: (optional) (1 or 0) flag acting as multiplier to
+        enable punishment for repeating actions that already exist in the action history
+
+    Returns
+    =======
+    state: the syndrome stack for the manaully created qubit configuration
+    expected_actions: list of optimal actions for the given qubit configuration
+    theoretical_max_q_value: manually calculated q value
+        if the optimal action is chosen. Is only valid for the very first step
+        taken
+    """
     env.reset()
     stack_depth = env.stack_depth
     system_size = env.system_size
@@ -286,9 +312,7 @@ def create_user_eval_state(
         stack_depth,
         system_size,
         discount_factor_gamma=discount_factor_gamma,
-        discount_intermediate_reward=discount_intermediate_reward,
         annealing_intermediate_reward=annealing_intermediate_reward,
-        punish_repeating_actions=punish_repeating_actions,
     )
     env.actual_errors = deepcopy(env.qubits)
     env.state = create_syndrome_output_stack(
@@ -304,11 +328,30 @@ def provide_deterministic_qubit_errors(
     stack_depth,
     system_size,
     discount_factor_gamma=0.9,
-    discount_intermediate_reward=0.75,
     annealing_intermediate_reward=1.0,
-    punish_repeating_actions=0,
 ):
-    # TODO: docstring
+    """
+    Provide a selection of manually-created qubit error configurations
+    for use in a deterministic evaluation routine.
+
+    Parameters
+    ==========
+    index: determines which qubit configuration to choose, starting at 0
+    stack_depth: height of the syndrome stack, h
+    system_size: number of rows/columns in the syndrome stack, usually d+1
+    discount_factor_gamma: gamma factor in reinforcement learning,
+        to discount the effect of steps in the future
+    annealing_intermediate_reward: (optional) variable that should decrease over time during
+        a training run to decrease the effect of the intermediate reward
+
+    Return
+    ======
+    qubits: qubit stack
+    expected_actions: list of optimal actions for the given qubit configuration
+    theoretical_max_q_value: manually calculated q value
+        if the optimal action is chosen. Is only valid for the very first step
+        taken
+    """
     qubits = np.zeros((stack_depth, system_size, system_size), dtype=np.uint8)
 
     # single X error
@@ -395,15 +438,26 @@ def provide_deterministic_qubit_errors(
 
 
 def calculate_theoretical_max_q_value(state, gamma):
+    """
+    Approximately calculate the optimal q value for a given state.
+    The best possible q value should be
+    when annihilating at least one syndrome
+    with one action until no syndromes remain.
+    For simplicity, this has to disregard
+    syndrome measurement errors which are
+    present in the state.
+
+    Parameters
+    ==========
+    state: the syndrome stack for the manaully created qubit configuration
+    gamma: gamma factor in reinforcement learning,
+        to discount the effect of steps in the future
+
+    Returns
+    =======
+    q_value: q value if the optimal action is chosen
+    """
     n_syndromes = state.sum()
-    # assert isinstance(n_syndromes, (int, float, np.uint8, np.uint64)), f"{n_syndromes=}, {type(n_syndromes)=}"
-    # the best possible q value should be
-    # when annihilating at least one syndrome
-    # with one action
-    # until no syndromes remain
-    # for simplicity, this has to disregard
-    # syndrome measurement errors which are
-    # present in the state
 
     # $n_syndromes nominal actions
     gamma_sum = np.sum([gamma ** i for i in range(0, n_syndromes)])
