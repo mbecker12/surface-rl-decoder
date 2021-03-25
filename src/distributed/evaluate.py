@@ -5,7 +5,12 @@ to decode syndromes
 import logging
 import numpy as np
 import torch
-from distributed.util import action_to_q_value_index, assert_not_all_elements_equal, incremental_mean, select_actions
+from distributed.util import (
+    action_to_q_value_index,
+    assert_not_all_elements_equal,
+    incremental_mean,
+    select_actions,
+)
 from distributed.learner_util import (
     calculate_theoretical_max_q_value,
     create_user_eval_state,
@@ -34,7 +39,7 @@ def evaluate(
     epsilon=0.0,
     num_of_steps=50,
     plot_one_episode=True,
-    discount_factor_gamma=0.9
+    discount_factor_gamma=0.9,
 ):
     """
     Evaluate the current policy.
@@ -218,7 +223,9 @@ def evaluate(
         # gather information about all episodes
         assert np.any(syndromes_annihilated > 0), syndromes_annihilated
         assert np.any(syndromes_created > 0), syndromes_created
-        fully_corrected_list[i_err_list] = np.sum(fully_corrected) / total_num_of_episodes
+        fully_corrected_list[i_err_list] = (
+            np.sum(fully_corrected) / total_num_of_episodes
+        )
         ground_state_list[i_err_list] = np.sum(ground_state) / total_num_of_episodes
         average_number_of_steps_list[i_err_list] = np.round(mean_steps_per_p_error, 1)
         mean_q_list[i_err_list] = np.round(mean_q_value_per_p_error, 3)
