@@ -223,6 +223,30 @@ def transform_list_dict(mapping):
     return [dict(zip(mapping, t)) for t in zip(*mapping.values())]
 
 
+def safe_append_in_dict(dictionary, key, val):
+    """
+    Check if a list already exists for a given key. In that case append
+    val to that list, otherwise create a list with val as the first element
+
+    Parameters
+    ==========
+    dictionary: target dictionary to be filled with new value
+    key: key for the dictionary
+    val: value to append to the list whch should exist or be created at the key
+
+    Returns
+    =======
+    dictionary: modified version of the input dictionary,
+        with added value to the target key
+    """
+    existing_result = dictionary.get(key)
+    if existing_result is None:
+        dictionary[key] = [val]
+    else:
+        dictionary[key].append(val)
+    return dictionary
+
+
 def log_evaluation_data(
     tensorboard,
     list_of_p_errors,

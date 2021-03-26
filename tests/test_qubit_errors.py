@@ -13,7 +13,7 @@ def test_qubit_error_slice():
     for err_channel in ("dp", "x", "iidxz"):
         error_slice = scode.generate_qubit_error(error_channel=err_channel)
 
-        assert error_slice.shape == (scode.system_size, scode.system_size)
+        assert error_slice.shape == (scode.code_size, scode.code_size)
         assert np.any(error_slice != 0)
 
     with pytest.raises(Exception):
@@ -28,8 +28,8 @@ def test_qubit_error_stack():
 
         assert error_stack.shape == (
             scode.stack_depth,
-            scode.system_size,
-            scode.system_size,
+            scode.code_size,
+            scode.code_size,
         )
         assert np.any(error_stack != 0)
 

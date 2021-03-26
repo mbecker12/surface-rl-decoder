@@ -15,10 +15,10 @@ class EnvironmentSet:
     """
 
     def __init__(self, env: SurfaceCode, num_environments):
-        self.system_size = env.system_size
-        self.stack_depth = env.stack_depth
-        self.syndrome_size = env.syndrome_size
-        self.num_environments = num_environments
+        self.code_size: int = env.code_size
+        self.stack_depth: int = env.stack_depth
+        self.syndrome_size: int = env.syndrome_size
+        self.num_environments: int = num_environments
         self._states = np.empty(
             (
                 num_environments,
@@ -29,7 +29,7 @@ class EnvironmentSet:
             dtype=np.uint8,
         )
 
-        self.environments = [None] * num_environments
+        self.environments: List[SurfaceCode] = [None] * num_environments
         for i in range(num_environments):
             self.environments[i] = deepcopy(env)
 
@@ -134,7 +134,7 @@ class EnvironmentSet:
         )
         rewards = np.empty(self.num_environments)
         terminals = np.empty(self.num_environments)
-        infos = [None] * self.num_environments
+        infos: Union[List[Dict], None] = [None] * self.num_environments
 
         for i, env in enumerate(self.environments):
             next_state, reward, terminal, info = env.step(

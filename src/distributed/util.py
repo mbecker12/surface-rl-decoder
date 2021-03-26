@@ -16,7 +16,7 @@ def incremental_mean(value, mean, num_elements):
     return mean + (value - mean) / (num_elements)
 
 
-def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0.0):
+def select_actions(state, model, code_size, num_actions_per_qubit=3, epsilon=0.0):
     """
     Select actions batch-wise according to an ε-greedy policy based on the
     provided neural network model.
@@ -24,7 +24,7 @@ def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0
     Parameters
     ==========
     state: torch.tensor, batch of stacks of states,
-        shape: (batch_size, stack_depth, system_size, system_size)
+        shape: (batch_size, stack_depth, code_size, code_size)
     model: the neural network model of choice
     num_actions_per_qubit: (optional) number of possible operators on one qubit,
         default is 3, for Pauli-X, -Y, or -Z.
@@ -91,7 +91,7 @@ def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0
         [
             q_value_index_to_action(
                 q_value_index[i],
-                system_size,
+                code_size,
                 num_actions_per_qubit=num_actions_per_qubit,
             )
             for i in range(batch_size)
@@ -104,12 +104,12 @@ def select_actions(state, model, system_size, num_actions_per_qubit=3, epsilon=0
 
 
 def action_to_q_value_index(
-    action: Union[Tuple, List], system_size: int, num_actions_per_qubit: int = 3
+    action: Union[Tuple, List], code_size: int, num_actions_per_qubit: int = 3
 ) -> int:
     """
     Map an action, with its x- and y-coordinates and chosen operator,
     to the correct index in the q-value array.
-    The q-value array should contain num_actions_per_qubit * system_size**2 + 1
+    The q-value array should contain num_actions_per_qubit * code_size**2 + 1
     entries.
     The entries of q-value arrays are thought to be the actions in the following order:
         [
@@ -121,7 +121,7 @@ def action_to_q_value_index(
     ==========
     action: (Tuple) (x-coordinate, y-coordinate, operator) of one action
         to be performed on the whole qubit stack
-    system_size: code distance d, number of physical qubits per row/column
+    code_size: code distance d, number of physical qubits per row/column
     num_actions_per_qubit: (optional) number of possible operators on one qubit,
         default is 3, for Pauli-X, -Y, or -Z.
 
@@ -137,11 +137,11 @@ def action_to_q_value_index(
         assert y_coord >= 0, "qubit y coordinate must be between 0 and d-1"
         index = (
             x_coord * num_actions_per_qubit
-            + y_coord * system_size * num_actions_per_qubit
+            + y_coord * code_size * num_actions_per_qubit
             + (operator - 1)
         )
     elif operator == TERMINAL_ACTION:
-        index = num_actions_per_qubit * system_size * system_size
+        index = num_actions_per_qubit * code_size * code_size
     else:
         raise Exception(
             f"Error! Operator {operator} on qubit ({x_coord}, {y_coord}) is not defined."
@@ -149,11 +149,11 @@ def action_to_q_value_index(
     return index
 
 
-def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3):
+def q_value_index_to_action(q_value_index, code_size, num_actions_per_qubit=3):
     """
     Map an index from a alid q-value array to the corresponding action,
     with its x- and y-coordinates and chosen operator.
-    The q-value array should contain num_actions_per_qubit * system_size**2 + 1
+    The q-value array should contain num_actions_per_qubit * code_size**2 + 1
     entries.
     The entries of q-value arrays are thought to be the actions in the following order:
         [
@@ -164,7 +164,7 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
     Parameters
     ==========
     q_value_index: (int) index pointing to the desired q-value in the q-value-array
-    system_size: code distance d, number of physical qubits per row/column
+    code_size: code distance d, number of physical qubits per row/column
     num_actions_per_qubit: (optional) number of possible operators on one qubit,
         default is 3, for Pauli-X, -Y, or -Z.
 
@@ -173,29 +173,29 @@ def q_value_index_to_action(q_value_index, system_size, num_actions_per_qubit=3)
     action: (Tuple) (x-coordinate, y-coordinate, operator) of one action
         to be performed on the whole qubit stack
     """
-    # example, assuming system_size=5, actions_per_qubit=3
+    # example, assuming code_size=5, actions_per_qubit=3
     # (example: index 22) -> action (2, 1, 2)
     # actor = 22 % 3 = 1
     # grid_index_group = (22 - 1) // 3 = 7
     # x = 7 % 5 = 2
     # y = 7 // 5 = 1
-    if q_value_index in (num_actions_per_qubit * system_size * system_size, -1):
+    if q_value_index in (num_actions_per_qubit * code_size * code_size, -1):
         return (0, 0, TERMINAL_ACTION)
 
     if (
         q_value_index < 0
-        or q_value_index > num_actions_per_qubit * system_size * system_size
+        or q_value_index > num_actions_per_qubit * code_size * code_size
     ):
         raise Exception(
             f"Error! Index {q_value_index} "
-            "is invalid for surface code with system size {system_size}."
+            "is invalid for surface code with system size {code_size}."
         )
 
     actor = q_value_index % num_actions_per_qubit
     operator = actor + 1
     grid_index_group = (q_value_index - actor) // num_actions_per_qubit
-    x_coord = grid_index_group % system_size
-    y_coord = grid_index_group // system_size
+    x_coord = grid_index_group % code_size
+    y_coord = grid_index_group // code_size
 
     return (x_coord, y_coord, operator)
 
@@ -251,7 +251,7 @@ def assert_not_all_states_equal(states_batch):
     return similarity
 
 
-def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, system_size):
+def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, code_size):
     """
     Compute the absolute temporal difference (TD) value, to be used
     as priority for replay memory.
@@ -270,7 +270,7 @@ def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, system_siz
     qvalues_new: (n_environments, buffer_size, 3 * d**2 + 1)
         look-ahead from saved transitions, the q values of the subsequent state
     gamma: (float) discount factor
-    system_size: (int) code size, d
+    code_size: (int) code size, d
 
     Returns
     =======
@@ -284,9 +284,7 @@ def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, system_siz
     selected_q_values = np.array(
         [
             [
-                qvalues[env][buf][
-                    action_to_q_value_index(actions[env][buf], system_size)
-                ]
+                qvalues[env][buf][action_to_q_value_index(actions[env][buf], code_size)]
                 for buf in range(n_bufs)
             ]
             for env in range(n_envs)

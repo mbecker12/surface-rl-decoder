@@ -10,9 +10,9 @@ from src.distributed.util import (
 
 
 def test_actor_utils(init_testing_model, load_model_config):
-    system_size = 5
+    code_size = 5
     stack_depth = 8
-    state_size = system_size + 1
+    state_size = code_size + 1
     epsilon = 0.25
     model_name = "dummy_agent"
     model_config = load_model_config("dummy_agent.json", model_name)
@@ -30,56 +30,56 @@ def test_actor_utils(init_testing_model, load_model_config):
         )
         _state = torch.tensor(state, dtype=torch.float32)
         actions, q_values = select_actions(
-            _state, model, system_size, num_actions_per_qubit=3, epsilon=epsilon
+            _state, model, code_size, num_actions_per_qubit=3, epsilon=epsilon
         )
         assert len(actions) == batch_size, actions
-        assert q_values.shape == (batch_size, 3 * system_size * system_size + 1)
+        assert q_values.shape == (batch_size, 3 * code_size * code_size + 1)
 
 
 def test_action_to_idx():
-    system_size = 7
+    code_size = 7
     for _ in range(200):
-        x_coord = np.random.randint(0, system_size)
-        y_coord = np.random.randint(0, system_size)
+        x_coord = np.random.randint(0, code_size)
+        y_coord = np.random.randint(0, code_size)
         operator = np.random.randint(1, 5)
         action = (x_coord, y_coord, operator)
-        index = action_to_q_value_index(action, system_size)
-        assert 0 <= index <= 3 * system_size * system_size + 1
+        index = action_to_q_value_index(action, code_size)
+        assert 0 <= index <= 3 * code_size * code_size + 1
 
 
 def test_action_and_idx():
-    system_size = 5
-    for y in range(system_size):
-        for x in range(system_size):
+    code_size = 5
+    for y in range(code_size):
+        for x in range(code_size):
             for ac in (1, 2, 3, 4):
-                idx = action_to_q_value_index((x, y, ac), system_size)
+                idx = action_to_q_value_index((x, y, ac), code_size)
 
-                action = q_value_index_to_action(idx, system_size)
+                action = q_value_index_to_action(idx, code_size)
                 if ac in (1, 2, 3):
                     assert action == (x, y, ac)
                 else:
                     assert action[-1] == ac
 
     with pytest.raises(Exception):
-        action_to_q_value_index((-9, -6, 0), system_size)
+        action_to_q_value_index((-9, -6, 0), code_size)
 
     with pytest.raises(AssertionError):
-        action_to_q_value_index((-9, -6, 1), system_size)
+        action_to_q_value_index((-9, -6, 1), code_size)
 
     with pytest.raises(Exception):
-        action_to_q_value_index((-9, -6, 895678), system_size)
+        action_to_q_value_index((-9, -6, 895678), code_size)
 
     with pytest.raises(Exception):
-        q_value_index_to_action(-2, system_size)
+        q_value_index_to_action(-2, code_size)
 
     with pytest.raises(Exception):
-        q_value_index_to_action(999999999999999, system_size)
+        q_value_index_to_action(999999999999999, code_size)
 
-    for i in range(3 * system_size * system_size + 1):
-        action = q_value_index_to_action(i, system_size)
+    for i in range(3 * code_size * code_size + 1):
+        action = q_value_index_to_action(i, code_size)
         x, y, ac = action
 
-        idx = action_to_q_value_index(action, system_size)
+        idx = action_to_q_value_index(action, code_size)
         assert idx == i
 
 
