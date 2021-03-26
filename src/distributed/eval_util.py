@@ -160,29 +160,6 @@ def run_evaluation_in_batches(
         theoretical_q_values[j_all_episodes] = theoretical_q_value
 
     torch_states = torch.tensor(states, dtype=torch.float32).to(device)
-    # TODO: remove asserts after testing on GPU
-    assert torch_states.shape == (
-        total_n_episodes,
-        stack_depth,
-        syndrome_size,
-        syndrome_size,
-    ), f"{torch_states.shape=}, {total_n_episodes=}, {stack_depth=}, {code_size=}"
-
-    # TODO: make sure states are truly random
-    count_same = 0
-    for i in range(num_of_random_episodes):
-        for j in range(i + 1, num_of_random_episodes):
-            if torch.all(torch_states[i] == torch_states[j]):
-                count_same += 1
-                break
-    # TODO: remove asserts after testing on GPU
-    if count_same / num_of_random_episodes > 0.3:
-        logger.warning(
-            f"{count_same / num_of_random_episodes * 100} percent of states are identical"
-        )
-    assert (
-        count_same / num_of_random_episodes < 1.0
-    ), f"{count_same=}, {count_same / num_of_random_episodes=}"
 
     while global_episode_steps < max_num_of_steps:
         global_episode_steps += 1
@@ -216,8 +193,6 @@ def run_evaluation_in_batches(
             ]
         )
         correct_actions_aggregation += correct_actions_all
-        # TODO: remove asserts after testing on GPU
-        assert correct_actions_all.shape == (num_of_user_episodes,)
 
         recalculate_theoretical_value_mask = np.logical_not(
             np.logical_and(is_user_episode, steps_per_episode == 1)
@@ -237,7 +212,6 @@ def run_evaluation_in_batches(
         q_value_aggregation += q_value
         q_value_diff_aggregation += q_value - theoretical_q_values
 
-        # TODO: remove asserts after testing on GPU
         assert q_value.shape == (total_n_episodes,), f"{q_value.shape=}"
         assert q_value_aggregation.shape == (
             total_n_episodes,
@@ -261,12 +235,8 @@ def run_evaluation_in_batches(
             ]
         )
 
-        # TODO: remove asserts after testing on GPU
-        assert diffs_all.shape == (total_n_episodes, stack_depth)
         n_annihilated_syndromes = np.sum(diffs_all > 0, axis=1)
-        assert n_annihilated_syndromes.shape == (total_n_episodes,)
         n_created_syndromes = np.sum(diffs_all < 0, axis=1)
-        assert n_created_syndromes.shape == (total_n_episodes,)
 
         non_terminal_episodes = np.where(actions[:, -1] != TERMINAL_ACTION)[0]
         for j in non_terminal_episodes:
