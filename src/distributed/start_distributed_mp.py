@@ -105,7 +105,8 @@ def start_mp():
     # set up learner configuration
     learner_verbosity = int(learner_config["verbosity"])
     learner_benchmarking = int(learner_config["benchmarking"])
-    learner_max_time_h = int(learner_config["max_time_h"])
+    learner_max_time_h = float(learner_config["max_time_h"])
+    learner_max_time_minutes = float(learner_config.get("max_time_minutes", 0.0))
     learning_rate = float(learner_config["learning_rate"])
     learner_device = learner_config["device"]
     batch_size = int(learner_config["batch_size"])
@@ -195,6 +196,7 @@ def start_mp():
         "summary_path": summary_path,
         "summary_date": summary_date,
         "max_time": learner_max_time_h,
+        "max_time_minutes": learner_max_time_minutes,
         "learning_rate": learning_rate,
         "device": learner_device,
         "target_update_steps": target_update_steps,
