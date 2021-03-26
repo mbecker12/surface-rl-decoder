@@ -199,7 +199,7 @@ def run_evaluation_in_batches(
 
         # the predefined theoretical q values for user episodes
         # are only valid in the very first step,
-        # and of course only in the user episodes 
+        # and of course only in the user episodes
         recalculate_theoretical_value_mask = np.logical_not(
             np.logical_and(is_user_episode, steps_per_episode == 1)
         )
@@ -326,7 +326,7 @@ def run_evaluation_in_batches(
 
     # normalize stats about syndrome creation
     # we want to have the probability for the agent
-    # to create or destroy a syndrome in each step 
+    # to create or destroy a syndrome in each step
     syndromes_normalization = syndromes_annihilated + syndromes_created
     syndromes_created /= syndromes_normalization
     syndromes_annihilated /= syndromes_normalization
