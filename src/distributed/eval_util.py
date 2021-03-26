@@ -123,10 +123,10 @@ def run_evaluation_in_batches(
     ground_state = np.zeros(total_n_episodes)
     remaining_sydromes = np.zeros(total_n_episodes)
     logical_errors = np.zeros(total_n_episodes)
+
+    # initialize values to be accumulated across al episodes and steps
     syndromes_annihilated = 0
     syndromes_created = 0
-    mean_q_value = 0
-    mean_q_value_diff = 0
     q_value_aggregation = np.zeros(total_n_episodes)
     q_value_diff_aggregation = np.zeros(total_n_episodes)
     correct_actions_aggregation = np.zeros(num_of_user_episodes)
@@ -145,6 +145,7 @@ def run_evaluation_in_batches(
     is_user_episode[num_of_random_episodes:] = 1
 
     # TODO: comment code
+    # prepare user defined episodes
     for j_user_episode in range(num_of_user_episodes):
         j_all_episodes = j_user_episode + num_of_random_episodes
         state, expected_actions, theoretical_q_value = create_user_eval_state(
@@ -161,6 +162,8 @@ def run_evaluation_in_batches(
 
     torch_states = torch.tensor(states, dtype=torch.float32).to(device)
 
+    # iterate through different episodes/environments
+    # and handle them in parallel
     while global_episode_steps < max_num_of_steps:
         global_episode_steps += 1
         steps_per_episode += 1
@@ -170,9 +173,7 @@ def run_evaluation_in_batches(
             torch_states, model, code_size, epsilon=epsilon
         )
 
-        # loop through all episodes to obtain the current state
-        # and get some information
-
+        # revert action back to q value index fo later use
         q_value_indices = np.array(
             [
                 action_to_q_value_index(actions[i], code_size)
@@ -180,6 +181,8 @@ def run_evaluation_in_batches(
             ]
         )
 
+        # check user-defined / expected actions
+        # in user episodes
         correct_actions_all = np.array(
             [
                 check_repeating_action(
@@ -194,6 +197,9 @@ def run_evaluation_in_batches(
         )
         correct_actions_aggregation += correct_actions_all
 
+        # the predefined theoretical q values for user episodes
+        # are only valid in the very first step,
+        # and of course only in the user episodes 
         recalculate_theoretical_value_mask = np.logical_not(
             np.logical_and(is_user_episode, steps_per_episode == 1)
         )
@@ -207,18 +213,11 @@ def run_evaluation_in_batches(
             ]
         )
 
+        # get info about max q values
         actions_in_one_episode[:, global_episode_steps - 1] = q_value_indices
         q_value = np.take(q_values, q_value_indices)
         q_value_aggregation += q_value
         q_value_diff_aggregation += q_value - theoretical_q_values
-
-        assert q_value.shape == (total_n_episodes,), f"{q_value.shape=}"
-        assert q_value_aggregation.shape == (
-            total_n_episodes,
-        ), f"{q_value_aggregation.shape=}"
-        assert q_value_diff_aggregation.shape == (
-            total_n_episodes,
-        ), f"{q_value_diff_aggregation.shape=}"
 
         # apply the chosen action
         next_states, _, terminals, _ = env_set.step(
@@ -228,16 +227,21 @@ def run_evaluation_in_batches(
             punish_repeating_actions=punish_repeating_actions,
         )
 
+        # count the difference of number of syndromes in each layer
         diffs_all = np.array(
             [
                 compute_layer_diff(states[i], next_states[i], stack_depth)
                 for i in range(total_n_episodes)
             ]
         )
-
+        # ... and infer how many syndromes were created or destroyed
         n_annihilated_syndromes = np.sum(diffs_all > 0, axis=1)
         n_created_syndromes = np.sum(diffs_all < 0, axis=1)
 
+        # if we have a non-terminal episode and no net syndrome
+        # creation or annihilation, at least the state must have changed
+        # by applying an action.
+        # Otherwise something went really wrong here
         non_terminal_episodes = np.where(actions[:, -1] != TERMINAL_ACTION)[0]
         for j in non_terminal_episodes:
             if n_annihilated_syndromes[j] == 0 and n_created_syndromes[j] == 0:
@@ -250,6 +254,12 @@ def run_evaluation_in_batches(
         syndromes_annihilated += n_annihilated_syndromes.sum()
         syndromes_created += n_created_syndromes.sum()
 
+        # Handle terminal episodes:
+        # At this point, it would make more sense to talk about environments
+        # rather than separate episodes.
+        # In each environment with a terminal episode, we start a new one
+        # and obtain its stats.
+        # Its stats about number of steps are kept separately in env_done[:, 1]
         env_done[:, 0] += terminals
         if np.any(terminals):
             indices = np.argwhere(terminals).flatten()
@@ -259,6 +269,7 @@ def run_evaluation_in_batches(
             env_done[indices, 1] += steps_per_episode[indices]
             steps_per_episode[indices] = 0
 
+            # check if calling a terminal action was a good choice
             for i in indices:
                 _, _ground_state, (n_syndromes, n_loops) = check_final_state(
                     env_set.environments[i].actual_errors,
@@ -275,6 +286,8 @@ def run_evaluation_in_batches(
 
     # end while; step through episode
 
+    # check all states after the time limit
+    # check for remaining syndromes etc.
     for i in range(total_n_episodes):
         unique, counts = np.unique(actions_in_one_episode[i], return_counts=True)
         most_common_qvalue_idx = np.argmax(counts)
@@ -311,6 +324,9 @@ def run_evaluation_in_batches(
     )
     n_terminals = average_episode_metric(terminals, total_n_episodes, env_done[:, 0])
 
+    # normalize stats about syndrome creation
+    # we want to have the probability for the agent
+    # to create or destroy a syndrome in each step 
     syndromes_normalization = syndromes_annihilated + syndromes_created
     syndromes_created /= syndromes_normalization
     syndromes_annihilated /= syndromes_normalization
@@ -319,6 +335,10 @@ def run_evaluation_in_batches(
     mean_q_value = np.mean(q_value_aggregation) / max_num_of_steps
     mean_q_value_diff = np.mean(q_value_diff_aggregation) / max_num_of_steps
 
+    # An untrained network seems to choose a certain action lots of times
+    # within an episode.
+    # Make sure that it's at least a different action for different
+    # state initializations.
     unique_actions = np.unique(common_actions)
     if not len(unique_actions) > 1:
         logger.info(f"{common_actions=}, {common_actions.shape=}")
