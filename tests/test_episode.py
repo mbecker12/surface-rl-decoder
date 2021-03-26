@@ -145,7 +145,7 @@ def test_proper_episode(configure_env, restore_env, seed_surface_code):
     seed_surface_code(sc, 42, 0.1, 0.1, "dp")
 
     assert sc.stack_depth == 4
-    assert sc.system_size == 5
+    assert sc.code_size == 5
 
     # assure that arrays are the same after seeding the rng
     assert np.all(sc.qubits == _qubits), sc.qubits

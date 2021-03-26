@@ -365,11 +365,11 @@ def compute_layer_diff(state, next_state, stack_depth):
         syndrome measurements between subsequent layers
     """
 
-    state_sums = np.sum(np.sum(state, axis=2), axis=1)
-    next_state_sums = np.sum(np.sum(next_state, axis=2), axis=1)
+    state_sums = np.sum(np.sum(state, axis=2), axis=1, dtype=np.int32)
+    next_state_sums = np.sum(np.sum(next_state, axis=2), axis=1, dtype=np.int32)
     diffs = state_sums - next_state_sums
     assert diffs.shape == (stack_depth,), diffs.shape
-    assert diffs.dtype in (int, float, np.uint64), diffs.dtype
+    assert diffs.dtype in (np.int32, float), diffs.dtype
 
     return diffs
 

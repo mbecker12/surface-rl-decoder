@@ -8,9 +8,7 @@ def test_syndrome_output(v=False):
 
     sc.qubits[0, 1, 1] = 1
 
-    expected_syndrome = np.zeros(
-        (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
-    )
+    expected_syndrome = np.zeros((sc.code_size + 1, sc.code_size + 1), dtype=np.uint8)
     expected_syndrome[1, 2] = 1
     expected_syndrome[2, 1] = 1
 
@@ -75,9 +73,7 @@ def test_syndrome_output(v=False):
 
 def test_syndrome_output_edge(v=True):
     sc = SurfaceCode()
-    expected_syndrome = np.zeros(
-        (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
-    )
+    expected_syndrome = np.zeros((sc.code_size + 1, sc.code_size + 1), dtype=np.uint8)
 
     sc.qubits[0, 0, 0] = 2
 
@@ -107,13 +103,11 @@ def test_syndrome_output_edge(v=True):
 
 
 def test_multiple_syndromes_x(sc, configure_env, restore_env):
-    expected_syndrome = np.zeros(
-        (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
-    )
+    expected_syndrome = np.zeros((sc.code_size + 1, sc.code_size + 1), dtype=np.uint8)
 
     original_depth, original_size, original_error_channel = configure_env()
     sc = SurfaceCode()
-    d = sc.system_size
+    d = sc.code_size
 
     # need to restrict system size here to be able to check boundaries
     assert d == 5
@@ -149,13 +143,11 @@ def test_multiple_syndromes_x(sc, configure_env, restore_env):
 
 
 def test_multiple_syndromes_z(sc, configure_env, restore_env):
-    expected_syndrome = np.zeros(
-        (sc.system_size + 1, sc.system_size + 1), dtype=np.uint8
-    )
+    expected_syndrome = np.zeros((sc.code_size + 1, sc.code_size + 1), dtype=np.uint8)
 
     original_depth, original_size, original_error_channel = configure_env()
     sc = SurfaceCode()
-    d = sc.system_size
+    d = sc.code_size
 
     # need to restrict system size here to be able to check boundaries
     assert d == 5

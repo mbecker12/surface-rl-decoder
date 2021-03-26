@@ -32,7 +32,7 @@ def test_ground_state_with_errors(sc):
     try to create a state which is not in the ground state
     and trigger the check_final_state function
     """
-    dist = sc.system_size
+    dist = sc.code_size
     height = sc.stack_depth
     sc.qubits = np.zeros((height, dist, dist), dtype=np.uint8)
 
@@ -74,7 +74,7 @@ def test_non_ground_state_z(sc):
     try to create a state which is not in the ground state
     and trigger the check_final_state function
     """
-    dist = sc.system_size
+    dist = sc.code_size
     height = sc.stack_depth
     sc.qubits = np.zeros((height, dist, dist), dtype=np.uint8)
 
@@ -94,7 +94,7 @@ def test_non_ground_state_x(sc):
     try to create a state which is not in the ground state
     and trigger the check_final_state function
     """
-    dist = sc.system_size
+    dist = sc.code_size
     height = sc.stack_depth
     sc.qubits = np.zeros((height, dist, dist), dtype=np.uint8)
 

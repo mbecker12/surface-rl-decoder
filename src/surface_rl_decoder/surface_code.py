@@ -77,8 +77,8 @@ class SurfaceCode(gym.Env):
 
         env_config = self.config.get("env")
 
-        self.system_size = int(env_config.get("size"))
-        self.syndrome_size = self.system_size + 1
+        self.code_size = int(env_config.get("size"))
+        self.syndrome_size = self.code_size + 1
         self.min_qbit_errors = int(env_config.get("min_qbit_err"))
         self.p_error = float(env_config.get("p_error"))
         self.p_msmt = float(env_config.get("p_msmt"))
@@ -87,7 +87,7 @@ class SurfaceCode(gym.Env):
         self.max_actions = int(env_config.get("max_actions"))
 
         # Sweke definition
-        self.num_actions = 3 * self.system_size ** 2 + 1
+        self.num_actions = 3 * self.code_size ** 2 + 1
         self.action_space = gym.spaces.Discrete(self.num_actions)
 
         # observation space should correspond to the shape
@@ -104,13 +104,13 @@ class SurfaceCode(gym.Env):
         self.plaquette_mask = np.tile(plaquette_mask, (self.stack_depth, 1, 1))
         assert self.vertex_mask.shape == (
             self.stack_depth,
-            self.system_size + 1,
-            self.system_size + 1,
+            self.code_size + 1,
+            self.code_size + 1,
         ), vertex_mask.shape
         assert self.plaquette_mask.shape == (
             self.stack_depth,
-            self.system_size + 1,
-            self.system_size + 1,
+            self.code_size + 1,
+            self.code_size + 1,
         ), plaquette_mask.shape
 
         # How we define the surface code matrix:
@@ -120,7 +120,7 @@ class SurfaceCode(gym.Env):
         # implement rotated surface code
         # from https://journals.aps.org/prx/pdf/10.1103/PhysRevX.9.041031 Fig. 4
         self.qubits = np.zeros(
-            (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
+            (self.stack_depth, self.code_size, self.code_size), dtype=np.uint8
         )
 
         # define syndrome matrix
@@ -243,12 +243,12 @@ class SurfaceCode(gym.Env):
         =======
         error: (d, d) array containing error operations on a qubit grid
         """
-        shape = (self.system_size, self.system_size)
+        shape = (self.code_size, self.code_size)
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
 
         if min_n_errors > 0 and error_mask.sum() < min_n_errors:
-            idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
+            idx = np.random.randint(0, self.code_size, size=(2, min_n_errors))
             error_mask[idx[0], idx[1]] = 1
 
         return error_mask
@@ -273,7 +273,7 @@ class SurfaceCode(gym.Env):
         =======
         error: (d, d) array containing error operations on a qubit grid
         """
-        shape = (self.system_size, self.system_size)
+        shape = (self.code_size, self.code_size)
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask_x = (uniform_random_vector < self.p_error).astype(np.uint8)
 
@@ -282,7 +282,7 @@ class SurfaceCode(gym.Env):
             min_z_errors = min_n_errors // 2
 
             if error_mask_x.sum() < min_x_errors:
-                idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
+                idx = np.random.randint(0, self.code_size, size=(2, min_n_errors))
                 error_mask_x[idx[0], idx[1]] = 1
 
         x_err = np.ones(shape, dtype=np.uint8)
@@ -293,7 +293,7 @@ class SurfaceCode(gym.Env):
 
         if min_n_errors > 0:
             if error_mask_z.sum() < min_z_errors:
-                idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
+                idx = np.random.randint(0, self.code_size, size=(2, min_n_errors))
                 error_mask_z[idx[0], idx[1]] = 1
 
         z_err = np.ones(shape, dtype=np.uint8) * 3
@@ -326,12 +326,12 @@ class SurfaceCode(gym.Env):
         =======
         error: (d, d) array containing error operations on a qubit grid
         """
-        shape = (self.system_size, self.system_size)
+        shape = (self.code_size, self.code_size)
         uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
         error_mask = (uniform_random_vector < self.p_error).astype(np.uint8)
 
         if min_n_errors > 0 and error_mask.sum() < min_n_errors:
-            idx = np.random.randint(0, self.system_size, size=(2, min_n_errors))
+            idx = np.random.randint(0, self.code_size, size=(2, min_n_errors))
             error_mask[idx[0], idx[1]] = 1
 
         error_operation = np.random.randint(1, 4, shape, dtype=np.uint8)
@@ -389,7 +389,7 @@ class SurfaceCode(gym.Env):
         """
 
         error_stack = np.zeros(
-            (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
+            (self.stack_depth, self.code_size, self.code_size), dtype=np.uint8
         )
         base_error = self.generate_qubit_error(
             error_channel=error_channel, min_n_errors=min_n_errors
@@ -457,7 +457,7 @@ class SurfaceCode(gym.Env):
             self.p_error = p_error
 
         self.qubits = np.zeros(
-            (self.stack_depth, self.system_size, self.system_size), dtype=np.uint8
+            (self.stack_depth, self.code_size, self.code_size), dtype=np.uint8
         )
         self.actual_errors = np.zeros_like(self.qubits)
         self.state = np.zeros(
@@ -699,8 +699,8 @@ class SurfaceCode(gym.Env):
         including qubits, vertex syndromes, plaquette syndromes.
         """
 
-        x_line = np.linspace(0, self.system_size - 1, self.system_size - 1)
-        x_arr = range(self.system_size)
+        x_line = np.linspace(0, self.code_size - 1, self.code_size - 1)
+        x_arr = range(self.code_size)
         x_grid, y_grid = np.meshgrid(x_arr, x_arr)
         x_line, y_line = np.meshgrid(x_arr, x_line)
 
@@ -730,24 +730,24 @@ class SurfaceCode(gym.Env):
         )
 
         # draw vertex syndromes
-        for i in range(0, self.system_size - 1):
+        for i in range(0, self.code_size - 1):
             if i % 2 == 0:
-                for j in range(1, self.system_size - 1, 2):
+                for j in range(1, self.code_size - 1, 2):
                     rect = Rectangle((i, -j), 1, 1, lw=linewidth, fc="orange")
                     ax.add_artist(rect)
 
             else:
-                for j in range(2, self.system_size, 2):
+                for j in range(2, self.code_size, 2):
                     rect = Rectangle((i, -j), 1, 1, lw=linewidth, fc="orange")
                     ax.add_artist(rect)
 
         # draw boundary syndromes
-        for i in range(0, self.system_size - 1, 2):
+        for i in range(0, self.code_size - 1, 2):
             w_upper = Wedge(
                 (i + 0.5, 0.0), 0.5, 0, 180, fc="white", ec="black", lw=linewidth
             )
             w_lower = Wedge(
-                (i + 1.5, -self.system_size + 1),
+                (i + 1.5, -self.code_size + 1),
                 0.5,
                 180,
                 0,
@@ -758,9 +758,9 @@ class SurfaceCode(gym.Env):
             ax.add_artist(w_lower)
             ax.add_artist(w_upper)
 
-        for i in range(0, self.system_size - 1, 2):
+        for i in range(0, self.code_size - 1, 2):
             w_right = Wedge(
-                (self.system_size - 1, -i - 0.5),
+                (self.code_size - 1, -i - 0.5),
                 0.5,
                 270,
                 90,
@@ -774,9 +774,9 @@ class SurfaceCode(gym.Env):
             ax.add_artist(w_right)
             ax.add_artist(w_left)
 
-        ax.set_ylim(-self.system_size, 1)
-        ax.set_xlim(-1, self.system_size)
-        ax.set_title(f"Surface Code, d={self.system_size}, h={self.stack_depth}")
+        ax.set_ylim(-self.code_size, 1)
+        ax.set_xlim(-1, self.code_size)
+        ax.set_title(f"Surface Code, d={self.code_size}, h={self.stack_depth}")
         return ax
 
 
