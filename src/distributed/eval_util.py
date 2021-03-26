@@ -22,15 +22,19 @@ from surface_rl_decoder.surface_code_util import (
     create_syndrome_output_stack,
 )
 
+# define keys for different groups in the result dictionary
+RESULT_KEY_EPISODE = "per_episode"
+RESULT_KEY_STEP = "per_step"
+RESULT_KEY_P_ERR = "per_p_err"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("eval")
 logger.setLevel(logging.INFO)
 
-# pylint: disable=too-many-arguments, too-many-locals, too-many-statements
+# pylint: disable=too-many-arguments, too-many-locals, too-many-statements, too-many-branches
 def run_evaluation_in_batches(
     model,
-    env_string,
+    environment_def,
     device,
     num_of_random_episodes=8,
     num_of_user_episodes=8,
@@ -44,16 +48,65 @@ def run_evaluation_in_batches(
     p_err=0.0,
     p_msmt=0.0,
 ):
-    # TODO docstring
+    """
+    Run some evaluation episodes for fixed p_error and p_msmt.
+    Enables the states from different episodes to be processed
+    by the neural network at the same time (as a batch).
 
+    Parameters
+    ==========
+    model: (subclass of torch.nn.Module) Neural network model
+    environment_def: (str or gym.Env) either environment name, or object
+    device: torch.device
+    num_of_random_episodes: number of episodes to with fully randomly generated states
+    num_of_user_episodes: number of user-creates and predefined episodes,
+        taken from create_user_eval_state(), hence this number is limited by the number of
+        availabe examples in the helper function
+    epsilon: probability of the agent choosing a random action
+    max_num_of_steps: maximum number of steps per environment
+    plot_one_episode: whether or not to render an example episode
+    discount_factor_gamma: gamma / discount factor in reinforcement learning
+    p_err: error rate of physical errors
+    p_msmt: error rate of syndrome measurement errors
+    annealing_intermediate_reward: (optional) variable that should decrease over time during
+        a training run to decrease the effect of the intermediate reward
+    punish_repeating_actions: (optional) (1 or 0) flag acting as multiplier to
+        enable punishment for repeating actions that already exist in the action history
+    discount_intermediate_reward: (optional) discount factor determining how much
+        early layers should be discounted when calculating the intermediate reward
+
+    Returns
+    =======
+    Dictionary of three different metrics categories:
+
+    per_episode:
+    {
+        n_terminals,
+        n_ground_state,
+        n_logical_errors,
+        n_chose_correct_action_per_episode,
+    },
+    per_step:
+    {
+        syndromes_annihilated,
+        syndromes_created
+    },
+    per_p_error:
+    {
+        avg_number_of_steps,
+        mean_q_value,
+        mean_q_value_diff,
+        n_remaining_syndromes
+    }
+    """
     model.eval()
     # initialize environments for different episodes
     total_n_episodes = num_of_random_episodes + num_of_user_episodes
-    if env_string is None or env_string == "":
-        env_string = SurfaceCode()
+    if environment_def is None or environment_def == "":
+        environment_def = SurfaceCode()
 
-    print(f"{env_string.p_error=}")
-    env_set = EnvironmentSet(env_string, total_n_episodes)
+    # print(f"{environment_def.p_error=}")
+    env_set = EnvironmentSet(environment_def, total_n_episodes)
     code_size = env_set.code_size
     syndrome_size = code_size + 1
     stack_depth = env_set.stack_depth
@@ -117,12 +170,19 @@ def run_evaluation_in_batches(
 
     # TODO: make sure states are truly random
     count_same = 0
-    for i in range(total_n_episodes):
-        for j in range(i + 1, total_n_episodes):
+    for i in range(num_of_random_episodes):
+        for j in range(i + 1, num_of_random_episodes):
             if torch.all(torch_states[i] == torch_states[j]):
                 count_same += 1
+                break
     # TODO: remove asserts after testing on GPU
-    assert count_same < total_n_episodes / 4, count_same
+    if count_same / num_of_random_episodes > 0.3:
+        logger.warning(
+            f"{count_same / num_of_random_episodes * 100} percent of states are identical"
+        )
+    assert (
+        count_same / num_of_random_episodes < 1.0
+    ), f"{count_same=}, {count_same / num_of_random_episodes=}"
 
     while global_episode_steps < max_num_of_steps:
         global_episode_steps += 1
@@ -294,16 +354,24 @@ def run_evaluation_in_batches(
         logger.info(f"{common_actions=}, {common_actions.shape=}")
         logger.warning("Warning! Only one action was chosen in all episodes.")
 
-    return (
-        (
-            n_terminals,
-            n_ground_state,
-            n_logical_errors,
-            n_chose_correct_action_per_episode,
-        ),
-        (syndromes_annihilated, syndromes_created),
-        (avg_number_of_steps, mean_q_value, mean_q_value_diff, n_remaining_syndromes),
-    )
+    return {
+        RESULT_KEY_EPISODE: {
+            "terminals_per_env": n_terminals,
+            "ground_state_per_env": n_ground_state,
+            "logical_errors_per_episode": n_logical_errors,
+            "correct_actions_per_episode": n_chose_correct_action_per_episode,
+        },
+        RESULT_KEY_STEP: {
+            "syndromes_annihilated_per_step": syndromes_annihilated,
+            "syndromes_created_per_step": syndromes_created,
+        },
+        RESULT_KEY_P_ERR: {
+            "avg_number_of_steps": avg_number_of_steps,
+            "mean_q_value": mean_q_value,
+            "mean_q_value_difference": mean_q_value_diff,
+            "remaining_syndromes_per_episode": n_remaining_syndromes,
+        },
+    }
 
 
 def create_user_eval_state(
@@ -536,7 +604,7 @@ def calculate_theoretical_max_q_value(state, gamma, discount_inter_reward):
 
 
 def average_episode_metric(
-    value_array, n_environments, finished_array, extra_values_array: List = [0, 0]
+    value_array, n_environments, finished_array, extra_values_array: List = [0]
 ):
     """
     Calculate the average of an episode-based metric (e.g. number of remaining
@@ -561,9 +629,9 @@ def average_episode_metric(
     =======
     avg_value: The average of the accumulated metric
     """
-    # TODO: check linter hint on dangerous default value.
+    # NOTE: aware of linter hint about dangerous default value.
     # Actually, we're not changing the argument, only using the sum of it,
-    # so it should be fine
+    # so it won't alter the content passed as that argument
     if np.any(finished_array):
         denominator_inv = 1.0 / (n_environments + np.sum(finished_array))
         avg_value = (np.sum(value_array) + np.sum(extra_values_array)) * denominator_inv
@@ -571,31 +639,3 @@ def average_episode_metric(
         avg_value = np.mean(value_array)
 
     return avg_value
-
-
-if __name__ == "__main__":
-    from distributed.dummy_agent import DummyModel
-
-    config_ = {
-        "layer1_size": 512,
-        "layer2_size": 512,
-        "code_size": 5,
-        "syndrome_size": 6,
-        "stack_depth": 8,
-        "num_actions_per_qubit": 3,
-    }
-    model_ = DummyModel(config=config_)
-
-    device_ = torch.device("cpu")
-    from time import time
-
-    start_time = time()
-    for _ in range(3):
-        eval_metrics = run_evaluation_in_batches(
-            model_, "", device_, p_err=0.01, p_msmt=0.0
-        )
-
-        print(f"{eval_metrics=}")
-
-    end_time = time()
-    print(f"Time elapsed: {end_time - start_time}")
