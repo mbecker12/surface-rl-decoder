@@ -340,7 +340,7 @@ def run_evaluation_in_batches(
     # state initializations.
     unique_actions = np.unique(common_actions)
     if not len(unique_actions) > 1:
-        logger.info(f"{common_actions=}, {common_actions.shape=}")
+        logger.debug(f"{common_actions=}, {common_actions.shape=}")
         logger.warning("Warning! Only one action was chosen in all episodes.")
 
     return {
