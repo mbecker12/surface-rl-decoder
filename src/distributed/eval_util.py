@@ -144,7 +144,6 @@ def run_evaluation_in_batches(
     is_user_episode = np.zeros(total_n_episodes, dtype=int)
     is_user_episode[num_of_random_episodes:] = 1
 
-    # TODO: comment code
     # prepare user defined episodes
     for j_user_episode in range(num_of_user_episodes):
         j_all_episodes = j_user_episode + num_of_random_episodes
