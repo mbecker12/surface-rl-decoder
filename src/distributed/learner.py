@@ -106,9 +106,9 @@ def learner(args: Dict):
 
     start_time = time()
     max_time_h = args["max_time"]  # hours
-    max_time_min = float(args.get("max_time_minutes", 0)) # minutes
+    max_time_min = float(args.get("max_time_minutes", 0))  # minutes
     max_time = max_time_h * 60 * 60  # seconds
-    max_time += max_time_min * 60 # seconds
+    max_time += max_time_min * 60  # seconds
 
     heart = time()
     heartbeat_interval = 60  # seconds
