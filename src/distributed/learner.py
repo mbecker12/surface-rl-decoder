@@ -158,7 +158,6 @@ def learner(args: Dict):
         current_time = time()
         current_time_ms = time_ms()
         delta_t = current_time - perfromance_start
-        count_to_eval += 1
 
         if time() - start_time > max_time:
             logger.warning("Learner: time exceeded, aborting...")
@@ -166,7 +165,7 @@ def learner(args: Dict):
 
         # after a certain number of steps, update the frozen target network
         if t % target_update_steps == 0 and t > 0:
-            logger.debug("Update target network parameters")
+            logger.info("Update target network parameters")
             update_target_net_start = time()
             params = parameters_to_vector(policy_net.parameters())
             vector_to_parameters(params, target_net.parameters())
@@ -203,36 +202,38 @@ def learner(args: Dict):
                 )
                 tensorboard_step += 1
 
-        # perform the actual learning
-        try:
-            learning_step_start = time()
+            # perform the actual learning
+            try:
+                learning_step_start = time()
 
-            indices, priorities = perform_q_learning_step(
-                policy_net,
-                target_net,
-                device,
-                criterion,
-                optimizer,
-                data,
-                code_size,
-                batch_size,
-                discount_factor,
-            )
-
-            if benchmarking and t % eval_frequency == 0:
-                learning_step_stop = time()
-                logger.info(
-                    f"Time for q-learning step: {learning_step_stop - learning_step_start} s."
+                indices, priorities = perform_q_learning_step(
+                    policy_net,
+                    target_net,
+                    device,
+                    criterion,
+                    optimizer,
+                    data,
+                    code_size,
+                    batch_size,
+                    discount_factor,
                 )
 
-            # update priorities in replay_memory
-            p_update = (indices, priorities)
-            msg = ("priorities", p_update)
-            learner_io_queue.put(msg)
-        except TypeError as _:
-            error_traceback = traceback.format_exc()
-            logger.error("Caught exception in learning step")
-            logger.error(error_traceback)
+                if benchmarking and t % eval_frequency == 0:
+                    learning_step_stop = time()
+                    logger.info(
+                        f"Time for q-learning step: {learning_step_stop - learning_step_start} s."
+                    )
+
+                # update priorities in replay_memory
+                p_update = (indices, priorities)
+                msg = ("priorities", p_update)
+                learner_io_queue.put(msg)
+
+                count_to_eval += 1
+            except TypeError as _:
+                error_traceback = traceback.format_exc()
+                logger.error("Caught exception in learning step")
+                logger.error(error_traceback)
 
         # evaluate policy network
         if eval_frequency != -1 and count_to_eval >= eval_frequency:
@@ -249,6 +250,8 @@ def learner(args: Dict):
                 plot_one_episode=False,
                 epsilon=learner_epsilon,
                 discount_factor_gamma=discount_factor,
+                num_of_random_episodes=8,
+                num_of_user_episodes=8
             )
             if benchmarking:
                 evaluation_stop = time()

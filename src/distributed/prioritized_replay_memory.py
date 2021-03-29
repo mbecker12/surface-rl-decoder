@@ -10,6 +10,7 @@ import random
 from collections import namedtuple
 import numpy as np
 from distributed.sum_tree import SumTree
+import traceback
 
 Transition = namedtuple(
     "Transition", ["state", "action", "reward", "next_state", "terminal"]
@@ -43,15 +44,16 @@ class PrioritizedReplayMemory:
         self.tree = SumTree(memory_size)
         self.memory_size = memory_size
         self.alpha = alpha
+        self.count_sample_errors = 0
 
     def save(self, data, priority):
         """Add new sample.
 
         Parameters
         ----------
-        data : object
+        data: object
             new sample
-        priority : float
+        priority: float
             sample's priority
         """
         self.tree.add(data, priority ** self.alpha)
@@ -89,10 +91,19 @@ class PrioritizedReplayMemory:
         priorities = np.zeros(batch_size, dtype=np.float64)
 
         i = 0
+        max_time = 60
+        start_time = time()
         while i < batch_size:
+            if time() - start_time > max_time:
+                raise TimeoutError(
+                    "Sampling from Prioritized Experience replay exceeded maximum time!"
+                )
+
             rand = random.random()
             try:
                 data, priority, index = self.tree.find(rand)
+                assert data is not None
+
                 priorities[i] = priority
 
                 _weight = (
@@ -105,10 +116,11 @@ class PrioritizedReplayMemory:
                 out.append(data)
                 self.priority_update([index], [0])  # To avoid duplicating
             except AssertionError as _:
-                print(
-                    "Caught AssertionError while trying to sample from replay memory. "
-                    "Skipping to new sample."
-                )
+                # error_traceback = traceback.format_exc()
+                # print(assertion_error)
+                # print(error_traceback)
+                self.count_sample_errors += 1
+                print(f"{self.count_sample_errors=}")
                 continue
             else:
                 i += 1

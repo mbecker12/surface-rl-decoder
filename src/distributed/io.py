@@ -49,7 +49,7 @@ def io_replay_memory(args):
         "summary_date": (str), target path for tensorboard for current run
     """
     heart = time()
-    heartbeat_interval = 60  # seconds
+    heartbeat_interval = 3600  # seconds
 
     # initialization
     learner_io_queue = args["learner_io_queue"]
@@ -79,8 +79,8 @@ def io_replay_memory(args):
     logger = logging.getLogger("io")
     if verbosity >= 4:
         logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.INFO)
+    # else:
+    #     logger.setLevel(logging.INFO)
     logger.info(
         f"Initialized replay memory of type {memory_type}, "
         f"an instance of {type(replay_memory).__name__}."
@@ -116,6 +116,11 @@ def io_replay_memory(args):
     stop_watch = time()
     performance_start = time()
     nvidia_log_time = time()
+    prio_update_toggle = True # for benchmarking priority updates
+    send_data_benchmark_toggle = True # for benchmarking time to send data
+    sample_benchmark_toggle = True # for benchmarking smapling from PER
+    repetitions_send_loop = 0
+    send_loop_log_frequency = 1000
     try:
         nvgpu.gpu_info()
 
@@ -124,7 +129,7 @@ def io_replay_memory(args):
         gpu_available = False
 
     while True:
-
+        sample_benchmark_toggle = True
         # process the transitions sent from the actor process
         while not actor_io_queue.empty():
 
@@ -237,7 +242,9 @@ def io_replay_memory(args):
 
         # prepare to send data to learner process repeatedly
         send_data_to_learner_start = time()
+        
         while start_learning and (io_learner_queue.qsize() < batch_in_queue_limit):
+            repetitions_send_loop += 1
             delta_t = time() - performance_start
             # want to anneal beta from ~0.4 to ~ 1,
             # so decay_factor should be larger than 1
@@ -248,9 +255,14 @@ def io_replay_memory(args):
                 base_factor=memory_beta,
             )
 
+            sample_from_replay_memory_start = time()
             transitions, memory_weights, indices, priorities = replay_memory.sample(
                 batch_size, annealed_beta, tensorboard=tensorboard, verbosity=verbosity
             )
+            sample_from_replay_memory_stop = time()
+            if benchmarking and sample_benchmark_toggle:
+                logger.debug(f"Time to sample {batch_size} samples from replay memory: {sample_from_replay_memory_stop - sample_from_replay_memory_start} s.")
+                sample_benchmark_toggle = False
 
             current_time_ms = time_ms()
             if verbosity >= 2:
@@ -276,19 +288,22 @@ def io_replay_memory(args):
 
             assert len(transitions) == batch_size
             data = (transitions, memory_weights, indices)
-            logger.debug(f"{io_learner_queue.qsize()=}")
-            logger.debug(f"{replay_memory.filled_size()=}")
             io_learner_queue.put(data)
-            logger.debug("Put data in io_learner_queue")
 
             count_consumption_outgoing += batch_size
 
-        if benchmarking:
+            if repetitions_send_loop % send_loop_log_frequency == 0:
+                logger.debug("Put data in io_learner_queue")
+
+        sample_benchmark_toggle = True
+
+        if benchmarking and send_data_benchmark_toggle:
             send_data_to_learner_stop = time()
             logger.debug(
                 "Time to send data to learner: "
                 f"{send_data_to_learner_stop - send_data_to_learner_start} s."
             )
+            send_data_benchmark_toggle = False
 
         # check if the queue from the learner is empty
         while not learner_io_queue.empty():
@@ -298,15 +313,15 @@ def io_replay_memory(args):
 
             if msg == "priorities":
                 # Update priorities
-                logger.debug("received message 'priorities' from learner")
                 indices, priorities = item
                 prio_update_start = time()
                 replay_memory.priority_update(indices, priorities)
-                if benchmarking:
+                if benchmarking and prio_update_toggle:
                     prio_update_stop = time()
                     logger.debug(
                         f"Time to update priorities: {prio_update_stop - prio_update_start} s."
                     )
+                    prio_update_toggle = False
 
             elif msg == "terminate":
                 logger.info("received message 'terminate' from learner")
@@ -314,7 +329,9 @@ def io_replay_memory(args):
                 logger.info(
                     f"Total amount of generated transitions: {n_transitions_total}"
                 )
+        prio_update_toggle = True
 
         if time() - heart > heartbeat_interval:
+            print(f"{time() - heart=}")
             heart = time()
             logger.debug("Oohoh I, ooh, I'm still alive")

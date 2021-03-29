@@ -56,6 +56,8 @@ def data_to_batch(
     # [batch][state, action, reward, next_state, terminal]
     batch = data[0]
     assert batch is not None and len(batch) == batch_size
+    # TODO: seems that some entries in data become None
+    # How can that be?
 
     # the following is only meaningful in prioritized experience replay
     memory_weights = data[1]
@@ -71,7 +73,10 @@ def data_to_batch(
 
     indices = data[2]
 
-    list_state, list_action, list_reward, list_next_state, list_terminal = zip(*batch)
+    try:
+        list_state, list_action, list_reward, list_next_state, list_terminal = zip(*batch)
+    except:
+        print(f"{list(zip(*batch))=}")
 
     batch_state = to_network_input(list_state)
     batch_next_state = to_network_input(list_next_state)

@@ -156,10 +156,13 @@ def actor(args):
         os.path.join(summary_path, str(code_size), summary_date, "actor")
     )
     tensorboard_step = 0
+    steps_to_benchmark = 0
+    benchmark_frequency = 1000
 
     # start the main exploration loop
     while True:
         steps_per_episode += 1
+        steps_to_benchmark += 1
 
         # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32, device=device)
@@ -178,7 +181,7 @@ def actor(args):
             _states, model, state_size - 1, epsilon=annealed_epsilon
         )
 
-        if benchmarking:
+        if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             select_action_stop = time()
             logger.info(
                 f"time for select action: {select_action_stop - select_action_start}"
@@ -207,7 +210,7 @@ def actor(args):
             punish_repeating_actions=0,
         )
 
-        if benchmarking:
+        if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             steps_stop = time()
             logger.info(
                 f"time to step through environments: {steps_stop - steps_start}"
@@ -250,7 +253,7 @@ def actor(args):
                 assert msg is not None
                 assert network_params is not None
                 if msg == "network_update":
-                    logger.debug(
+                    logger.info(
                         "Received new network weights. "
                         f"Taken the latest of {learner_qsize} updates."
                     )
@@ -272,6 +275,14 @@ def actor(args):
             to_send = [
                 *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
             ]
+
+            for elements in to_send:
+                for anything in elements:
+                    try: 
+                        for something in anything:
+                            assert something is not None, f"{elements=}, {anything=}, {something=}"
+                    except:
+                        assert anything is not None, f"{elements=}, {anything=}"
 
             logger.debug("Put data in actor_io_queue")
             actor_io_queue.put(to_send)
