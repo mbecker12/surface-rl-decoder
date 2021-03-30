@@ -24,5 +24,7 @@ jobs:
         python setup.py develop
     - name: Pytest
       run: |
-        python -m pytest --cov-report=annotate --cov=src
+        export CONFIG_ENV_SIZE=5;
+        export CONFIG_ENV_STACK_DEPTH=8;
+        python -m pytest --cov-report=annotate --cov=src;
       
