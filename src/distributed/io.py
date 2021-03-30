@@ -19,7 +19,7 @@ from distributed.io_util import (
 )
 from distributed.replay_memory import ReplayMemory
 from distributed.prioritized_replay_memory import PrioritizedReplayMemory
-from distributed.util import anneal_factor, time_ms
+from distributed.util import anneal_factor, time_tb
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
 
@@ -156,13 +156,13 @@ def io_replay_memory(args):
                 count_transition_received += 1
 
                 if verbosity and (i in random_sample_indices):
-                    current_time_ms = time_ms()
+                    current_time_tb = time_tb()
                     handle_transition_monitoring(
                         tensorboard,
                         _transition,
                         verbosity,
                         tensorboard_step,
-                        current_time_ms,
+                        current_time_tb,
                         TERMINAL_ACTION,
                     )
                     tensorboard_step += 1
@@ -192,23 +192,23 @@ def io_replay_memory(args):
                         "io/received_priorities",
                         received_priorities,
                         tensorboard_step,
-                        walltime=current_time_ms,
+                        walltime=current_time_tb,
                     )
 
             logger.debug("Saved transitions to replay memory")
 
             if verbosity:
                 current_time = time()
-                current_time_ms = time_ms()
+                current_time_tb = time_tb()
 
                 # log gpu stats
                 if gpu_available and nvidia_log_time > nvidia_log_frequency:
                     monitor_gpu_memory(
-                        tensorboard, current_time, performance_start, current_time_ms
+                        tensorboard, current_time, performance_start, current_time_tb
                     )
                 if verbosity >= 3:
                     monitor_cpu_memory(
-                        tensorboard, current_time, performance_start, current_time_ms
+                        tensorboard, current_time, performance_start, current_time_tb
                     )
 
                 # log data churning
@@ -223,7 +223,7 @@ def io_replay_memory(args):
                     stop_watch,
                     current_time,
                     performance_start,
-                    current_time_ms,
+                    current_time_tb,
                 )
 
                 count_transition_received = 0
@@ -264,13 +264,13 @@ def io_replay_memory(args):
                 logger.debug(f"Time to sample {batch_size} samples from replay memory: {sample_from_replay_memory_stop - sample_from_replay_memory_start} s.")
                 sample_benchmark_toggle = False
 
-            current_time_ms = time_ms()
+            current_time_tb = time_tb()
             if verbosity >= 2:
                 tensorboard.add_scalars(
                     "io/beta (PER)",
                     {"beta": annealed_beta},
                     delta_t,
-                    walltime=current_time_ms,
+                    walltime=current_time_tb,
                 )
 
                 if priorities is not None and verbosity >= 4:
@@ -283,7 +283,7 @@ def io_replay_memory(args):
                             "io/sent_data_priorities",
                             sending_priorities,
                             delta_t,
-                            walltime=current_time_ms,
+                            walltime=current_time_tb,
                         )
 
             assert len(transitions) == batch_size

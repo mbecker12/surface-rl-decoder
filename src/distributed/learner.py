@@ -24,7 +24,7 @@ from distributed.model_util import (
     load_model,
     save_model,
 )
-from distributed.util import time_ms
+from distributed.util import time_tb
 
 # pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def learner(args: Dict):
@@ -156,7 +156,7 @@ def learner(args: Dict):
     eval_step = 0
     while t < timesteps:
         current_time = time()
-        current_time_ms = time_ms()
+        current_time_tb = time_tb()
         delta_t = current_time - perfromance_start
 
         if time() - start_time > max_time:
@@ -198,7 +198,7 @@ def learner(args: Dict):
                     "learner/received_data",
                     received_data,
                     delta_t,
-                    walltime=current_time_ms,
+                    walltime=current_time_tb,
                 )
                 tensorboard_step += 1
 
@@ -271,7 +271,7 @@ def learner(args: Dict):
                     step_results,
                     p_error_results,
                     eval_step,
-                    current_time_ms,
+                    current_time_tb,
                 )
 
             eval_step += 1
@@ -287,7 +287,7 @@ def learner(args: Dict):
                             "learner/first_layer",
                             first_layer_params.reshape(-1, 1),
                             tensorboard_step,
-                            walltime=current_time_ms,
+                            walltime=current_time_tb,
                         )
 
                     if i == n_layers - 2:
@@ -296,7 +296,7 @@ def learner(args: Dict):
                             "learner/last_layer",
                             last_layer_params.reshape(-1, 1),
                             tensorboard_step,
-                            walltime=current_time_ms,
+                            walltime=current_time_tb,
                         )
 
         if time() - heart > heartbeat_interval:

@@ -259,7 +259,7 @@ def log_evaluation_data(
     step_results,
     p_error_results,
     evaluation_step,
-    current_time_ms,
+    current_time_tb,
 ):
     """
     Utility function to send the evaluation data to tensorboard.
@@ -269,19 +269,19 @@ def log_evaluation_data(
             f"network/episode, p_error {p_err}",
             episode_results[i],
             evaluation_step,
-            walltime=current_time_ms,
+            walltime=current_time_tb,
         )
 
         tensorboard.add_scalars(
             f"network/step, p_error {p_err}",
             step_results[i],
             evaluation_step,
-            walltime=current_time_ms,
+            walltime=current_time_tb,
         )
 
         tensorboard.add_scalars(
             f"network/p_err, p_error {p_err}",
             p_error_results[i],
             evaluation_step,
-            walltime=current_time_ms,
+            walltime=current_time_tb,
         )

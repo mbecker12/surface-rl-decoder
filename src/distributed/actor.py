@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from distributed.environment_set import EnvironmentSet
 from distributed.model_util import choose_model, extend_model_config, load_model
-from distributed.util import anneal_factor, compute_priorities, select_actions, time_ms
+from distributed.util import anneal_factor, compute_priorities, select_actions, time_tb
 from surface_rl_decoder.surface_code import SurfaceCode
 
 # pylint: disable=too-many-statements,too-many-locals,too-many-branches
@@ -167,7 +167,7 @@ def actor(args):
         # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32, device=device)
         select_action_start = time()
-        current_time_ms = time_ms()
+        current_time_tb = time_tb()
         delta_t = select_action_start - performance_start
 
         annealed_epsilon = anneal_factor(
@@ -192,7 +192,7 @@ def actor(args):
                 "actor/epsilon",
                 {"annealed_epsilon": annealed_epsilon},
                 delta_t,
-                walltime=current_time_ms,
+                walltime=current_time_tb,
             )
 
         # perform the chosen actions
@@ -217,12 +217,12 @@ def actor(args):
             )
 
         if verbosity >= 2:
-            current_time_ms = time_ms()
+            current_time_tb = time_tb()
             tensorboard.add_scalars(
                 "actor/effect_intermediate_reward",
                 {"anneal_factor": annealing_intermediate_reward},
                 delta_t,
-                walltime=current_time_ms,
+                walltime=current_time_tb,
             )
 
         # save transitions to local buffer
@@ -288,12 +288,12 @@ def actor(args):
             actor_io_queue.put(to_send)
             if verbosity >= 4:
                 sent_data_chunks += buffer_idx
-                current_time_ms = time_ms()
+                current_time_tb = time_tb()
                 tensorboard.add_scalar(
                     "actor/sent_data_chunks",
                     sent_data_chunks,
                     delta_t,
-                    walltime=current_time_ms,
+                    walltime=current_time_tb,
                 )
                 tensorboard_step += 1
 

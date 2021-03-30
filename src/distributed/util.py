@@ -343,10 +343,10 @@ def anneal_factor(
     )
 
 
-def time_ms():
+def time_tb():
     """
-    Get the current time in milliseconds.
-    Because tensorboard needs that.
+    Get the current time in seconds.
+    And see how tensorboard is able to handle that...
     But still it can't handle it properly... ¯\\_(ツ)_/¯
     """
-    return int(time() * 1000)
+    return int(time())
