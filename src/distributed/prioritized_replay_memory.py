@@ -96,7 +96,7 @@ class PrioritizedReplayMemory:
         while i < batch_size:
             if time() - start_time > max_time:
                 raise TimeoutError(
-                    "Sampling from Prioritized Experience replay exceeded maximum time!"
+                    "Sampling from Prioritized Experience replay exceeded maximum time! Aborting!"
                 )
 
             rand = random.random()
@@ -120,7 +120,7 @@ class PrioritizedReplayMemory:
                 # print(assertion_error)
                 # print(error_traceback)
                 self.count_sample_errors += 1
-                print(f"{self.count_sample_errors=}")
+                # print(f"{self.count_sample_errors=}")
                 continue
             else:
                 i += 1

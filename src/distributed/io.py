@@ -332,6 +332,7 @@ def io_replay_memory(args):
         prio_update_toggle = True
 
         if time() - heart > heartbeat_interval:
-            print(f"{time() - heart=}")
             heart = time()
+            logger.info(f"PER status update (sampling errors): "
+                + f"{replay_memory.count_sample_errors=}")
             logger.debug("Oohoh I, ooh, I'm still alive")
