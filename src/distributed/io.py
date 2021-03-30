@@ -34,7 +34,7 @@ def io_replay_memory(args):
     Parameters
     ==========
     args: (dict)
-        "actor_io_queue": mp.Queue object to communicate between actor and io module
+        "actor_io_queues": list of mp.Queue objects to communicate between actors and io module
         "learner_io_queue": mp.Queue object to communicate between learner and io module
         "io_learner_queue": mp.Queue object to communicate between io module and learner
         "replay_memory_size": (int) storage size (num of objects) of this replay memory instance
@@ -47,6 +47,13 @@ def io_replay_memory(args):
         "benchmarking": (int/bool) whether or not to perform certain timing actions for benchmarking
         "summary_path": (str), base path for tensorboard
         "summary_date": (str), target path for tensorboard for current run
+        "replay_memory_type": define the type of replay memory,
+            'uniform' and 'prio'/'priority' are supported
+        "replay_memory_alpha": alpha factor for prioritized experience replay
+        "replay_memory_beta": beta factor for prioritized experience replay
+        "replay_memory_decay_beta": how strongly beta factor should be annealed
+        "nvidia_log_frequency": shortest desired time difference between updates
+            in GPU logging
     """
     heart = time()
     heartbeat_interval = 3600  # seconds
@@ -54,7 +61,7 @@ def io_replay_memory(args):
     # initialization
     learner_io_queue = args["learner_io_queue"]
     io_learner_queue = args["io_learner_queue"]
-    actor_io_queue = args["actor_io_queue"]
+    actor_io_queues = args["actor_io_queues"]
     batch_in_queue_limit = 10
     verbosity = args["verbosity"]
     benchmarking = args["benchmarking"]
@@ -121,6 +128,8 @@ def io_replay_memory(args):
     sample_benchmark_toggle = True  # for benchmarking smapling from PER
     repetitions_send_loop = 0
     send_loop_log_frequency = 1000
+
+    visited_actor_indices = set()
     try:
         nvgpu.gpu_info()
 
@@ -131,7 +140,16 @@ def io_replay_memory(args):
     while True:
         sample_benchmark_toggle = True
         # process the transitions sent from the actor process
-        while not actor_io_queue.empty():
+        # TODO: find a way to efficiently loop over the actor_io_queues
+        for i, actor_io_queue in enumerate(actor_io_queues):
+            if actor_io_queue.empty() or i in visited_actor_indices:
+                continue
+
+            visited_actor_indices.add(i)
+            if len(visited_actor_indices) == len(actor_io_queues):
+                visited_actor_indices = set()
+
+            logger.debug(f"Saving transitions from actor {i}")
 
             # explainer for indices of transitions
             # [n_environment][n local memory buffer]

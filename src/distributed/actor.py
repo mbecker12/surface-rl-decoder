@@ -56,6 +56,21 @@ def actor(args):
         "benchmarking": whether certain performance time measurements should be performed
         "summary_path": (str), base path for tensorboard
         "summary_date": (str), target path for tensorboard for current run
+        "load_model": toggle whether to load a pretrained model
+        "old_model_path" if 'load_model' is activated, this is the location from which
+            the old model is loaded
+        "discount_factor": gamma factor in reinforcement learning
+        "discount_intermediate_reward": the discount factor dictating how strongly
+            lower layers should be discounted when calculating the reward for
+            creating/destroying syndromes
+        "min_value_factor_intermediate_reward": minimum value that the effect
+            of the intermediate reward should be annealed to
+        "decay_factor_intermediate_reward": how strongly the intermediate reward should
+            decay over time during a training run
+        "decay_factor_epsilon": how strongly the exploration factor ε should decay
+            over time during a training run
+        "min_value_factor_epsilon": minimum value that the exploration factor ε
+            should be annealed to
     """
     num_environments = args["num_environments"]
     actor_id = args["id"]
@@ -78,7 +93,7 @@ def actor(args):
     decay_factor_epsilon = float(args.get("decay_factor_epsilon", 1.0))
     min_value_factor_epsilon = float(args.get("min_value_factor_epsilon", 0.0))
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("actor")
+    logger = logging.getLogger(f"actor_{actor_id}")
     if verbosity >= 4:
         logger.setLevel(logging.DEBUG)
     else:
@@ -254,7 +269,7 @@ def actor(args):
                 assert network_params is not None
                 if msg == "network_update":
                     logger.info(
-                        "Received new network weights. "
+                        f"Actor {actor_id} received new network weights. "
                         f"Taken the latest of {learner_qsize} updates."
                     )
                     vector_to_parameters(network_params, model.parameters())

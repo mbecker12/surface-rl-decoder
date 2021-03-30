@@ -40,9 +40,11 @@ def learner(args: Dict):
             "learner_io_queue": multiprocessing.Queue
             "io_learner_queue": multiprocessing.Queue
             "verbosity": (int) verbosity level
+            "benchmarking": whether certain performance time measurements should be performed
             "device": torch.device
             "syndrome_size": (int), usually code_distance + 1
             "stack_depth": (int), number of layers in syndrome stack
+            "learning_rate": learning rate for gradient descent
             "target_update_steps": (int), steps after which to update the target
                 network's parameters
             "discount_factor": (float), γ factor in reinforcement learning
@@ -53,6 +55,7 @@ def learner(args: Dict):
             "learner_eval_p_msmt": (List), list of different levels of p_msmt
                 to be used in evaluation
             "max_time": (float/int), max learning time in hours
+            "max_time_minutes": (float/int), max learning time in minutes
             "timesteps": (int), maximum time steps; set to -1 for infinite time steps
             "model_name": (str) specifier for the model
             "model_config": (dict) configuration for network architecture.
@@ -61,11 +64,17 @@ def learner(args: Dict):
                 policy
             "summary_path": (str), base path for tensorboard
             "summary_date": (str), target path for tensorboard for current run
+            "learner_actor_queues": list of mp.Queues,
+                each queue in the list communicates with each of the actors
+            "load_model": toggle whether to load a pretrained model
+            "old_model_path" if 'load_model' is activated, this is the location from which
+                the old model is loaded
+            "save_model_path": path to save model & optimizer state_dict and metadata
     """
     # configuration
     learner_io_queue = args["learner_io_queue"]
     io_learner_queue = args["io_learner_queue"]
-    learner_actor_queue = args["learner_actor_queue"]
+    learner_actor_queues = args["learner_actor_queues"]
     verbosity = args["verbosity"]
     benchmarking = args["benchmarking"]
     load_model_flag = args["load_model"]
@@ -179,8 +188,9 @@ def learner(args: Dict):
 
             # notify the actor process that its network parameters should be updated
             msg = ("network_update", params.detach())
-            logger.debug("Send network weights to actor process")
-            learner_actor_queue.put(msg)
+            for i, learner_actor_queue in enumerate(learner_actor_queues):
+                logger.debug(f"Send network weights to actor {i}")
+                learner_actor_queue.put(msg)
 
         if io_learner_queue.qsize == 0:
             logger.debug("Learner waiting")
