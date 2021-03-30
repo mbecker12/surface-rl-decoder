@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from distributed.environment_set import EnvironmentSet
 from distributed.model_util import choose_model, extend_model_config, load_model
-from distributed.util import anneal_factor, compute_priorities, select_actions, time_ms
+from distributed.util import anneal_factor, compute_priorities, select_actions, time_tb
 from surface_rl_decoder.surface_code import SurfaceCode
 
 # pylint: disable=too-many-statements,too-many-locals,too-many-branches
@@ -56,6 +56,21 @@ def actor(args):
         "benchmarking": whether certain performance time measurements should be performed
         "summary_path": (str), base path for tensorboard
         "summary_date": (str), target path for tensorboard for current run
+        "load_model": toggle whether to load a pretrained model
+        "old_model_path" if 'load_model' is activated, this is the location from which
+            the old model is loaded
+        "discount_factor": gamma factor in reinforcement learning
+        "discount_intermediate_reward": the discount factor dictating how strongly
+            lower layers should be discounted when calculating the reward for
+            creating/destroying syndromes
+        "min_value_factor_intermediate_reward": minimum value that the effect
+            of the intermediate reward should be annealed to
+        "decay_factor_intermediate_reward": how strongly the intermediate reward should
+            decay over time during a training run
+        "decay_factor_epsilon": how strongly the exploration factor ε should decay
+            over time during a training run
+        "min_value_factor_epsilon": minimum value that the exploration factor ε
+            should be annealed to
     """
     num_environments = args["num_environments"]
     actor_id = args["id"]
@@ -78,7 +93,7 @@ def actor(args):
     decay_factor_epsilon = float(args.get("decay_factor_epsilon", 1.0))
     min_value_factor_epsilon = float(args.get("min_value_factor_epsilon", 0.0))
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("actor")
+    logger = logging.getLogger(f"actor_{actor_id}")
     if verbosity >= 4:
         logger.setLevel(logging.DEBUG)
     else:
@@ -156,15 +171,18 @@ def actor(args):
         os.path.join(summary_path, str(code_size), summary_date, "actor")
     )
     tensorboard_step = 0
+    steps_to_benchmark = 0
+    benchmark_frequency = 1000
 
     # start the main exploration loop
     while True:
         steps_per_episode += 1
+        steps_to_benchmark += 1
 
         # select actions based on the chosen model and latest states
         _states = torch.tensor(states, dtype=torch.float32, device=device)
         select_action_start = time()
-        current_time_ms = time_ms()
+        current_time_tb = time_tb()
         delta_t = select_action_start - performance_start
 
         annealed_epsilon = anneal_factor(
@@ -178,7 +196,7 @@ def actor(args):
             _states, model, state_size - 1, epsilon=annealed_epsilon
         )
 
-        if benchmarking:
+        if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             select_action_stop = time()
             logger.info(
                 f"time for select action: {select_action_stop - select_action_start}"
@@ -189,7 +207,7 @@ def actor(args):
                 "actor/epsilon",
                 {"annealed_epsilon": annealed_epsilon},
                 delta_t,
-                walltime=current_time_ms,
+                walltime=current_time_tb,
             )
 
         # perform the chosen actions
@@ -207,19 +225,19 @@ def actor(args):
             punish_repeating_actions=0,
         )
 
-        if benchmarking:
+        if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             steps_stop = time()
             logger.info(
                 f"time to step through environments: {steps_stop - steps_start}"
             )
 
         if verbosity >= 2:
-            current_time_ms = time_ms()
+            current_time_tb = time_tb()
             tensorboard.add_scalars(
                 "actor/effect_intermediate_reward",
                 {"anneal_factor": annealing_intermediate_reward},
                 delta_t,
-                walltime=current_time_ms,
+                walltime=current_time_tb,
             )
 
         # save transitions to local buffer
@@ -250,8 +268,8 @@ def actor(args):
                 assert msg is not None
                 assert network_params is not None
                 if msg == "network_update":
-                    logger.debug(
-                        "Received new network weights. "
+                    logger.info(
+                        f"Actor {actor_id} received new network weights. "
                         f"Taken the latest of {learner_qsize} updates."
                     )
                     vector_to_parameters(network_params, model.parameters())
@@ -273,16 +291,26 @@ def actor(args):
                 *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
             ]
 
+            for elements in to_send:
+                for anything in elements:
+                    try:
+                        for something in anything:
+                            assert (
+                                something is not None
+                            ), f"{elements=}, {anything=}, {something=}"
+                    except:
+                        assert anything is not None, f"{elements=}, {anything=}"
+
             logger.debug("Put data in actor_io_queue")
             actor_io_queue.put(to_send)
             if verbosity >= 4:
                 sent_data_chunks += buffer_idx
-                current_time_ms = time_ms()
+                current_time_tb = time_tb()
                 tensorboard.add_scalar(
                     "actor/sent_data_chunks",
                     sent_data_chunks,
                     delta_t,
-                    walltime=current_time_ms,
+                    walltime=current_time_tb,
                 )
                 tensorboard_step += 1
 

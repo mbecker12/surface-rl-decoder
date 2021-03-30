@@ -19,7 +19,7 @@ from distributed.io_util import (
 )
 from distributed.replay_memory import ReplayMemory
 from distributed.prioritized_replay_memory import PrioritizedReplayMemory
-from distributed.util import anneal_factor, time_ms
+from distributed.util import anneal_factor, time_tb
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
 
@@ -34,7 +34,7 @@ def io_replay_memory(args):
     Parameters
     ==========
     args: (dict)
-        "actor_io_queue": mp.Queue object to communicate between actor and io module
+        "actor_io_queues": list of mp.Queue objects to communicate between actors and io module
         "learner_io_queue": mp.Queue object to communicate between learner and io module
         "io_learner_queue": mp.Queue object to communicate between io module and learner
         "replay_memory_size": (int) storage size (num of objects) of this replay memory instance
@@ -47,14 +47,21 @@ def io_replay_memory(args):
         "benchmarking": (int/bool) whether or not to perform certain timing actions for benchmarking
         "summary_path": (str), base path for tensorboard
         "summary_date": (str), target path for tensorboard for current run
+        "replay_memory_type": define the type of replay memory,
+            'uniform' and 'prio'/'priority' are supported
+        "replay_memory_alpha": alpha factor for prioritized experience replay
+        "replay_memory_beta": beta factor for prioritized experience replay
+        "replay_memory_decay_beta": how strongly beta factor should be annealed
+        "nvidia_log_frequency": shortest desired time difference between updates
+            in GPU logging
     """
     heart = time()
-    heartbeat_interval = 60  # seconds
+    heartbeat_interval = 3600  # seconds
 
     # initialization
     learner_io_queue = args["learner_io_queue"]
     io_learner_queue = args["io_learner_queue"]
-    actor_io_queue = args["actor_io_queue"]
+    actor_io_queues = args["actor_io_queues"]
     batch_in_queue_limit = 10
     verbosity = args["verbosity"]
     benchmarking = args["benchmarking"]
@@ -79,8 +86,8 @@ def io_replay_memory(args):
     logger = logging.getLogger("io")
     if verbosity >= 4:
         logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.INFO)
+    # else:
+    #     logger.setLevel(logging.INFO)
     logger.info(
         f"Initialized replay memory of type {memory_type}, "
         f"an instance of {type(replay_memory).__name__}."
@@ -116,6 +123,13 @@ def io_replay_memory(args):
     stop_watch = time()
     performance_start = time()
     nvidia_log_time = time()
+    prio_update_toggle = True  # for benchmarking priority updates
+    send_data_benchmark_toggle = True  # for benchmarking time to send data
+    sample_benchmark_toggle = True  # for benchmarking smapling from PER
+    repetitions_send_loop = 0
+    send_loop_log_frequency = 1000
+
+    visited_actor_indices = set()
     try:
         nvgpu.gpu_info()
 
@@ -124,9 +138,18 @@ def io_replay_memory(args):
         gpu_available = False
 
     while True:
-
+        sample_benchmark_toggle = True
         # process the transitions sent from the actor process
-        while not actor_io_queue.empty():
+        # TODO: find a way to efficiently loop over the actor_io_queues
+        for i, actor_io_queue in enumerate(actor_io_queues):
+            if actor_io_queue.empty() or i in visited_actor_indices:
+                continue
+
+            visited_actor_indices.add(i)
+            if len(visited_actor_indices) == len(actor_io_queues):
+                visited_actor_indices = set()
+
+            logger.debug(f"Saving transitions from actor {i}")
 
             # explainer for indices of transitions
             # [n_environment][n local memory buffer]
@@ -151,13 +174,13 @@ def io_replay_memory(args):
                 count_transition_received += 1
 
                 if verbosity and (i in random_sample_indices):
-                    current_time_ms = time_ms()
+                    current_time_tb = time_tb()
                     handle_transition_monitoring(
                         tensorboard,
                         _transition,
                         verbosity,
                         tensorboard_step,
-                        current_time_ms,
+                        current_time_tb,
                         TERMINAL_ACTION,
                     )
                     tensorboard_step += 1
@@ -187,23 +210,23 @@ def io_replay_memory(args):
                         "io/received_priorities",
                         received_priorities,
                         tensorboard_step,
-                        walltime=current_time_ms,
+                        walltime=current_time_tb,
                     )
 
             logger.debug("Saved transitions to replay memory")
 
             if verbosity:
                 current_time = time()
-                current_time_ms = time_ms()
+                current_time_tb = time_tb()
 
                 # log gpu stats
                 if gpu_available and nvidia_log_time > nvidia_log_frequency:
                     monitor_gpu_memory(
-                        tensorboard, current_time, performance_start, current_time_ms
+                        tensorboard, current_time, performance_start, current_time_tb
                     )
                 if verbosity >= 3:
                     monitor_cpu_memory(
-                        tensorboard, current_time, performance_start, current_time_ms
+                        tensorboard, current_time, performance_start, current_time_tb
                     )
 
                 # log data churning
@@ -218,7 +241,7 @@ def io_replay_memory(args):
                     stop_watch,
                     current_time,
                     performance_start,
-                    current_time_ms,
+                    current_time_tb,
                 )
 
                 count_transition_received = 0
@@ -237,7 +260,9 @@ def io_replay_memory(args):
 
         # prepare to send data to learner process repeatedly
         send_data_to_learner_start = time()
+
         while start_learning and (io_learner_queue.qsize() < batch_in_queue_limit):
+            repetitions_send_loop += 1
             delta_t = time() - performance_start
             # want to anneal beta from ~0.4 to ~ 1,
             # so decay_factor should be larger than 1
@@ -248,17 +273,24 @@ def io_replay_memory(args):
                 base_factor=memory_beta,
             )
 
+            sample_from_replay_memory_start = time()
             transitions, memory_weights, indices, priorities = replay_memory.sample(
                 batch_size, annealed_beta, tensorboard=tensorboard, verbosity=verbosity
             )
+            sample_from_replay_memory_stop = time()
+            if benchmarking and sample_benchmark_toggle:
+                logger.debug(
+                    f"Time to sample {batch_size} samples from replay memory: {sample_from_replay_memory_stop - sample_from_replay_memory_start} s."
+                )
+                sample_benchmark_toggle = False
 
-            current_time_ms = time_ms()
+            current_time_tb = time_tb()
             if verbosity >= 2:
                 tensorboard.add_scalars(
                     "io/beta (PER)",
                     {"beta": annealed_beta},
                     delta_t,
-                    walltime=current_time_ms,
+                    walltime=current_time_tb,
                 )
 
                 if priorities is not None and verbosity >= 4:
@@ -271,24 +303,27 @@ def io_replay_memory(args):
                             "io/sent_data_priorities",
                             sending_priorities,
                             delta_t,
-                            walltime=current_time_ms,
+                            walltime=current_time_tb,
                         )
 
             assert len(transitions) == batch_size
             data = (transitions, memory_weights, indices)
-            logger.debug(f"{io_learner_queue.qsize()=}")
-            logger.debug(f"{replay_memory.filled_size()=}")
             io_learner_queue.put(data)
-            logger.debug("Put data in io_learner_queue")
 
             count_consumption_outgoing += batch_size
 
-        if benchmarking:
+            if repetitions_send_loop % send_loop_log_frequency == 0:
+                logger.debug("Put data in io_learner_queue")
+
+        sample_benchmark_toggle = True
+
+        if benchmarking and send_data_benchmark_toggle:
             send_data_to_learner_stop = time()
             logger.debug(
                 "Time to send data to learner: "
                 f"{send_data_to_learner_stop - send_data_to_learner_start} s."
             )
+            send_data_benchmark_toggle = False
 
         # check if the queue from the learner is empty
         while not learner_io_queue.empty():
@@ -298,15 +333,15 @@ def io_replay_memory(args):
 
             if msg == "priorities":
                 # Update priorities
-                logger.debug("received message 'priorities' from learner")
                 indices, priorities = item
                 prio_update_start = time()
                 replay_memory.priority_update(indices, priorities)
-                if benchmarking:
+                if benchmarking and prio_update_toggle:
                     prio_update_stop = time()
                     logger.debug(
                         f"Time to update priorities: {prio_update_stop - prio_update_start} s."
                     )
+                    prio_update_toggle = False
 
             elif msg == "terminate":
                 logger.info("received message 'terminate' from learner")
@@ -314,7 +349,12 @@ def io_replay_memory(args):
                 logger.info(
                     f"Total amount of generated transitions: {n_transitions_total}"
                 )
+        prio_update_toggle = True
 
         if time() - heart > heartbeat_interval:
             heart = time()
+            logger.info(
+                f"PER status update (sampling errors): "
+                + f"{replay_memory.count_sample_errors=}"
+            )
             logger.debug("Oohoh I, ooh, I'm still alive")

@@ -24,7 +24,7 @@ from distributed.model_util import (
     load_model,
     save_model,
 )
-from distributed.util import time_ms
+from distributed.util import time_tb
 
 # pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def learner(args: Dict):
@@ -40,9 +40,11 @@ def learner(args: Dict):
             "learner_io_queue": multiprocessing.Queue
             "io_learner_queue": multiprocessing.Queue
             "verbosity": (int) verbosity level
+            "benchmarking": whether certain performance time measurements should be performed
             "device": torch.device
             "syndrome_size": (int), usually code_distance + 1
             "stack_depth": (int), number of layers in syndrome stack
+            "learning_rate": learning rate for gradient descent
             "target_update_steps": (int), steps after which to update the target
                 network's parameters
             "discount_factor": (float), γ factor in reinforcement learning
@@ -53,6 +55,7 @@ def learner(args: Dict):
             "learner_eval_p_msmt": (List), list of different levels of p_msmt
                 to be used in evaluation
             "max_time": (float/int), max learning time in hours
+            "max_time_minutes": (float/int), max learning time in minutes
             "timesteps": (int), maximum time steps; set to -1 for infinite time steps
             "model_name": (str) specifier for the model
             "model_config": (dict) configuration for network architecture.
@@ -61,11 +64,17 @@ def learner(args: Dict):
                 policy
             "summary_path": (str), base path for tensorboard
             "summary_date": (str), target path for tensorboard for current run
+            "learner_actor_queues": list of mp.Queues,
+                each queue in the list communicates with each of the actors
+            "load_model": toggle whether to load a pretrained model
+            "old_model_path" if 'load_model' is activated, this is the location from which
+                the old model is loaded
+            "save_model_path": path to save model & optimizer state_dict and metadata
     """
     # configuration
     learner_io_queue = args["learner_io_queue"]
     io_learner_queue = args["io_learner_queue"]
-    learner_actor_queue = args["learner_actor_queue"]
+    learner_actor_queues = args["learner_actor_queues"]
     verbosity = args["verbosity"]
     benchmarking = args["benchmarking"]
     load_model_flag = args["load_model"]
@@ -156,9 +165,8 @@ def learner(args: Dict):
     eval_step = 0
     while t < timesteps:
         current_time = time()
-        current_time_ms = time_ms()
+        current_time_tb = time_tb()
         delta_t = current_time - perfromance_start
-        count_to_eval += 1
 
         if time() - start_time > max_time:
             logger.warning("Learner: time exceeded, aborting...")
@@ -166,7 +174,7 @@ def learner(args: Dict):
 
         # after a certain number of steps, update the frozen target network
         if t % target_update_steps == 0 and t > 0:
-            logger.debug("Update target network parameters")
+            logger.info("Update target network parameters")
             update_target_net_start = time()
             params = parameters_to_vector(policy_net.parameters())
             vector_to_parameters(params, target_net.parameters())
@@ -180,8 +188,9 @@ def learner(args: Dict):
 
             # notify the actor process that its network parameters should be updated
             msg = ("network_update", params.detach())
-            logger.debug("Send network weights to actor process")
-            learner_actor_queue.put(msg)
+            for i, learner_actor_queue in enumerate(learner_actor_queues):
+                logger.debug(f"Send network weights to actor {i}")
+                learner_actor_queue.put(msg)
 
         if io_learner_queue.qsize == 0:
             logger.debug("Learner waiting")
@@ -199,40 +208,42 @@ def learner(args: Dict):
                     "learner/received_data",
                     received_data,
                     delta_t,
-                    walltime=current_time_ms,
+                    walltime=current_time_tb,
                 )
                 tensorboard_step += 1
 
-        # perform the actual learning
-        try:
-            learning_step_start = time()
+            # perform the actual learning
+            try:
+                learning_step_start = time()
 
-            indices, priorities = perform_q_learning_step(
-                policy_net,
-                target_net,
-                device,
-                criterion,
-                optimizer,
-                data,
-                code_size,
-                batch_size,
-                discount_factor,
-            )
-
-            if benchmarking and t % eval_frequency == 0:
-                learning_step_stop = time()
-                logger.info(
-                    f"Time for q-learning step: {learning_step_stop - learning_step_start} s."
+                indices, priorities = perform_q_learning_step(
+                    policy_net,
+                    target_net,
+                    device,
+                    criterion,
+                    optimizer,
+                    data,
+                    code_size,
+                    batch_size,
+                    discount_factor,
                 )
 
-            # update priorities in replay_memory
-            p_update = (indices, priorities)
-            msg = ("priorities", p_update)
-            learner_io_queue.put(msg)
-        except TypeError as _:
-            error_traceback = traceback.format_exc()
-            logger.error("Caught exception in learning step")
-            logger.error(error_traceback)
+                if benchmarking and t % eval_frequency == 0:
+                    learning_step_stop = time()
+                    logger.info(
+                        f"Time for q-learning step: {learning_step_stop - learning_step_start} s."
+                    )
+
+                # update priorities in replay_memory
+                p_update = (indices, priorities)
+                msg = ("priorities", p_update)
+                learner_io_queue.put(msg)
+
+                count_to_eval += 1
+            except TypeError as _:
+                error_traceback = traceback.format_exc()
+                logger.error("Caught exception in learning step")
+                logger.error(error_traceback)
 
         # evaluate policy network
         if eval_frequency != -1 and count_to_eval >= eval_frequency:
@@ -249,6 +260,8 @@ def learner(args: Dict):
                 plot_one_episode=False,
                 epsilon=learner_epsilon,
                 discount_factor_gamma=discount_factor,
+                num_of_random_episodes=8,
+                num_of_user_episodes=8,
             )
             if benchmarking:
                 evaluation_stop = time()
@@ -268,7 +281,7 @@ def learner(args: Dict):
                     step_results,
                     p_error_results,
                     eval_step,
-                    current_time_ms,
+                    current_time_tb,
                 )
 
             eval_step += 1
@@ -284,7 +297,7 @@ def learner(args: Dict):
                             "learner/first_layer",
                             first_layer_params.reshape(-1, 1),
                             tensorboard_step,
-                            walltime=current_time_ms,
+                            walltime=current_time_tb,
                         )
 
                     if i == n_layers - 2:
@@ -293,7 +306,7 @@ def learner(args: Dict):
                             "learner/last_layer",
                             last_layer_params.reshape(-1, 1),
                             tensorboard_step,
-                            walltime=current_time_ms,
+                            walltime=current_time_tb,
                         )
 
         if time() - heart > heartbeat_interval:
