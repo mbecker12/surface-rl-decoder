@@ -5,6 +5,7 @@ to be used in prioritized replay memory.
 Based on https://github.com/Lindeby/toric-RL-decoder/blob/master/src/SumTree.py
 """
 import math
+import numpy
 
 
 class SumTree:
@@ -18,8 +19,8 @@ class SumTree:
         self.max_size = max_size
         self.tree_level = math.ceil(math.log(max_size + 1, 2)) + 1
         self.tree_size = 2 ** self.tree_level - 1
-        self.tree = [0 for i in range(self.tree_size)]
-        self.data = [None for i in range(self.max_size)]
+        self.tree = [0 for _ in range(self.tree_size)]
+        self.data = [None for _ in range(self.max_size)]
         self.size = 0
         self.cursor = 0
 
@@ -66,6 +67,8 @@ class SumTree:
         """
         tree_index = 2 ** (self.tree_level - 1) - 1 + index
         diff = value - self.tree[tree_index]
+        if isinstance(diff, numpy.ndarray):
+            diff = diff.item()
         self.reconstruct(tree_index, diff)
 
     def reconstruct(self, tindex, diff):
@@ -86,6 +89,9 @@ class SumTree:
         assert value >= 0.0, f"{value=}"
         if norm:
             value *= self.tree[0]
+        if isinstance(value, numpy.ndarray):
+            value = value.item()
+
         return self._find(value, 0, original_value=value)
 
     def _find(self, value, index, original_value=0):
@@ -95,10 +101,17 @@ class SumTree:
         # TODO docu
         if 2 ** (self.tree_level - 1) - 1 <= index:
             data_index = index - (2 ** (self.tree_level - 1) - 1)
+
             assert 0 <= data_index < len(self.data), (
                 f"{original_value=}, {self.tree[0]=}, "
                 f"{(original_value / self.tree[0])=}, {value=}, "
                 f"{data_index=}, {len(self.data)=}, {self.tree_level=}, {index=}\n"
+            )
+
+            assert self.data[data_index] is not None, (
+                f"{data_index=}, "
+                f"{self.data[data_index]=}, {index=}, {self.tree[index]=} "
+                f"{value=}, {original_value=}"
             )
 
             return (
@@ -108,6 +121,10 @@ class SumTree:
             )
 
         left = self.tree[2 * index + 1]
+        if isinstance(value, numpy.ndarray):
+            value = value.item()
+        if isinstance(left, numpy.ndarray):
+            left = left.item()
 
         # pylint: disable=no-else-return
         if value <= left:

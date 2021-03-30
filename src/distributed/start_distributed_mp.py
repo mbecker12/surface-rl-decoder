@@ -105,7 +105,8 @@ def start_mp():
     # set up learner configuration
     learner_verbosity = int(learner_config["verbosity"])
     learner_benchmarking = int(learner_config["benchmarking"])
-    learner_max_time_h = int(learner_config["max_time_h"])
+    learner_max_time_h = float(learner_config["max_time_h"])
+    learner_max_time_minutes = float(learner_config.get("max_time_minutes", 0.0))
     learning_rate = float(learner_config["learning_rate"])
     learner_device = learner_config["device"]
     batch_size = int(learner_config["batch_size"])
@@ -122,10 +123,14 @@ def start_mp():
 
     # initialize communication queues
     logger.info("Initialize queues")
-    actor_io_queue = mp.Queue()
+    actor_io_queues = [None] * num_actors
+    learner_actor_queues = [None] * num_actors
+    for i in range(num_actors):
+        actor_io_queues[i] = mp.Queue()
+        learner_actor_queues[i] = mp.Queue()
+    # actor_io_queue = mp.Queue()
     learner_io_queue = mp.Queue()
     io_learner_queue = mp.Queue()
-    learner_actor_queue = mp.Queue()
 
     model_name = learner_config["model_name"]
     model_config_location = learner_config["model_config_location"]
@@ -141,7 +146,7 @@ def start_mp():
 
     # configure processes
     mem_args = {
-        "actor_io_queue": actor_io_queue,
+        "actor_io_queues": actor_io_queues,
         "learner_io_queue": learner_io_queue,
         "io_learner_queue": io_learner_queue,
         "replay_memory_size": replay_memory_size,
@@ -161,8 +166,6 @@ def start_mp():
     }
 
     actor_args = {
-        "actor_io_queue": actor_io_queue,
-        "learner_actor_queue": learner_actor_queue,
         "num_environments": num_environments,
         "size_action_history": size_action_history,
         "size_local_memory_buffer": size_local_memory_buffer,
@@ -189,12 +192,13 @@ def start_mp():
         "stack_depth": stack_depth,
         "learner_io_queue": learner_io_queue,
         "io_learner_queue": io_learner_queue,
-        "learner_actor_queue": learner_actor_queue,
+        "learner_actor_queues": learner_actor_queues,
         "verbosity": learner_verbosity,
         "benchmarking": learner_benchmarking,
         "summary_path": summary_path,
         "summary_date": summary_date,
         "max_time": learner_max_time_h,
+        "max_time_minutes": learner_max_time_minutes,
         "learning_rate": learning_rate,
         "device": learner_device,
         "target_update_steps": target_update_steps,
@@ -233,6 +237,8 @@ def start_mp():
         else:
             actor_args["device"] = "cpu"
 
+        actor_args["actor_io_queue"] = actor_io_queues[i]
+        actor_args["learner_actor_queue"] = learner_actor_queues[i]
         actor_args["id"] = i
         actor_process.append(mp.Process(target=actor, args=(actor_args,)))
         logger.info(f"Spawn actor process {i} on device {actor_args['device']}")

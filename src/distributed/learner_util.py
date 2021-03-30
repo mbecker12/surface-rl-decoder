@@ -56,6 +56,8 @@ def data_to_batch(
     # [batch][state, action, reward, next_state, terminal]
     batch = data[0]
     assert batch is not None and len(batch) == batch_size
+    # TODO: seems that some entries in data become None
+    # How can that be?
 
     # the following is only meaningful in prioritized experience replay
     memory_weights = data[1]
@@ -71,7 +73,12 @@ def data_to_batch(
 
     indices = data[2]
 
-    list_state, list_action, list_reward, list_next_state, list_terminal = zip(*batch)
+    try:
+        list_state, list_action, list_reward, list_next_state, list_terminal = zip(
+            *batch
+        )
+    except:
+        print(f"{list(zip(*batch))=}")
 
     batch_state = to_network_input(list_state)
     batch_next_state = to_network_input(list_next_state)
@@ -254,7 +261,7 @@ def log_evaluation_data(
     step_results,
     p_error_results,
     evaluation_step,
-    current_time_ms,
+    current_time_tb,
 ):
     """
     Utility function to send the evaluation data to tensorboard.
@@ -264,19 +271,19 @@ def log_evaluation_data(
             f"network/episode, p_error {p_err}",
             episode_results[i],
             evaluation_step,
-            walltime=current_time_ms,
+            walltime=current_time_tb,
         )
 
         tensorboard.add_scalars(
             f"network/step, p_error {p_err}",
             step_results[i],
             evaluation_step,
-            walltime=current_time_ms,
+            walltime=current_time_tb,
         )
 
         tensorboard.add_scalars(
             f"network/p_err, p_error {p_err}",
             p_error_results[i],
             evaluation_step,
-            walltime=current_time_ms,
+            walltime=current_time_tb,
         )

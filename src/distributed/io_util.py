@@ -34,7 +34,7 @@ def assert_transition_shapes(transition, stack_depth, syndrome_size):
 
 
 def add_transition_images_to_tensorboard(
-    tensorboard, transition, tensorboard_step, terminal_action, current_time_ms
+    tensorboard, transition, tensorboard_step, terminal_action, current_time_tb
 ):
     """
     Generate little images from state, next_state, and action and send them to tensorboard.
@@ -52,14 +52,14 @@ def add_transition_images_to_tensorboard(
         _state_float,
         tensorboard_step,
         dataformats="HW",
-        walltime=current_time_ms,
+        walltime=current_time_tb,
     )
     tensorboard.add_image(
         "transition/next_state",
         _next_state_float,
         tensorboard_step,
         dataformats="HW",
-        walltime=current_time_ms,
+        walltime=current_time_tb,
     )
     action_matrix = np.zeros(
         (transition_shape[0] - 1, transition_shape[1] - 1),
@@ -72,11 +72,11 @@ def add_transition_images_to_tensorboard(
         action_matrix,
         tensorboard_step,
         dataformats="HW",
-        walltime=current_time_ms,
+        walltime=current_time_tb,
     )
 
 
-def monitor_gpu_memory(tensorboard, current_time, performance_start, current_time_ms):
+def monitor_gpu_memory(tensorboard, current_time, performance_start, current_time_tb):
     """
     Access and output the status of the VRAM of the GPU to tensorboard.
     """
@@ -92,11 +92,11 @@ def monitor_gpu_memory(tensorboard, current_time, performance_start, current_tim
                 "gpu_mem_used": gpu_mem_used,
             },
             current_time - performance_start,
-            walltime=current_time_ms,
+            walltime=current_time_tb,
         )
 
 
-def monitor_cpu_memory(tensorboard, current_time, performance_start, current_time_ms):
+def monitor_cpu_memory(tensorboard, current_time, performance_start, current_time_tb):
     """
     Output the status of RAM.
     """
@@ -112,7 +112,7 @@ def monitor_cpu_memory(tensorboard, current_time, performance_start, current_tim
             "mem_used / MB": mem_used,
         },
         current_time - performance_start,
-        walltime=current_time_ms,
+        walltime=current_time_tb,
     )
 
 
@@ -125,7 +125,7 @@ def monitor_data_io(
     stop_watch,
     current_time,
     performance_start_time,
-    current_time_ms,
+    current_time_tb,
 ):
     """
     Utility function to log data input/output via tensorboard.
@@ -137,7 +137,7 @@ def monitor_data_io(
             "total # received transitions": transitions_total,
         },
         current_time - performance_start_time,
-        walltime=current_time_ms,
+        walltime=current_time_tb,
     )
     tensorboard.add_scalars(
         "io/speed",
@@ -148,7 +148,7 @@ def monitor_data_io(
             / (current_time - stop_watch),
         },
         current_time - performance_start_time,
-        walltime=current_time_ms,
+        walltime=current_time_tb,
     )
 
 
@@ -157,7 +157,7 @@ def handle_transition_monitoring(
     transition,
     verbosity,
     tensorboard_step,
-    current_time_ms,
+    current_time_tb,
     terminal_action,
 ):
     """
@@ -168,7 +168,7 @@ def handle_transition_monitoring(
         "transition/reward",
         {"reward": transition[2]},
         tensorboard_step,
-        walltime=current_time_ms,
+        walltime=current_time_tb,
     )
 
     if verbosity >= 3:
@@ -180,7 +180,7 @@ def handle_transition_monitoring(
                 "action": transition[1][2],
             },
             tensorboard_step,
-            walltime=current_time_ms,
+            walltime=current_time_tb,
         )
 
     if verbosity >= 5:
@@ -189,5 +189,5 @@ def handle_transition_monitoring(
             transition,
             tensorboard_step,
             terminal_action,
-            current_time_ms,
+            current_time_tb,
         )
