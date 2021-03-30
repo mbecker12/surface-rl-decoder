@@ -56,6 +56,7 @@ class Conv2dAgent(nn.Module):
 
         self.nr_actions_per_qubit = int(config.get("num_actions_per_qubit"))
         self.stack_depth = int(config.get("stack_depth"))
+        self.split_input_toggle = int(config.get("split_input_toggle", 1))
 
         self.input_channels = int(config.get("input_channels"))
         self.kernel_size = int(config.get("kernel_size"))
@@ -167,41 +168,57 @@ class Conv2dAgent(nn.Module):
         """
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
-        x, z, both = self.interface(state)
+        if self.split_input_toggle:
+            x, z, both = self.interface(state)
 
-        x = x.view(
-            -1, self.input_channels, (self.size + 1), (self.size + 1)
-        )  # convolve x
-        x = F.relu(self.input_conv_layer_x(x))
-        x = F.relu(self.nd_conv_layer_x(x))
-        x = F.relu(self.rd_conv_layer_x(x))
-        x = F.relu(self.comp_conv_layer_x(x))
+            x = x.view(
+                -1, self.input_channels, (self.size + 1), (self.size + 1)
+            )  # convolve x
+            x = F.relu(self.input_conv_layer_x(x))
+            x = F.relu(self.nd_conv_layer_x(x))
+            x = F.relu(self.rd_conv_layer_x(x))
+            x = F.relu(self.comp_conv_layer_x(x))
 
-        z = z.view(
-            -1, self.input_channels, (self.size + 1), (self.size + 1)
-        )  # convolve z
-        z = F.relu(self.input_conv_layer_z(z))
-        z = F.relu(self.nd_conv_layer_z(z))
-        z = F.relu(self.rd_conv_layer_z(z))
-        z = F.relu(self.comp_conv_layer_z(z))
+            z = z.view(
+                -1, self.input_channels, (self.size + 1), (self.size + 1)
+            )  # convolve z
+            z = F.relu(self.input_conv_layer_z(z))
+            z = F.relu(self.nd_conv_layer_z(z))
+            z = F.relu(self.rd_conv_layer_z(z))
+            z = F.relu(self.comp_conv_layer_z(z))
 
-        both = both.view(
-            -1, self.input_channels, (self.size + 1), (self.size + 1)
-        )  # convolve both
-        both = F.relu(self.input_conv_layer_both(both))
-        both = F.relu(self.nd_conv_layer_both(both))
-        both = F.relu(self.rd_conv_layer_both(both))
-        both = F.relu(self.comp_conv_layer_both(both))
+            both = both.view(
+                -1, self.input_channels, (self.size + 1), (self.size + 1)
+            )  # convolve both
+            both = F.relu(self.input_conv_layer_both(both))
+            both = F.relu(self.nd_conv_layer_both(both))
+            both = F.relu(self.rd_conv_layer_both(both))
+            both = F.relu(self.comp_conv_layer_both(both))
 
-        complete = (x + z + both) / 3  # add them together
-        # complete = complete.view(
-        #     self.stack_depth, -1, (self.size + 1) * (self.size + 1)
-        # )  # adjust the dimensions due to lstm wanting 3 dimensions with batch on the second
-        complete = complete.view(
-            -1,
-            self.stack_depth,
-            (self.size + 1) * (self.size + 1) * self.output_channels4,
-        )
+            complete = (x + z + both) / 3  # add them together
+            # complete = complete.view(
+            #     self.stack_depth, -1, (self.size + 1) * (self.size + 1)
+            # )  # adjust the dimensions due to lstm wanting 3 dimensions with batch on the second
+            complete = complete.view(
+                -1,
+                self.stack_depth,
+                (self.size + 1) * (self.size + 1) * self.output_channels4,
+            )
+        else:
+            state = state.view(
+                -1, self.input_channels, (self.size + 1), (self.size + 1)
+            )  # convolve both
+            state = F.relu(self.input_conv_layer_both(state))
+            state = F.relu(self.nd_conv_layer_both(state))
+            state = F.relu(self.rd_conv_layer_both(state))
+            state = F.relu(self.comp_conv_layer_both(state))
+
+            complete = state.view(
+                -1,
+                self.stack_depth,
+                (self.size + 1) * (self.size + 1) * self.output_channels4,
+            )
+
         output, (_h, _c) = self.lstm_layer(complete)
         assert (
             output.shape[1] == self.stack_depth
