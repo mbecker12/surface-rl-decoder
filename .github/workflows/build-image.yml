@@ -20,10 +20,11 @@ jobs:
         push: true
         repository: xero32/qec-mp
         tags: ${GITHUB_SHA}
-    - name: Convert to Singularity Image
+    - name: Prepare Singularity Environment
       uses: eWaterCycle/setup-singularity@v6
       with:
           singularity-version: 3.7.1
+    - name: Convert to Singularity Image
       run: singularity build qec-mp_${GITHUB_REF##*/}.sif docker://xero32/qec-mp:${GITHUB_REF##*/}
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
