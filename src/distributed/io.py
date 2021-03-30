@@ -116,9 +116,9 @@ def io_replay_memory(args):
     stop_watch = time()
     performance_start = time()
     nvidia_log_time = time()
-    prio_update_toggle = True # for benchmarking priority updates
-    send_data_benchmark_toggle = True # for benchmarking time to send data
-    sample_benchmark_toggle = True # for benchmarking smapling from PER
+    prio_update_toggle = True  # for benchmarking priority updates
+    send_data_benchmark_toggle = True  # for benchmarking time to send data
+    sample_benchmark_toggle = True  # for benchmarking smapling from PER
     repetitions_send_loop = 0
     send_loop_log_frequency = 1000
     try:
@@ -242,7 +242,7 @@ def io_replay_memory(args):
 
         # prepare to send data to learner process repeatedly
         send_data_to_learner_start = time()
-        
+
         while start_learning and (io_learner_queue.qsize() < batch_in_queue_limit):
             repetitions_send_loop += 1
             delta_t = time() - performance_start
@@ -261,7 +261,9 @@ def io_replay_memory(args):
             )
             sample_from_replay_memory_stop = time()
             if benchmarking and sample_benchmark_toggle:
-                logger.debug(f"Time to sample {batch_size} samples from replay memory: {sample_from_replay_memory_stop - sample_from_replay_memory_start} s.")
+                logger.debug(
+                    f"Time to sample {batch_size} samples from replay memory: {sample_from_replay_memory_stop - sample_from_replay_memory_start} s."
+                )
                 sample_benchmark_toggle = False
 
             current_time_tb = time_tb()
@@ -333,6 +335,8 @@ def io_replay_memory(args):
 
         if time() - heart > heartbeat_interval:
             heart = time()
-            logger.info(f"PER status update (sampling errors): "
-                + f"{replay_memory.count_sample_errors=}")
+            logger.info(
+                f"PER status update (sampling errors): "
+                + f"{replay_memory.count_sample_errors=}"
+            )
             logger.debug("Oohoh I, ooh, I'm still alive")

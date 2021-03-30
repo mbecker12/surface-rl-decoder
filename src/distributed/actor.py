@@ -278,9 +278,11 @@ def actor(args):
 
             for elements in to_send:
                 for anything in elements:
-                    try: 
+                    try:
                         for something in anything:
-                            assert something is not None, f"{elements=}, {anything=}, {something=}"
+                            assert (
+                                something is not None
+                            ), f"{elements=}, {anything=}, {something=}"
                     except:
                         assert anything is not None, f"{elements=}, {anything=}"
 

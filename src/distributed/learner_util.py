@@ -74,7 +74,9 @@ def data_to_batch(
     indices = data[2]
 
     try:
-        list_state, list_action, list_reward, list_next_state, list_terminal = zip(*batch)
+        list_state, list_action, list_reward, list_next_state, list_terminal = zip(
+            *batch
+        )
     except:
         print(f"{list(zip(*batch))=}")
 

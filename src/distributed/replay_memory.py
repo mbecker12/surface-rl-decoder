@@ -17,7 +17,7 @@ class ReplayMemory:
         self.memory_size = memory_size
         self.current_num_objects = 0
         self.is_full_memory = False
-        self.count_sample_errors = 0 # for compatibility
+        self.count_sample_errors = 0  # for compatibility
 
     # pylint: disable=unused-argument
     def save(self, obj, prio=None):

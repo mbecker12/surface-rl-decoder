@@ -251,7 +251,7 @@ def learner(args: Dict):
                 epsilon=learner_epsilon,
                 discount_factor_gamma=discount_factor,
                 num_of_random_episodes=8,
-                num_of_user_episodes=8
+                num_of_user_episodes=8,
             )
             if benchmarking:
                 evaluation_stop = time()

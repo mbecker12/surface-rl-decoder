@@ -7,6 +7,7 @@ Based on https://github.com/Lindeby/toric-RL-decoder/blob/master/src/SumTree.py
 import math
 import numpy
 
+
 class SumTree:
     """
     Initialize a sum tree object to store
@@ -107,9 +108,11 @@ class SumTree:
                 f"{data_index=}, {len(self.data)=}, {self.tree_level=}, {index=}\n"
             )
 
-            assert self.data[data_index] is not None, f"{data_index=}, " \
-                f"{self.data[data_index]=}, {index=}, {self.tree[index]=} " \
-                    f"{value=}, {original_value=}"
+            assert self.data[data_index] is not None, (
+                f"{data_index=}, "
+                f"{self.data[data_index]=}, {index=}, {self.tree[index]=} "
+                f"{value=}, {original_value=}"
+            )
 
             return (
                 self.data[data_index],
