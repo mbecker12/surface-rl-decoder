@@ -390,6 +390,6 @@ def check_repeating_action(action, action_history, max_action_index):
     n_repeating_actions: the number of how often action has already occured in the action histoy
     """
     n_repeating_actions = sum(
-        [np.all(action == action_history[i]) for i in range(max_action_index)]
+        [np.array_equal(action, action_history[i]) for i in range(max_action_index)]
     )
     return n_repeating_actions
