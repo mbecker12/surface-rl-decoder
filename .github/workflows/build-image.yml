@@ -20,7 +20,7 @@ jobs:
       id: pushtodocker
       env:
         commit_sha: ${GITHUB_SHA}
-        branch_name: ${GITHUB_REF#refs/heads/}
+        branch_name: ci
       with:
         push: true
         repository: xero32/qec-mp
