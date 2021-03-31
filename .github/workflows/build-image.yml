@@ -19,20 +19,21 @@ jobs:
       uses: docker/build-push-action@v1
       id: pushtodocker
       env:
-        COMMIT_SHA: ${GITHUB_SHA}
+        commit_sha: ${GITHUB_SHA}
+        branch_name: ${GITHUB_REF##*/}
       with:
         push: true
         repository: xero32/qec-mp
-        tags: ${{ steps.pushtodocker.env.COMMIT_SHA }}
+        tags: ${{ steps.pushtodocker.env.commit_sha }}
     - name: Prepare Singularity Environment
       uses: eWaterCycle/setup-singularity@v6
       with:
           singularity-version: 3.7.1
     - name: Convert to Singularity Image
-      run: singularity build qec-mp_${GITHUB_REF##*/}.sif docker://xero32/qec-mp:${GITHUB_REF##*/}
+      run: singularity build qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif docker://xero32/qec-mp:${{ steps.pushtodocker.env.branch_name }}
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
       with:
-        name: qec-mp_${GITHUB_REF##*/}.sif
-        path: qec-mp_${GITHUB_REF##*/}.sif
+        name: qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif
+        path: qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif
         retention-days: 1
