@@ -2,8 +2,8 @@
     "conv2d_lstm": {
         "split_input_toggle": 0,
         "input_channels": 1,
-        "kernel_size": 3,
-        "padding_size": 1,
+        "kernel_size": 1,
+        "padding_size": 0,
         "output_channels": 32,
         "output_channels2": 64,
         "output_channels3": 32,
