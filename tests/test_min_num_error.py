@@ -5,6 +5,7 @@ from src.surface_rl_decoder.surface_code import SurfaceCode
 SUCCESS_RATE = 0.95
 MIN_ERROR = 5
 N_ITERATIONS = 1000
+N_ITERATIONS_MIN_ERR = 200
 
 
 def test_min_x_errors(sc):
@@ -99,11 +100,11 @@ def test_init_nonzero_min_qbit_error():
     os.environ["CONFIG_ENV_MIN_QBIT_ERR"] = "3"
 
     successes = 0
-    for _ in range(N_ITERATIONS):
+    for _ in range(N_ITERATIONS_MIN_ERR):
         scode = SurfaceCode()
         scode.reset()
         if scode.qubits.sum() >= MIN_ERROR and scode.actual_errors.sum() >= MIN_ERROR:
             successes += 1
 
     os.environ["CONFIG_ENV_MIN_QBIT_ERR"] = original_min_qb_error
-    assert successes / N_ITERATIONS >= SUCCESS_RATE
+    assert successes / N_ITERATIONS_MIN_ERR >= SUCCESS_RATE
