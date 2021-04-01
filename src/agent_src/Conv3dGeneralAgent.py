@@ -1,3 +1,8 @@
+"""
+Implementation of an agent containing 3D convolutional layers
+followed by linear layers
+
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,7 +11,7 @@ from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 
 class Conv3dGeneralAgent(nn.Module):
 
-     """
+    """
     Description:
         Fourth iteration of an agent. Consists of multiple 3D convolutional layers.
         Splits the input into x,z and both errors which it then proceeds to feed each part into a neural network
@@ -16,38 +21,48 @@ class Conv3dGeneralAgent(nn.Module):
 
     Parameters
     ==========
-        size: the length of the surface code
-        nr_actions_per_cubit: in most cases should be 3 but can be adjusted, it is the number of types of correction actions that can be applied on the qubit
+    config: dictionary containing configuration for the netwok. Expected keys:
+        device: the device the code is working on
+        split_input_toggle: an int indicating true or false of whether or not the input should be split
+        code_size: the length of the surface code
+        num_actions_per_cubit: in most cases should be 3 but can be adjusted, it is the number of types of correction actions that can be applied on the qubit
         stack_depth: the length of the dimension with aspect to time
 
         input_channels: the size of the number of channels at the input. Should be 1 in most cases but can be adjusted if one wishes
         output_channels: the number of output channels from the first 3d convolution
         output_channels2: the number of output channels from the second 3d convolution
         output_channels3: the number of output channels from the third 3d convolution
+        output_channels4: the number of output channels from the fourth 3d convolution
+
+        neurons_lin_layer: number of neurons for the second-to-last linear layer
         
         kernel_size: the size of the kernel
         padding_size: the amount of padding, should be a number such that the shortening in dimension length due to the kernel is negated
 
     """
 
-
     def __init__(self, config):
-        super(QuantumAgent4,self).__init__()
+        super(Conv3dGeneralAgent,self).__init__()
         
-        self.size = int(config.get("size"))
-        syndrome_surface_size = (self.size+1)*(self.size+1)
-        self.nr_actions_per_qubit = int(config.get("nr_actions_per_qubit"))
+        self.device = config.get("device")
+        self.plaquette_mask = torch.tensor(plaquette_mask,  device = self.device)
+        self.vertex_mask = torch.tensor(vertex_mask, device = self.device)
+        self.split_input_toggle = int(config.get("split_input_toggle", 1))
+
+        self.size = int(config.get("code_size"))
+        self.nr_actions_per_qubit = int(config.get("num_actions_per_qubit"))
         self.stack_depth = int(config.get("stack_depth"))
 
         self.input_channels = int(config.get("input_channels"))
-        self.kernel_size = int(config.get("kernel_size"))
         self.output_channels = int(config.get("output_channels"))
         self.output_channels2 = int(config.get("output_channels2"))
         self.output_channels3 = int(config.get("output_channels3"))
         self.output_channels4 = int(config.get("output_channels4"))
+
+        self.neurons_lin_layer = int(config.get("neurons_lin_layer"))
+
         self.padding_size = int(config.get("padding_size"))
-
-
+        self.kernel_size = int(config.get("kernel_size"))
 
         self.input_conv_layerX = nn.Conv3d(self.input_channels, self.output_channels, self.kernel_size, padding = self.padding_size)
         self.input_conv_layerBoth = nn.Conv3d(self.input_channels,self.output_channels, self.kernel_size, padding = self.padding_size)
@@ -67,42 +82,58 @@ class Conv3dGeneralAgent(nn.Module):
 
 
         
-        self.almost_final_layer = nn.Linear((self.size+1)*(self.size+1)*self.output_channels4 , self.nr_actions_per_qubit*(self.size)*(self.size)+1)
-        self.final_layer = nn.Linear(self.nr_actions_per_qubit*(self.size)*(self.size)+1,self.nr_actions_per_qubit*(self.size)*(self.size)+1)
+        self.almost_final_layer = nn.Linear((self.size+1)*(self.size+1)*self.output_channels4 , self.neurons_lin_layer)
+        self.final_layer = nn.Linear(self.neurons_lin_layer,self.nr_actions_per_qubit*(self.size)*(self.size)+1)
 
 
 
     def forward(self, state):
-        x, z, both = self.interface(state) #multiple input channels for different procedures, they are then concatenated as the data is processed
+        """
+        forward pass
+        """
 
-        x = x.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1)) #convolve x
-        x = F.relu(self.input_conv_layerX(x))
-        x = F.relu(self.nd_conv_layerX(x))
-        x = self.rd_conv_layerX(x)
-        x = self.comp_conv_layerX(x)
+        if self.split_input_toggle:
+            x, z, both = self.interface(state) #multiple input channels for different procedures, they are then concatenated as the data is processed
 
-        z = z.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1)) #convolve z
-        z = F.relu(self.input_conv_layerZ(z))
-        z = F.relu(self.nd_conv_layerZ(z))
-        z = self.rd_conv_layerZ(z)
-        z = self.comp_conv_layerZ(z)
+            x = x.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1)) #convolve x
+            x = F.relu(self.input_conv_layerX(x))
+            x = F.relu(self.nd_conv_layerX(x))
+            x = self.rd_conv_layerX(x)
+            x = self.comp_conv_layerX(x)
 
-        both = both.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1)) #convolve both
-        both = F.relu(self.input_conv_layerBoth(both))
-        both = F.relu(self.nd_conv_layerBoth(both))
-        both = self.rd_conv_layerBoth(both)
-        both = self.comp_conv_layerBoth(both)
+            z = z.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1)) #convolve z
+            z = F.relu(self.input_conv_layerZ(z))
+            z = F.relu(self.nd_conv_layerZ(z))
+            z = self.rd_conv_layerZ(z)
+            z = self.comp_conv_layerZ(z)
 
-        complete = (x+z+both)/3 #add them together
-        complete = complete.view(-1, self.stack_depth,  (self.size+1)*(self.size+1)*self.output_channels4) #make sure the dimensions are in order
+            both = both.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1)) #convolve both
+            both = F.relu(self.input_conv_layerBoth(both))
+            both = F.relu(self.nd_conv_layerBoth(both))
+            both = self.rd_conv_layerBoth(both)
+            both = self.comp_conv_layerBoth(both)
+
+            complete = (x+z+both)/3 #add them together
+            complete = complete.view(-1, self.stack_depth,  (self.size+1)*(self.size+1)*self.output_channels4) #make sure the dimensions are in order
+        else:
+            both = state.view(-1, self.input_channels, self.stack_depth, (self.size+1), (self.size+1)) #convolve both
+            both = F.relu(self.input_conv_layerBoth(both))
+            both = F.relu(self.nd_conv_layerBoth(both))
+            both = self.rd_conv_layerBoth(both)
+            both = self.comp_conv_layerBoth(both)
+ 
+            complete = both.view(-1, self.stack_depth,  (self.size+1)*(self.size+1)*self.output_channels4) #make sure the dimensions are in order
+
+
+
         complete = self.almost_final_layer(complete)
-        complete = complete.view(self.stack_depth, -1,   self.nr_actions_per_qubit*(self.size)*(self.size)+1) #shift the dimension so that
-        final_output = self.final_layer(complete[-1])   #dimension -1 gives us a matrix/vector with regards to batch and actions for each of those batches
+        complete = complete.view( -1, self.stack_depth, self.nr_actions_per_qubit*(self.size)*(self.size)+1) #shift the dimension so that
+        final_output = self.final_layer(complete[:,-1,:])   #dimension -1 gives us a matrix/vector with regards to batch and actions for each of those batches
         
         
         return final_output
 
     def interface(self, state): #helper function to split up the input
-        x = state*plaquette_mask
-        z = state*vertex_mask
+        x = state*self.plaquette_mask
+        z = state*self.vertex_mask
         return x, z, state
