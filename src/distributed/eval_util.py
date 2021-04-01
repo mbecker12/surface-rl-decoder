@@ -129,6 +129,7 @@ def run_evaluation_in_batches(
     syndromes_created = 0
     q_value_aggregation = np.zeros(total_n_episodes)
     q_value_diff_aggregation = np.zeros(total_n_episodes)
+    q_value_certainty_aggregation = np.zeros(total_n_episodes)
     correct_actions_aggregation = np.zeros(num_of_user_episodes)
 
     # count how often an environment has finished and the number of steps it took
@@ -214,9 +215,15 @@ def run_evaluation_in_batches(
 
         # get info about max q values
         actions_in_one_episode[:, global_episode_steps - 1] = q_value_indices
-        q_value = np.take(q_values, q_value_indices)
+        # gives the indices of the highest values for each row
+        top_idx = np.argpartition(q_values, (-2, -1), axis=1)[:, -2:]
+        highest_q_values = q_values[np.arange(q_values.shape[0])[:, None], top_idx]
+        q_value = highest_q_values[:, -1]
+        second_q_value = highest_q_values[:, -2]
+
         q_value_aggregation += q_value
         q_value_diff_aggregation += q_value - theoretical_q_values
+        q_value_certainty_aggregation += q_value - second_q_value
 
         # apply the chosen action
         next_states, _, terminals, _ = env_set.step(
@@ -333,6 +340,8 @@ def run_evaluation_in_batches(
     # q_value_aggregation contains info of every step in every episode
     mean_q_value = np.mean(q_value_aggregation) / max_num_of_steps
     mean_q_value_diff = np.mean(q_value_diff_aggregation) / max_num_of_steps
+    std_q_value = np.std(q_value_aggregation) / max_num_of_steps
+    q_value_certainty = np.mean(q_value_certainty_aggregation) / max_num_of_steps
 
     # An untrained network seems to choose a certain action lots of times
     # within an episode.
@@ -341,7 +350,9 @@ def run_evaluation_in_batches(
     unique_actions = np.unique(common_actions)
     if not len(unique_actions) > 1:
         logger.debug(f"{common_actions=}, {common_actions.shape=}")
-        logger.warning("Warning! Only one action was chosen in all episodes.")
+        logger.warning(
+            f"Warning! Only one action was chosen in all episodes. Most common action index: {unique_actions}"
+        )
 
     return {
         RESULT_KEY_EPISODE: {
@@ -349,6 +360,7 @@ def run_evaluation_in_batches(
             "ground_state_per_env": n_ground_state,
             "logical_errors_per_episode": n_logical_errors,
             "correct_actions_per_episode": n_chose_correct_action_per_episode,
+            "remaining_syndromes_per_episode": n_remaining_syndromes,
         },
         RESULT_KEY_STEP: {
             "syndromes_annihilated_per_step": syndromes_annihilated,
@@ -357,8 +369,9 @@ def run_evaluation_in_batches(
         RESULT_KEY_P_ERR: {
             "avg_number_of_steps": avg_number_of_steps,
             "mean_q_value": mean_q_value,
+            "std_q_value": std_q_value,
             "mean_q_value_difference": mean_q_value_diff,
-            "remaining_syndromes_per_episode": n_remaining_syndromes,
+            "q_value_certainty": q_value_certainty,
         },
     }
 
