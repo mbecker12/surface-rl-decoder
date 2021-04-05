@@ -88,3 +88,107 @@ class DQN_Agent():
                 #logger.info("new goal: {}".format(new_goal))
 
                 for new_goal in new_goals:
+                    #logger.info("--- Her Sampling ---")
+                    #logger.info("new goal: {}".format(new_goal))
+
+                    r_ = self.reward_function(state[:BIT_LENGTH], new_goal) #next_state
+                    #logger.info("new reward: {}".format(r_))
+
+                    next_state = np.concatenate((next_state[:BIT_LENGTH], new_goal))
+                    state = np.concatenate((state[:BIT_LENGTH], new_goal))
+
+                    if(next_state[:BIT_LENGTH] == new_goal).all():
+                        d = 1
+                    else:
+                        d = 0
+                    self.memory.add(state, action, r_, next_state, d)
+
+            N = len(self.current_episode)
+            for _in range(N):
+                #If enough samples are available in memory, get random subset and learn
+                if len(self.memory) > self.batch_size:
+                    experiences = self.memory.sample()
+                    loss = self.learn(experiences)
+                    self.Q_updates += 1
+                    writer.add_scalar("Q_loss", loss, self. Q_updates)
+            self.current_episode = []
+
+    def reward_function(self, state, goal):
+        return if (state == goal).all() else -1
+
+    def sample_goals(self, idx, n):
+        new_goals = []
+        for _in range(n):
+            transition = random.choice(self.current_episode[idx:])
+
+            new_goal = transition[0][:BIT_LENGTH]
+            new_goals.append(new_goal)
+        return new_goals
+
+    def act(self, state, eps = 0.):
+        """Returns actions for given state as per current policy. Acting only every 4 frames
+
+        Parameters
+        ==========
+            frame: to adjust epsilon
+            state (array_like): current state
+
+        """
+
+        state = np.array(state)
+
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        self.qnetwork_local.eval()
+        with torch.no_grad():
+            action_values = self.qnetwork_local(state)
+        self.qnetwork_local.train()
+
+        #Epsilon-greedy action selection
+        if random.random() > eps: # select greedy action if random number is higher than epsilon or noisy network is used
+            action = np.argmax(action_values.cpu().data.numpy())
+            self.last_action = action
+            return action
+
+
+    def learn(self, experiences):
+        """Update value parameters using given batch of experience tuples
+
+        Parameters
+        ==========
+            experiences: (Tuple[torch.Tensor]) tuple of (s, a, r, s', done) tuples
+            gamma: (float) discount factor
+        """
+
+        self.optimizer.zero_grad()
+        states, actions, rewards, next_states, dones = experiences
+        #Get max predicted Q values (for next states) from target model
+        Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+        #Compute Q targets for current states
+        Q_targets = rewards + (self.GAMMA**self.n_step * Q_targets_next * (1-dones))
+        #get expected Q values from local model
+        Q_expected = self.qnetwork_local(states).gather(1,actions)
+        #Compute loss
+        loss = F.mse_loss(Q_expected, Q_targets) #mse_loss
+        #Minimize the loss
+        loss.backward()
+        clip_grad_norm_(self.qnetwork_local.parameters(),1)
+        self.optimizer.step()
+
+        #-------------update target network --------------#
+        self.soft_update(self.qnetwork_local, self.qnetwork_target)
+        return loss.detach().cpu().numpy()
+
+
+    def soft_update(self, local_model, target_model):
+        """Soft update model parameters
+        theta_target = tau*theta_local + (1-tau)*theta_target
+        Parameters
+        ==========
+            local_model: (PyTorch model) weights will be copied from
+            target_model: (PyTorch model)
+            tau: (float) interpolation parameter
+
+        """
+
+        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
+            target_param.data.copy_(self.tau * local_param.data + (1.0-self.tau) * target_param.data)
