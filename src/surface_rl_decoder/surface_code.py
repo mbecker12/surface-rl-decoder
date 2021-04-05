@@ -13,6 +13,7 @@ from .surface_code_util import (
     NON_TRIVIAL_LOOP_REWARD,
     REPEATING_ACTION_REWARD,
     SOLVED_EPISODE_REWARD,
+    STATE_MULTIPLIER,
     SYNDROME_LEFT_REWARD,
     check_final_state,
     check_repeating_action,
@@ -204,7 +205,9 @@ class SurfaceCode(gym.Env):
             self.qubits, self.vertex_mask, self.plaquette_mask
         )
 
-        self.next_state = np.logical_xor(syndrome, self.syndrome_errors)
+        self.next_state = (
+            np.logical_xor(syndrome, self.syndrome_errors) * STATE_MULTIPLIER
+        )
 
         intermediate_reward = compute_intermediate_reward(
             self.state,
@@ -482,6 +485,7 @@ class SurfaceCode(gym.Env):
         else:
             self.state = true_syndrome
 
+        self.state *= STATE_MULTIPLIER
         # save the introduced syndrome errors by checking the difference
         # between the true syndrome from qubit errors
         # and the updated syndrome with measurement errors

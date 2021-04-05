@@ -13,9 +13,12 @@ RULE_TABLE = np.array(
 # reward scores
 NON_TRIVIAL_LOOP_REWARD = -17
 SYNDROME_LEFT_REWARD = -5
-SOLVED_EPISODE_REWARD = 25
+SOLVED_EPISODE_REWARD = 150
 SYNDROME_DIFF_REWARD = 0.5
 REPEATING_ACTION_REWARD = -2
+
+# alter state
+STATE_MULTIPLIER = 20
 
 
 def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
