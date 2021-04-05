@@ -55,10 +55,10 @@ class EnvironmentSet:
         =======
         states: the collection of states of all environments in this environment set
         """
-
         if p_error is None and p_msmt is None:
             for idx in indices:
                 self._states[idx] = self.environments[idx].reset()
+
         else:
             assert p_error is not None, "Both p_error and p_msmt need to be defined"
             assert p_msmt is not None, "Both p_error and p_msmt need to be defined"
@@ -66,7 +66,6 @@ class EnvironmentSet:
                 self._states[idx] = self.environments[idx].reset(
                     p_error=p_error[idx], p_msmt=p_msmt[idx]
                 )
-
         return self._states
 
     def reset_all(

@@ -26,6 +26,7 @@ from surface_rl_decoder.surface_code_util import (
 RESULT_KEY_EPISODE = "per_episode"
 RESULT_KEY_STEP = "per_step"
 RESULT_KEY_P_ERR = "per_p_err"
+RESULT_KEY_HISTOGRAM_Q_VALUES = "all_q_values"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("eval")
@@ -47,6 +48,7 @@ def run_evaluation_in_batches(
     punish_repeating_actions=0,
     p_err=0.0,
     p_msmt=0.0,
+    verbosity=0,
 ):
     """
     Run some evaluation episodes for fixed p_error and p_msmt.
@@ -74,6 +76,7 @@ def run_evaluation_in_batches(
         enable punishment for repeating actions that already exist in the action history
     discount_intermediate_reward: (optional) discount factor determining how much
         early layers should be discounted when calculating the intermediate reward
+    verbosity: (int) verbosity level
 
     Returns
     =======
@@ -160,7 +163,12 @@ def run_evaluation_in_batches(
         expected_actions_per_episode[j_user_episode] = expected_actions
         theoretical_q_values[j_all_episodes] = theoretical_q_value
 
-    torch_states = torch.tensor(states, dtype=torch.float32).to(device)
+    if verbosity >= 5:
+        all_q_values = np.zeros(
+            (max_num_of_steps, total_n_episodes, 3 * code_size ** 2 + 1)
+        )
+    else:
+        all_q_values = None
 
     # iterate through different episodes/environments
     # and handle them in parallel
@@ -169,9 +177,13 @@ def run_evaluation_in_batches(
         steps_per_episode += 1
 
         # let the agent do its work
+        torch_states = torch.tensor(states, dtype=torch.float32).to(device)
         actions, q_values = select_actions(
             torch_states, model, code_size, epsilon=epsilon
         )
+
+        if verbosity >= 5:
+            all_q_values[global_episode_steps - 1, :, :] = q_values
 
         # revert action back to q value index fo later use
         q_value_indices = np.array(
@@ -289,11 +301,13 @@ def run_evaluation_in_batches(
                 logical_errors[i] += n_loops
 
         states = next_states
+        env_set._states = deepcopy(states)
 
     # end while; step through episode
 
     # check all states after the time limit
     # check for remaining syndromes etc.
+    # TODO: should change loop to exclude terminal episodes
     for i in range(total_n_episodes):
         unique, counts = np.unique(actions_in_one_episode[i], return_counts=True)
         most_common_qvalue_idx = np.argmax(counts)
@@ -353,27 +367,31 @@ def run_evaluation_in_batches(
         logger.warning(
             f"Warning! Only one action was chosen in all episodes. Most common action index: {unique_actions}"
         )
-
-    return {
-        RESULT_KEY_EPISODE: {
-            "terminals_per_env": n_terminals,
-            "ground_state_per_env": n_ground_state,
-            "logical_errors_per_episode": n_logical_errors,
-            "correct_actions_per_episode": n_chose_correct_action_per_episode,
-            "remaining_syndromes_per_episode": n_remaining_syndromes,
+    if verbosity >= 5:
+        all_q_values = all_q_values.flatten()
+    return (
+        {
+            RESULT_KEY_EPISODE: {
+                "terminals_per_env": n_terminals,
+                "ground_state_per_env": n_ground_state,
+                "logical_errors_per_episode": n_logical_errors,
+                "correct_actions_per_episode": n_chose_correct_action_per_episode,
+                "remaining_syndromes_per_episode": n_remaining_syndromes,
+            },
+            RESULT_KEY_STEP: {
+                "syndromes_annihilated_per_step": syndromes_annihilated,
+                "syndromes_created_per_step": syndromes_created,
+            },
+            RESULT_KEY_P_ERR: {
+                "avg_number_of_steps": avg_number_of_steps,
+                "mean_q_value": mean_q_value,
+                "std_q_value": std_q_value,
+                "mean_q_value_difference": mean_q_value_diff,
+                "q_value_certainty": q_value_certainty,
+            },
         },
-        RESULT_KEY_STEP: {
-            "syndromes_annihilated_per_step": syndromes_annihilated,
-            "syndromes_created_per_step": syndromes_created,
-        },
-        RESULT_KEY_P_ERR: {
-            "avg_number_of_steps": avg_number_of_steps,
-            "mean_q_value": mean_q_value,
-            "std_q_value": std_q_value,
-            "mean_q_value_difference": mean_q_value_diff,
-            "q_value_certainty": q_value_certainty,
-        },
-    }
+        {RESULT_KEY_HISTOGRAM_Q_VALUES: all_q_values},
+    )
 
 
 def create_user_eval_state(
