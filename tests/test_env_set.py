@@ -2,7 +2,7 @@
 from copy import deepcopy
 import numpy as np
 from src.distributed.environment_set import EnvironmentSet
-from src.surface_rl_decoder.surface_code_util import TERMINAL_ACTION
+from src.surface_rl_decoder.surface_code_util import STATE_MULTIPLIER, TERMINAL_ACTION
 
 
 def test_init(sc):
@@ -27,6 +27,7 @@ def test_reset_all(env_set):
     assert not np.all(states == new_states), new_states
 
     for i in range(n_envs):
+        assert np.max(env_set.environments[i].state) == np.max(new_states[i])
         assert np.all(env_set.environments[i].state == new_states[i])
         assert id(env_set.environments[i].state) != id(new_states[i])
 
@@ -51,6 +52,7 @@ def test_step(env_set):
     assert not np.all(old_states == new_states), new_states
 
     for i in range(n_envs):
+        assert np.max(env_set.environments[i].state) == np.max(new_states[i])
         assert np.all(env_set.environments[i].state == new_states[i])
         assert id(env_set.environments[i].state) != id(new_states[i])
 
@@ -62,6 +64,7 @@ def test_terminal(env_set):
     actions = np.ones((n_envs, 3)) * TERMINAL_ACTION
     new_states, _, terminals, _ = env_set.step(actions)
 
+    assert np.max(old_states) == np.max(new_states)
     assert np.all(terminals)
     assert np.all(old_states == new_states)
 

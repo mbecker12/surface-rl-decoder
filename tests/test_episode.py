@@ -1,7 +1,7 @@
 from copy import deepcopy
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
-from src.surface_rl_decoder.surface_code_util import TERMINAL_ACTION
+from src.surface_rl_decoder.surface_code_util import STATE_MULTIPLIER, TERMINAL_ACTION
 from tests.data_episode_test import (
     _actual_errors,
     _qubits,
@@ -106,24 +106,24 @@ def test_episode_w_measurement_errors(sc, block=False):
 
     sc.render(block=block)
 
-    assert sc.state[1, 1, 2] == 1, sc.state[1]
-    assert sc.state[1, 0, 1] == 1, sc.state[1]
-    assert sc.state[1, 4, 0] == 1, sc.state[1]
-    assert sc.state[1, 3, 1] == 1, sc.state[1]
+    assert sc.state[1, 1, 2] == STATE_MULTIPLIER, sc.state[1]
+    assert sc.state[1, 0, 1] == STATE_MULTIPLIER, sc.state[1]
+    assert sc.state[1, 4, 0] == STATE_MULTIPLIER, sc.state[1]
+    assert sc.state[1, 3, 1] == STATE_MULTIPLIER, sc.state[1]
     assert sc.state[1, 4, 1] == 0, sc.state[1]
-    assert sc.state[1, 4, 3] == 1, sc.state[1]
-    assert sc.state[1, 4, 4] == 1, sc.state[1]
-    assert sc.state[1, 3, 5] == 1, sc.state[1]
+    assert sc.state[1, 4, 3] == STATE_MULTIPLIER, sc.state[1]
+    assert sc.state[1, 4, 4] == STATE_MULTIPLIER, sc.state[1]
+    assert sc.state[1, 3, 5] == STATE_MULTIPLIER, sc.state[1]
     assert sc.syndrome_errors[1, 3, 5] == 1
     assert sc.actual_errors[1, 3, 4] == 0
     assert sc.actual_errors[1, 2, 4] == 0
 
-    assert sc.state[2, 4, 1] == 1
-    assert sc.state[2, 0, 1] == 1
-    assert sc.state[2, 3, 4] == 1
+    assert sc.state[2, 4, 1] == STATE_MULTIPLIER
+    assert sc.state[2, 0, 1] == STATE_MULTIPLIER
+    assert sc.state[2, 3, 4] == STATE_MULTIPLIER
 
-    assert sc.state[4, 1, 2] == 1
-    assert sc.state[6, 4, 1] == 1
+    assert sc.state[4, 1, 2] == STATE_MULTIPLIER
+    assert sc.state[6, 4, 1] == STATE_MULTIPLIER
 
     assert sc.qubits[h_max:].sum() == 0, sc.qubits
 
@@ -151,7 +151,8 @@ def test_proper_episode(configure_env, restore_env, seed_surface_code):
     assert np.all(sc.qubits == _qubits), sc.qubits
     assert np.all(sc.syndrome_errors == _syndrome_errors), sc.syndrome_errors
     assert np.all(sc.actual_errors == _actual_errors), sc.actual_errors
-    assert np.all(sc.state == _state), sc.state
+    assert np.max(sc.state) == np.max(_state * STATE_MULTIPLIER)
+    assert np.all(sc.state == _state * STATE_MULTIPLIER), sc.state
 
     restore_env(original_depth, original_size, original_error_channel)
 
@@ -181,7 +182,7 @@ def test_proper_episode(configure_env, restore_env, seed_surface_code):
 
     # make sure that after the actions, only measurement errors are left in the
     # topmost layer
-    assert np.all(sc.state[-1] == _syndrome_errors[-1]), _syndrome_errors[-1]
+    assert np.all(sc.state[-1] == _syndrome_errors[-1] * STATE_MULTIPLIER), _syndrome_errors[-1]
     # ...and if we take away the measurement errors, no errors remain
     assert np.all(np.logical_xor(sc.state[-1], _syndrome_errors[-1]) == 0)
 

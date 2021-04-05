@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
 from src.surface_rl_decoder.surface_code_util import (
-    SYNDROME_DIFF_REWARD,
+    STATE_MULTIPLIER, SYNDROME_DIFF_REWARD,
     create_syndrome_output_stack,
 )
 
@@ -41,7 +41,7 @@ def test_intermediate_reward_halfway(configure_env, restore_env):
     sc.qubits[2:, 3, 1] = 1
     sc.state = create_syndrome_output_stack(
         sc.qubits, sc.vertex_mask, sc.plaquette_mask
-    )
+    ) * STATE_MULTIPLIER
 
     action = (3, 1, 1)
     discount_factor = 0.75
@@ -52,9 +52,10 @@ def test_intermediate_reward_halfway(configure_env, restore_env):
         annealing_intermediate_reward=annealing_factor,
     )
 
-    assert pytest.approx(reward / annealing_factor) == SYNDROME_DIFF_REWARD * (
+    assert pytest.approx(reward / annealing_factor) == STATE_MULTIPLIER * SYNDROME_DIFF_REWARD * (
         2 + 2 * discount_factor - (2 * discount_factor ** 2 + 2 * discount_factor ** 3)
     )
+    assert reward > 0, reward
 
     restore_env(original_depth, original_size, original_error_channel)
 
@@ -73,7 +74,7 @@ def test_reward_w_syndrome_error(configure_env, restore_env):
     true_syndrome = create_syndrome_output_stack(
         sc.qubits, sc.vertex_mask, sc.plaquette_mask
     )
-    sc.state = np.logical_xor(true_syndrome, sc.syndrome_errors)
+    sc.state = np.logical_xor(true_syndrome, sc.syndrome_errors) * STATE_MULTIPLIER
 
     action1 = (1, 1, 3)
     action2 = (3, 2, 1)
@@ -86,9 +87,10 @@ def test_reward_w_syndrome_error(configure_env, restore_env):
         annealing_intermediate_reward=annealing_factor,
     )
 
-    assert reward1 == SYNDROME_DIFF_REWARD * (
+    assert reward1 == STATE_MULTIPLIER * SYNDROME_DIFF_REWARD * (
         0 + 2 * discount_factor + 2 * discount_factor ** 2 + 2 * discount_factor ** 3
     )
+    assert reward1 > 0, reward1
 
     _, reward2, _, _ = sc.step(
         action2,
@@ -96,8 +98,9 @@ def test_reward_w_syndrome_error(configure_env, restore_env):
         annealing_intermediate_reward=annealing_factor,
     )
 
-    assert reward2 == SYNDROME_DIFF_REWARD * (
+    assert reward2 == STATE_MULTIPLIER * SYNDROME_DIFF_REWARD * (
         2 + 0 * discount_factor + 2 * discount_factor ** 2 - 2 * discount_factor ** 3
     )
+    assert reward2 > 0, reward2
 
     restore_env(original_depth, original_size, original_error_channel)
