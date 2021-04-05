@@ -2,8 +2,14 @@
 Utility functions for the surface code environment
 """
 import numpy as np
+from iniparser import Config
+cfg = Config()
+_config = cfg.scan(".", True).read()
+config = cfg.config_rendered.get("config")
+env_config = config.get("env")
+reward_config = config.get("reward")
 
-TERMINAL_ACTION = 4
+TERMINAL_ACTION = int(env_config.get("terminal_action", "4"))
 
 # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
 RULE_TABLE = np.array(
@@ -11,14 +17,14 @@ RULE_TABLE = np.array(
 )
 
 # reward scores
-NON_TRIVIAL_LOOP_REWARD = -17
-SYNDROME_LEFT_REWARD = -5
-SOLVED_EPISODE_REWARD = 150
-SYNDROME_DIFF_REWARD = 0.5
-REPEATING_ACTION_REWARD = -2
+NON_TRIVIAL_LOOP_REWARD = float(reward_config.get("non_trivial_loop", "-17"))
+SYNDROME_LEFT_REWARD =  float(reward_config.get("syndrome_left", "-5"))
+SOLVED_EPISODE_REWARD =  float(reward_config.get("solved_episode", "150"))
+SYNDROME_DIFF_REWARD =  float(reward_config.get("syndrome_difference", "0.2"))
+REPEATING_ACTION_REWARD = float(reward_config.get("repeating_action", "-2"))
 
 # alter state
-STATE_MULTIPLIER = 20
+STATE_MULTIPLIER = int(env_config.get("state_multiplier", "20"))
 
 
 def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
