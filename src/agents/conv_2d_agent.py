@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
+from agents.interface import interface
 
 
 class Conv2dAgent(nn.Module):
@@ -170,14 +171,14 @@ class Conv2dAgent(nn.Module):
         )
         self.final_layer = nn.Linear(self.neurons_lin_layer, self.neurons_output)
 
-    def forward(self, state):
+    def forward(self, state: torch.Tensor):
         """
         Perform a forward pass with the current batch of syndrome states.
         """
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
         if self.split_input_toggle:
-            x, z, both = self.interface(state)
+            x, z, both = interface(state, self.plaquette_mask, self.vertex_mask)
 
             x = x.view(
                 -1, self.input_channels, (self.size + 1), (self.size + 1)
@@ -235,8 +236,8 @@ class Conv2dAgent(nn.Module):
             output.shape[2] == self.lstm_output_size * self.lstm_num_directions
         ), f"{output.shape=}, {self.lstm_output_size=}, {self.lstm_num_directions=}"
 
-        output = self.almost_final_layer(
-            output[:, -1, :]
+        output = F.relu(
+            self.almost_final_layer(output[:, -1, :])
         )  # take the last output feature vector from the lstm for each sample in the batch
         final_output = self.final_layer(output)
         assert (
@@ -244,11 +245,3 @@ class Conv2dAgent(nn.Module):
             == self.nr_actions_per_qubit * self.size * self.size + 1
         )
         return final_output
-
-    def interface(self, state):
-        """
-        helper function to split up the input into the three channel
-        """
-        x = state * self.plaquette_mask
-        z = state * self.vertex_mask
-        return x, z, state
