@@ -10,6 +10,7 @@ import random
 from collections import namedtuple
 import numpy as np
 from distributed.sum_tree import SumTree
+import traceback
 
 Transition = namedtuple(
     "Transition", ["state", "action", "reward", "next_state", "terminal"]
