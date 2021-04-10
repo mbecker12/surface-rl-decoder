@@ -2,7 +2,7 @@
 from copy import deepcopy
 import numpy as np
 from src.distributed.environment_set import EnvironmentSet
-from src.surface_rl_decoder.surface_code_util import STATE_MULTIPLIER, TERMINAL_ACTION
+from src.surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
 
 def test_init(sc):
