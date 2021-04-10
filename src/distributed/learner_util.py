@@ -73,6 +73,7 @@ def data_to_batch(
 
     indices = data[2]
 
+    # pylint: disable=bare-except
     try:
         list_state, list_action, list_reward, list_next_state, list_terminal = zip(
             *batch

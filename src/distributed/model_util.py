@@ -13,6 +13,7 @@ from torch.optim import Adam
 from torch import nn
 import yaml
 from agents.conv_2d_agent import Conv2dAgent
+from agents.conv_3d_agent import Conv3dGeneralAgent
 from distributed.dummy_agent import DummyModel
 
 
@@ -36,6 +37,8 @@ def choose_model(model_name, model_config):
         model = DummyModel(model_config)
     elif model_name.lower() in "conv2d_lstm":
         model = Conv2dAgent(model_config)
+    elif model_name.lower() in "conv3d":
+        model = Conv3dGeneralAgent(model_config)
     else:
         raise Exception(f"Error! Model '{model_name}' not supported or not recognized.")
 

@@ -10,30 +10,33 @@ jobs:
     - name: Check out the repo
       uses: actions/checkout@v2
     - name: Login to DockerHub
+      id: logintodocker
       uses: docker/login-action@v1
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        # logout: false
-    - name: Push to Docker Hub
-      uses: docker/build-push-action@v1
+        logout: false
+    - name: Push to DockerHub
       id: pushtodocker
       env:
-        commit_sha: ${GITHUB_SHA}
+        commit_sha: $GITHUB_SHA
         branch_name: ci
-      with:
-        push: true
-        repository: xero32/qec-mp
-        tags: ${{ steps.pushtodocker.env.commit_sha }}
+      run: |
+        echo "GITHUB_SHA: $GITHUB_SHA ..."
+        docker build -t xero32/qec-mp:$GITHUB_SHA .
+        docker push xero32/qec-mp:$GITHUB_SHA
     - name: Prepare Singularity Environment
       uses: eWaterCycle/setup-singularity@v6
       with:
           singularity-version: 3.7.1
     - name: Convert to Singularity Image
-      run: singularity build qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif docker://xero32/qec-mp:${{ steps.pushtodocker.env.branch_name }}
+      run: |
+        echo qec-mp_ci.sif
+        echo docker://xero32/qec-mp:$GITHUB_SHA 
+        singularity build qec-mp_ci.sif docker://xero32/qec-mp:$GITHUB_SHA
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
       with:
-        name: qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif
-        path: qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif
-        retention-days: 1
+        name: singularity-container
+        path: qec-mp_ci.sif
+        retention-days: 10

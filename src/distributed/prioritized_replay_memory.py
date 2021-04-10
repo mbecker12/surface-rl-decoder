@@ -81,7 +81,7 @@ class PrioritizedReplayMemory:
         priorities:
             list of priorities
         """
-
+        # pylint: disable=too-many-locals
         if self.tree.filled_size() < batch_size:
             return None, None, None, None
 
@@ -116,11 +116,7 @@ class PrioritizedReplayMemory:
                 out.append(data)
                 self.priority_update([index], [0])  # To avoid duplicating
             except AssertionError as _:
-                # error_traceback = traceback.format_exc()
-                # print(assertion_error)
-                # print(error_traceback)
                 self.count_sample_errors += 1
-                # print(f"{self.count_sample_errors=}")
                 continue
             else:
                 i += 1

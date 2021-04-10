@@ -140,16 +140,15 @@ def io_replay_memory(args):
     while True:
         sample_benchmark_toggle = True
         # process the transitions sent from the actor process
-        # TODO: find a way to efficiently loop over the actor_io_queues
-        for i, actor_io_queue in enumerate(actor_io_queues):
-            if actor_io_queue.empty() or i in visited_actor_indices:
+        for actor_idx, actor_io_queue in enumerate(actor_io_queues):
+            if actor_io_queue.empty() or actor_idx in visited_actor_indices:
                 continue
 
-            visited_actor_indices.add(i)
+            visited_actor_indices.add(actor_idx)
             if len(visited_actor_indices) == len(actor_io_queues):
                 visited_actor_indices = set()
 
-            logger.debug(f"Saving transitions from actor {i}")
+            logger.debug(f"Saving transitions from actor {actor_idx}")
 
             # explainer for indices of transitions
             # [n_environment][n local memory buffer]
@@ -280,7 +279,9 @@ def io_replay_memory(args):
             sample_from_replay_memory_stop = time()
             if benchmarking and sample_benchmark_toggle:
                 logger.debug(
-                    f"Time to sample {batch_size} samples from replay memory: {sample_from_replay_memory_stop - sample_from_replay_memory_start} s."
+                    f"Time to sample {batch_size} "
+                    "samples from replay memory: "
+                    f"{sample_from_replay_memory_stop - sample_from_replay_memory_start} s."
                 )
                 sample_benchmark_toggle = False
 
@@ -354,7 +355,7 @@ def io_replay_memory(args):
         if time() - heart > heartbeat_interval:
             heart = time()
             logger.info(
-                f"PER status update (sampling errors): "
-                + f"{replay_memory.count_sample_errors=}"
+                "PER status update (sampling errors): "
+                f"{replay_memory.count_sample_errors=}"
             )
             logger.debug("Oohoh I, ooh, I'm still alive")

@@ -12,6 +12,11 @@ class EnvironmentSet:
     """
     Initialize multiple instances of the surface code environment
     independent of each other.
+
+    Note, the step() function [to step through all environments in this
+    environment set] does not affect the member self.states, but rather
+    calculates and returns a separate _states entity. Doing otherwise results
+    in faulty behavior.
     """
 
     def __init__(self, env: SurfaceCode, num_environments):
@@ -19,7 +24,7 @@ class EnvironmentSet:
         self.stack_depth: int = env.stack_depth
         self.syndrome_size: int = env.syndrome_size
         self.num_environments: int = num_environments
-        self._states = np.empty(
+        self.states = np.empty(
             (
                 num_environments,
                 self.stack_depth,
@@ -55,19 +60,18 @@ class EnvironmentSet:
         =======
         states: the collection of states of all environments in this environment set
         """
-
         if p_error is None and p_msmt is None:
             for idx in indices:
-                self._states[idx] = self.environments[idx].reset()
+                self.states[idx] = self.environments[idx].reset()
+
         else:
             assert p_error is not None, "Both p_error and p_msmt need to be defined"
             assert p_msmt is not None, "Both p_error and p_msmt need to be defined"
             for idx in indices:
-                self._states[idx] = self.environments[idx].reset(
+                self.states[idx] = self.environments[idx].reset(
                     p_error=p_error[idx], p_msmt=p_msmt[idx]
                 )
-
-        return self._states
+        return self.states
 
     def reset_all(
         self, p_error: Union[List, None] = None, p_msmt: Union[List, None] = None
@@ -88,13 +92,13 @@ class EnvironmentSet:
         """
         if p_error is None and p_msmt is None:
             for i, env in enumerate(self.environments):
-                self._states[i] = env.reset()
+                self.states[i] = env.reset()
         else:
             assert p_error is not None, "Both p_error and p_msmt need to be defined"
             assert p_msmt is not None, "Both p_error and p_msmt need to be defined"
             for i, env in enumerate(self.environments):
-                self._states[i] = env.reset(p_error=p_error[i], p_msmt=p_msmt[i])
-        return self._states
+                self.states[i] = env.reset(p_error=p_error[i], p_msmt=p_msmt[i])
+        return self.states
 
     def step(
         self,
@@ -105,6 +109,11 @@ class EnvironmentSet:
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
         """
         Take a step in each environment instance.
+
+        Note, the step() function [to step through all environments in this
+        environment set] does not affect the member self.states, but rather
+        calculates and returns a separate _states entity. Doing otherwise results
+        in faulty behavior.
 
         Parameters
         ==========
@@ -123,7 +132,7 @@ class EnvironmentSet:
         infos: list of dictionaries containing additional information about an environment
         """
 
-        states = np.empty(
+        _states = np.empty(
             (
                 self.num_environments,
                 self.stack_depth,
@@ -143,9 +152,9 @@ class EnvironmentSet:
                 annealing_intermediate_reward=annealing_intermediate_reward,
                 punish_repeating_actions=punish_repeating_actions,
             )
-            states[i] = next_state
+            _states[i] = next_state
             rewards[i] = reward
             terminals[i] = terminal
             infos[i] = info
 
-        return states, rewards, terminals, infos
+        return _states, rewards, terminals, infos

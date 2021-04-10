@@ -25,6 +25,7 @@ from distributed.model_util import (
     save_model,
 )
 from distributed.util import time_tb
+from distributed.eval_util import RESULT_KEY_HISTOGRAM_Q_VALUES
 
 # pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def learner(args: Dict):
@@ -251,7 +252,7 @@ def learner(args: Dict):
             count_to_eval = 0
 
             evaluation_start = time()
-            episode_results, step_results, p_error_results = evaluate(
+            episode_results, step_results, p_error_results, all_q_values = evaluate(
                 policy_net,
                 "",
                 device,
@@ -262,6 +263,7 @@ def learner(args: Dict):
                 discount_factor_gamma=discount_factor,
                 num_of_random_episodes=8,
                 num_of_user_episodes=8,
+                verbosity=verbosity,
             )
             if benchmarking:
                 evaluation_stop = time()
@@ -280,9 +282,18 @@ def learner(args: Dict):
                     episode_results,
                     step_results,
                     p_error_results,
-                    eval_step,
+                    t,
                     current_time_tb,
                 )
+
+                if verbosity >= 5:
+                    for p_err in p_error_list:
+                        tensorboard.add_histogram(
+                            f"network/q_values, p_error {p_err}",
+                            all_q_values[RESULT_KEY_HISTOGRAM_Q_VALUES],
+                            t,
+                            walltime=current_time_tb,
+                        )
 
             eval_step += 1
 
