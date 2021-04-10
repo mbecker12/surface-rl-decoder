@@ -3,6 +3,7 @@ Utility functions for the surface code environment
 """
 import numpy as np
 from iniparser import Config
+
 cfg = Config()
 _config = cfg.scan(".", True).read()
 config = cfg.config_rendered.get("config")
@@ -18,9 +19,9 @@ RULE_TABLE = np.array(
 
 # reward scores
 NON_TRIVIAL_LOOP_REWARD = float(reward_config.get("non_trivial_loop", "-17"))
-SYNDROME_LEFT_REWARD =  float(reward_config.get("syndrome_left", "-5"))
-SOLVED_EPISODE_REWARD =  float(reward_config.get("solved_episode", "150"))
-SYNDROME_DIFF_REWARD =  float(reward_config.get("syndrome_difference", "0.2"))
+SYNDROME_LEFT_REWARD = float(reward_config.get("syndrome_left", "-5"))
+SOLVED_EPISODE_REWARD = float(reward_config.get("solved_episode", "150"))
+SYNDROME_DIFF_REWARD = float(reward_config.get("syndrome_difference", "0.2"))
 REPEATING_ACTION_REWARD = float(reward_config.get("repeating_action", "-2"))
 
 # alter state
