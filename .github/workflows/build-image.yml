@@ -25,14 +25,6 @@ jobs:
         echo "GITHUB_SHA: $GITHUB_SHA ..."
         docker build -t xero32/qec-mp:$GITHUB_SHA .
         docker push xero32/qec-mp:$GITHUB_SHA
-    #   uses: docker/build-push-action@v2
-    #   
-    #   with:
-    #     context: .
-    #     push: true
-    #     # repository: xero32/qec-mp
-    #     # tags: xero32/qec-mp:${{ steps.pushtodocker.env.commit_sha }}
-    #     tags: user/qec-mp:ci
     - name: Prepare Singularity Environment
       uses: eWaterCycle/setup-singularity@v6
       with:
@@ -47,4 +39,4 @@ jobs:
       with:
         name: singularity-container
         path: qec-mp_ci.sif
-        retention-days: 1
+        retention-days: 10

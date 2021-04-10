@@ -35,12 +35,12 @@ jobs:
         export CONFIG_LEARNER_MODEL_CONFIG_FILE=dummy_agent.json
         export CONFIG_LEARNER_MODEL_CONFIG_LOCATION=src/config/model_spec/
         export CONFIG_LEARNER_MAX_TIME_H=0
-        export CONFIG_LEARNER_MAX_TIME_MIN=3
+        export CONFIG_LEARNER_MAX_TIME_MIN=5
         export CONFIG_LEARNER_DEVICE=cpu
         export CONFIG_ACTOR_NUM_CUDA=0
         export CONFIG_ACTOR_NUM_CPU=2
-        export CONFIG_SUMMARY_PATH=gitruns
-        export CONFIG_SUMMARY_DATE=gittest
+        export CONFIG_GENERAL_SUMMARY_PATH=gitruns
+        export CONFIG_GENERAL_SUMMARY_DATE=gittest
         export CONFIG_LEARNER_SAVE_MODEL_PATH=gitnetworks
         mkdir gitnetworks
         mkdir gitruns
