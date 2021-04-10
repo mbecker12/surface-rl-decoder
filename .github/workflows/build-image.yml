@@ -16,7 +16,7 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
         # logout: false
     - name: Push to DockerHub
-      uses: docker/build-push-action@v1
+      uses: docker/build-push-action@v2
       id: pushtodocker
       env:
         commit_sha: ${GITHUB_SHA}
