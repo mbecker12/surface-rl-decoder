@@ -3,6 +3,7 @@ Define the actor process for exploration of the environment in
 reinforcement learning.
 """
 import os
+from copy import deepcopy
 from time import time
 from collections import namedtuple
 import logging
@@ -174,6 +175,8 @@ def actor(args):
     steps_to_benchmark = 0
     benchmark_frequency = 1000
 
+    # pylint: disable=too-many-nested-blocks
+
     # start the main exploration loop
     while True:
         steps_per_episode += 1
@@ -293,6 +296,7 @@ def actor(args):
 
             for elements in to_send:
                 for anything in elements:
+                    # pylint: disable=bare-except
                     try:
                         for something in anything:
                             assert (
@@ -328,6 +332,7 @@ def actor(args):
 
         # update states for next iteration
         states = next_states
+        environments.states = deepcopy(states)
 
         if time() - heart > heartbeat_interval:
             heart = time()

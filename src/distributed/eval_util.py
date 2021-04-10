@@ -301,18 +301,20 @@ def run_evaluation_in_batches(
                 logical_errors[i] += n_loops
 
         states = next_states
-        env_set._states = deepcopy(states)
+        env_set.states = deepcopy(states)
 
     # end while; step through episode
 
     # check all states after the time limit
     # check for remaining syndromes etc.
-    # TODO: should change loop to exclude terminal episodes
     for i in range(total_n_episodes):
         unique, counts = np.unique(actions_in_one_episode[i], return_counts=True)
         most_common_qvalue_idx = np.argmax(counts)
         most_common_qvalue = unique[most_common_qvalue_idx]
         common_actions[i] = most_common_qvalue
+
+        if terminals[i]:
+            continue
 
         _, _ground_state, (n_syndromes, n_loops) = check_final_state(
             env_set.environments[i].actual_errors,
@@ -365,7 +367,8 @@ def run_evaluation_in_batches(
     if not len(unique_actions) > 1:
         logger.debug(f"{common_actions=}, {common_actions.shape=}")
         logger.warning(
-            f"Warning! Only one action was chosen in all episodes. Most common action index: {unique_actions}"
+            "Warning! Only one action was chosen in all episodes. "
+            f"Most common action index: {unique_actions}"
         )
     if verbosity >= 5:
         all_q_values = all_q_values.flatten()

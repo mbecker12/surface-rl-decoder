@@ -25,7 +25,7 @@ from distributed.model_util import (
     save_model,
 )
 from distributed.util import time_tb
-from eval_util import RESULT_KEY_HISTOGRAM_Q_VALUES
+from distributed.eval_util import RESULT_KEY_HISTOGRAM_Q_VALUES
 
 # pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def learner(args: Dict):
