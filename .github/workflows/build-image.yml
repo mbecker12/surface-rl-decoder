@@ -39,12 +39,12 @@ jobs:
           singularity-version: 3.7.1
     - name: Convert to Singularity Image
       run: |
-        echo qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif
-        echo docker://xero32/qec-mp:${{ steps.pushtodocker.env.branch_name }} 
-        singularity build qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif docker://xero32/qec-mp:${{ steps.pushtodocker.env.branch_name }}
+        echo qec-mp_ci.sif
+        echo docker://xero32/qec-mp:$GITHUB_SHA 
+        singularity build qec-mp_ci.sif docker://xero32/qec-mp:$GITHUB_SHA
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
       with:
-        name: qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif
-        path: qec-mp_${{ steps.pushtodocker.env.branch_name }}.sif
+        name: singularity-container
+        path: qec-mp_ci.sif
         retention-days: 1
