@@ -34,6 +34,7 @@ def evaluate(
     discount_intermediate_reward=0.75,
     punish_repeating_actions=0,
     plot_one_episode=True,
+    verbosity=0,
 ) -> Tuple[Dict, Dict, Dict]:
     """
     Evaluate the current policy.
@@ -61,6 +62,7 @@ def evaluate(
         enable punishment for repeating actions that already exist in the action history
     discount_intermediate_reward: (optional) discount factor determining how much
         early layers should be discounted when calculating the intermediate reward
+    verbosity: (int) verbosity level
 
     Returns
     =======
@@ -83,7 +85,7 @@ def evaluate(
     }
 
     for i_err_list, p_error in enumerate(p_error_list):
-        eval_results = run_evaluation_in_batches(
+        eval_results, all_q_values = run_evaluation_in_batches(
             model,
             environment_def,
             device,
@@ -97,6 +99,7 @@ def evaluate(
             punish_repeating_actions=punish_repeating_actions,
             p_err=p_error,
             p_msmt=p_msmt_list[i_err_list],
+            verbosity=verbosity,
         )
 
         for category_name, category in eval_results.items():
@@ -111,4 +114,5 @@ def evaluate(
         final_result_dict[RESULT_KEY_EPISODE],
         final_result_dict[RESULT_KEY_STEP],
         final_result_dict[RESULT_KEY_P_ERR],
+        all_q_values,
     )

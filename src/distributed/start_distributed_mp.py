@@ -115,8 +115,8 @@ def start_mp():
     eval_frequency = int(learner_config["eval_frequency"])
     max_timesteps = int(learner_config["max_timesteps"])
     learner_epsilon = float(learner_config["learner_epsilon"])
-    learner_eval_p_errors = [0.005, 0.01, 0.02]
-    learner_eval_p_msmt = [0.005, 0.01, 0.02]
+    learner_eval_p_errors = [0.01, 0.05, 0.1]
+    learner_eval_p_msmt = [0.01, 0.05, 0.1]
     learner_load_model = int(learner_config["load_model"])
     old_model_path = learner_config["load_model_path"]
     save_model_path = learner_config["save_model_path"]

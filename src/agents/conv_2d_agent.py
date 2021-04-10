@@ -73,19 +73,35 @@ class Conv2dAgent(nn.Module):
         self.neurons_lin_layer = int(config.get("neurons_lin_layer"))
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
 
-        self.input_conv_layer_x = nn.Conv2d(
-            self.input_channels,
-            self.output_channels,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
         self.input_conv_layer_both = nn.Conv2d(
             self.input_channels,
             self.output_channels,
             self.kernel_size,
             padding=self.padding_size,
         )
-        self.input_conv_layer_z = nn.Conv2d(
+
+        self.nd_conv_layer_both = nn.Conv2d(
+            self.output_channels,
+            self.output_channels2,
+            self.kernel_size,
+            padding=self.padding_size,
+        )
+
+        self.rd_conv_layer_both = nn.Conv2d(
+            self.output_channels2,
+            self.output_channels3,
+            self.kernel_size,
+            padding=self.padding_size,
+        )
+
+        self.comp_conv_layer_both = nn.Conv2d(
+            self.output_channels3,
+            self.output_channels4,
+            self.kernel_size,
+            padding=self.padding_size,
+        )
+
+        self.input_conv_layer_x = nn.Conv2d(
             self.input_channels,
             self.output_channels,
             self.kernel_size,
@@ -98,32 +114,8 @@ class Conv2dAgent(nn.Module):
             self.kernel_size,
             padding=self.padding_size,
         )
-        self.nd_conv_layer_z = nn.Conv2d(
-            self.output_channels,
-            self.output_channels2,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.nd_conv_layer_both = nn.Conv2d(
-            self.output_channels,
-            self.output_channels2,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
 
         self.rd_conv_layer_x = nn.Conv2d(
-            self.output_channels2,
-            self.output_channels3,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.rd_conv_layer_z = nn.Conv2d(
-            self.output_channels2,
-            self.output_channels3,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.rd_conv_layer_both = nn.Conv2d(
             self.output_channels2,
             self.output_channels3,
             self.kernel_size,
@@ -136,13 +128,29 @@ class Conv2dAgent(nn.Module):
             self.kernel_size,
             padding=self.padding_size,
         )
-        self.comp_conv_layer_z = nn.Conv2d(
-            self.output_channels3,
-            self.output_channels4,
+
+        self.input_conv_layer_z = nn.Conv2d(
+            self.input_channels,
+            self.output_channels,
             self.kernel_size,
             padding=self.padding_size,
         )
-        self.comp_conv_layer_both = nn.Conv2d(
+
+        self.nd_conv_layer_z = nn.Conv2d(
+            self.output_channels,
+            self.output_channels2,
+            self.kernel_size,
+            padding=self.padding_size,
+        )
+
+        self.rd_conv_layer_z = nn.Conv2d(
+            self.output_channels2,
+            self.output_channels3,
+            self.kernel_size,
+            padding=self.padding_size,
+        )
+
+        self.comp_conv_layer_z = nn.Conv2d(
             self.output_channels3,
             self.output_channels4,
             self.kernel_size,

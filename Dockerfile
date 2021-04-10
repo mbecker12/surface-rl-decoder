@@ -28,6 +28,7 @@ COPY setup.cfg /${WORKDIR_NAME}/setup.cfg
 COPY setup.py /${WORKDIR_NAME}/setup.py
 COPY .git /${WORKDIR_NAME}/.git
 COPY src /${WORKDIR_NAME}/src
+RUN cp /${WORKDIR_NAME}/src/config/config_cluster.ini /${WORKDIR_NAME}/src/config/config.ini 
 COPY README.rst /${WORKDIR_NAME}/README.rst
 
 RUN ${VENV_PYTHON} setup.py develop

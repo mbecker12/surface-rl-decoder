@@ -2,7 +2,7 @@
 #SBATCH -J qec-test
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -t 0:00:40
+#SBATCH -t 12:10:00
 #SBATCH -A SNIC2020-33-2 -p alvis
 #SBATCH --gpus-per-node=V100:1
 #SBATCH --output=./logs-sbatch/logs-%j.out
@@ -186,6 +186,7 @@ if [ -z ${CONFIG_FILE} ]; then
     singularity run --nv \
       -B ${ABS_NETWORK_PATH_CLUSTER}:${ABS_NETWORK_PATH_IMAGE}:rw \
       -B ${ABS_TENSORBOARD_PATH_CLUSTER}:${ABS_TENSORBOARD_PATH_IMAGE}:rw \
+      -B ${CLUSTER_WORKDIR}/custom_config:${IMAGE_WORKDIR}/custom_config:rw \
       --env CONFIG_GENERAL_SUMMARY_DATE="${SAVE_INFO_PATH}" \
       --env CONFIG_GENERAL_DESCRIPTION="${JOB_DESCRIPTION}" \
       ${PATH_TO_IMAGE} \
@@ -212,6 +213,7 @@ else
     singularity run --nv \
       -B ${ABS_TENSORBOARD_PATH_CLUSTER}:${ABS_TENSORBOARD_PATH_IMAGE}:rw \
       -B ${ABS_NETWORK_PATH_CLUSTER}:${ABS_NETWORK_PATH_IMAGE}:rw \
+      -B ${CLUSTER_WORKDIR}/custom_config:${IMAGE_WORKDIR}/custom_config:rw \
       --env CONFIG_GENERAL_SUMMARY_DATE="${SAVE_INFO_PATH}" \
       --env CONFIG_GENERAL_DESCRIPTION="${JOB_DESCRIPTION}" \
       --env-file ${CONFIG_FILE} \

@@ -63,12 +63,12 @@ def data_to_batch(
     memory_weights = data[1]
     if memory_weights is not None:
         assert len(memory_weights) == batch_size, len(memory_weights)
-
-        memory_weights = (
-            torch.tensor(memory_weights, dtype=torch.float32, device=device)
-            .clone()
-            .detach()
-        )
+        if isinstance(memory_weights, torch.Tensor):
+            memory_weights = memory_weights.clone().detach().float().to(device)
+        else:
+            memory_weights = torch.tensor(
+                memory_weights, dtype=torch.float32, device=device
+            )
         memory_weights = memory_weights.view(-1, 1)
 
     indices = data[2]
@@ -172,7 +172,7 @@ def perform_q_learning_step(
         target_output * (~batch_terminal).type(torch.float32) * discount_factor
     )
 
-    target_q_values = expected_q_values * batch_reward
+    target_q_values = expected_q_values + batch_reward
     target_q_values = target_q_values.view(-1, 1)
     target_q_values = target_q_values.clamp(-100, 100)
 
