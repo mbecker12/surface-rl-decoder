@@ -2,7 +2,8 @@ import pytest
 import numpy as np
 from src.surface_rl_decoder.surface_code import SurfaceCode
 from src.surface_rl_decoder.surface_code_util import (
-    STATE_MULTIPLIER, SYNDROME_DIFF_REWARD,
+    STATE_MULTIPLIER,
+    SYNDROME_DIFF_REWARD,
     create_syndrome_output_stack,
 )
 
@@ -39,9 +40,10 @@ def test_intermediate_reward_halfway(configure_env, restore_env):
     sc = SurfaceCode()
     sc.state = np.zeros((4, 6, 6), dtype=np.uint8)
     sc.qubits[2:, 3, 1] = 1
-    sc.state = create_syndrome_output_stack(
-        sc.qubits, sc.vertex_mask, sc.plaquette_mask
-    ) * STATE_MULTIPLIER
+    sc.state = (
+        create_syndrome_output_stack(sc.qubits, sc.vertex_mask, sc.plaquette_mask)
+        * STATE_MULTIPLIER
+    )
 
     action = (3, 1, 1)
     discount_factor = 0.75
@@ -52,7 +54,9 @@ def test_intermediate_reward_halfway(configure_env, restore_env):
         annealing_intermediate_reward=annealing_factor,
     )
 
-    assert pytest.approx(reward / annealing_factor) == STATE_MULTIPLIER * SYNDROME_DIFF_REWARD * (
+    assert pytest.approx(
+        reward / annealing_factor
+    ) == STATE_MULTIPLIER * SYNDROME_DIFF_REWARD * (
         2 + 2 * discount_factor - (2 * discount_factor ** 2 + 2 * discount_factor ** 3)
     )
     assert reward > 0, reward

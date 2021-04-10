@@ -182,7 +182,9 @@ def test_proper_episode(configure_env, restore_env, seed_surface_code):
 
     # make sure that after the actions, only measurement errors are left in the
     # topmost layer
-    assert np.all(sc.state[-1] == _syndrome_errors[-1] * STATE_MULTIPLIER), _syndrome_errors[-1]
+    assert np.all(
+        sc.state[-1] == _syndrome_errors[-1] * STATE_MULTIPLIER
+    ), _syndrome_errors[-1]
     # ...and if we take away the measurement errors, no errors remain
     assert np.all(np.logical_xor(sc.state[-1], _syndrome_errors[-1]) == 0)
 
