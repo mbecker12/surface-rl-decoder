@@ -45,5 +45,5 @@ jobs:
         mkdir gitnetworks
         mkdir gitruns
         mkdir gitruns/gittest
-        python -m pytest --cov-report=annotate --cov=src;
+        python src/distributed/start_distributed_mp.py
       
