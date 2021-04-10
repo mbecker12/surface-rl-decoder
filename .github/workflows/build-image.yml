@@ -24,7 +24,8 @@ jobs:
       with:
         push: true
         # repository: xero32/qec-mp
-        tags: xero32/qec-mp:${{ steps.pushtodocker.env.commit_sha }}
+        # tags: xero32/qec-mp:${{ steps.pushtodocker.env.commit_sha }}
+        tags: xero32/qec-mp:$GITHUB_SHA
     - name: Prepare Singularity Environment
       uses: eWaterCycle/setup-singularity@v6
       with:
