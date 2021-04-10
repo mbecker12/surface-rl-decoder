@@ -56,6 +56,8 @@ def data_to_batch(
     # [batch][state, action, reward, next_state, terminal]
     batch = data[0]
     assert batch is not None and len(batch) == batch_size
+    # TODO: seems that some entries in data become None
+    # How can that be?
 
     # the following is only meaningful in prioritized experience replay
     memory_weights = data[1]
