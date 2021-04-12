@@ -223,6 +223,7 @@ class Conv3dGeneralAgent(nn.Module):
             both = F.relu(self.rd_conv_layer_both(both))
             both = F.relu(self.comp_conv_layer_both(both))
 
+            # TODO flatten here already
             complete = both.view(
                 -1,
                 self.stack_depth,
@@ -235,7 +236,7 @@ class Conv3dGeneralAgent(nn.Module):
         # with regards to batch and actions for each of those batches
         complete = complete.view(
             -1,
-            self.stack_depth * self.neurons_lin_layer,
+            self.stack_depth * self.neurons_lin_layer
         )
         final_output = self.final_layer(complete)
 

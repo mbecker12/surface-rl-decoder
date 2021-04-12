@@ -20,9 +20,9 @@
         "kernel_depth": 3,
         "padding_size": 1,
         "output_channels": 16,
-        "output_channels2": 32,
-        "output_channels3": 64,
+        "output_channels2": 64,
+        "output_channels3": 128,
         "output_channels4": 16,
-        "neurons_lin_layer": 512
+        "neurons_lin_layer": 1024
     }
 }
