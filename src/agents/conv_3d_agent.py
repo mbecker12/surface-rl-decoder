@@ -234,10 +234,7 @@ class Conv3dGeneralAgent(nn.Module):
         # shift the dimension so that
         # dimension -1 gives us a matrix/vector
         # with regards to batch and actions for each of those batches
-        complete = complete.view(
-            -1,
-            self.stack_depth * self.neurons_lin_layer
-        )
+        complete = complete.view(-1, self.stack_depth * self.neurons_lin_layer)
         final_output = self.final_layer(complete)
 
         return final_output
