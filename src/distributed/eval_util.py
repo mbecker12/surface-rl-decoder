@@ -14,6 +14,8 @@ from distributed.util import action_to_q_value_index, select_actions
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import (
     SOLVED_EPISODE_REWARD,
+    STATE_MULTIPLIER,
+    STATE_MULTIPLIER_INVERSE,
     SYNDROME_DIFF_REWARD,
     TERMINAL_ACTION,
     check_final_state,
@@ -447,8 +449,9 @@ def create_user_eval_state(
         annealing_intermediate_reward=annealing_intermediate_reward,
     )
     env.actual_errors = deepcopy(env.qubits)
-    env.state = create_syndrome_output_stack(
-        env.qubits, env.vertex_mask, env.plaquette_mask
+    env.state = (
+        create_syndrome_output_stack(env.qubits, env.vertex_mask, env.plaquette_mask)
+        * STATE_MULTIPLIER
     )
     env.syndrome_errors = np.zeros_like(env.state, dtype=bool)
 
@@ -596,32 +599,52 @@ def calculate_theoretical_max_q_value(state, gamma, discount_inter_reward):
     =======
     q_value: q value if the optimal action is chosen
     """
-    n_syndromes_last_layer = np.sum(state[-1])
+    n_syndromes_last_layer = np.sum(state[-1]) * STATE_MULTIPLIER_INVERSE
     # assume that syndromes (in the final layer) always come in pairs
     # this disregards edge qubits, where one qubit will only cause
     # one syndrome
     # Besides, this ignores the fact that Y errors cause more syndromes
     n_required_actions = np.ceil(n_syndromes_last_layer / 2)
-    n_syndromes_total = np.sum(state)
+    n_syndromes_total = np.sum(state) * STATE_MULTIPLIER_INVERSE
+    stack_depth = state.shape[-3]
 
     avg_syndrome_depth = (
         int(n_syndromes_total / n_syndromes_last_layer)
         if n_syndromes_last_layer > 0
         else 0
     )
+
     one_minus_inter_rew_discount_inv = 1.0 / (1.0 - discount_inter_reward)
     one_minus_gamma_inv = 1.0 / (1.0 - gamma)
 
+    # avg reward per correct action for annihilating syndromes
     inter_reward = (
         2
         * SYNDROME_DIFF_REWARD
+        * STATE_MULTIPLIER
         * (1.0 - discount_inter_reward ** avg_syndrome_depth)
         * one_minus_inter_rew_discount_inv
     )
 
+    # avg punishment for creating syndromes at the bottom layers
+    inter_punishment = (
+        2
+        * SYNDROME_DIFF_REWARD
+        * STATE_MULTIPLIER
+        * (
+            discount_inter_reward ** avg_syndrome_depth
+            - discount_inter_reward ** stack_depth
+        )
+        * one_minus_inter_rew_discount_inv
+    )
+
+    inter_reward -= inter_punishment
+
+    # add all the required actions together
     final_reward = (
         inter_reward * (1.0 - gamma ** n_required_actions) * one_minus_gamma_inv
     )
+    # add the final reward for successfully terminating a solved episode
     final_reward += SOLVED_EPISODE_REWARD * gamma ** n_required_actions
     return final_reward
 

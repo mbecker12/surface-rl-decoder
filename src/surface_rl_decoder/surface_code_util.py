@@ -26,6 +26,7 @@ REPEATING_ACTION_REWARD = float(reward_config.get("repeating_action", "-2"))
 
 # alter state
 STATE_MULTIPLIER = int(env_config.get("state_multiplier", "20"))
+STATE_MULTIPLIER_INVERSE = 1.0 / STATE_MULTIPLIER
 
 
 def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):

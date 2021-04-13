@@ -525,6 +525,7 @@ class SurfaceCode(gym.Env):
 
         # assume action "terminal" was chosen
         actual_errors = copy_array_values(self.actual_errors)
+
         _, self.ground_state, (n_syndromes, n_loops) = check_final_state(
             actual_errors, self.actions, self.vertex_mask, self.plaquette_mask
         )

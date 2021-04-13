@@ -105,7 +105,7 @@ def load_model(
     criterion: loss instance, overwritten with saved state in state_dict
     """
     # load model
-    model.load_state_dict(torch.load(old_model_path))
+    model.load_state_dict(torch.load(old_model_path, map_location=model_device))
     if model_device is not None:
         model = model.to(model_device)
 
@@ -113,7 +113,9 @@ def load_model(
     if load_optimizer:
         assert learning_rate is not None
         optimizer = Adam(model.parameters(), lr=learning_rate)
-        optimizer.load_state_dict(torch.load(old_model_path + ".optimizer"))
+        optimizer.load_state_dict(
+            torch.load(old_model_path + ".optimizer", map_location=optimizer_device)
+        )
         assert optimizer_device is not None
         optimizer = optimizer_to(optimizer, optimizer_device)
     else:
