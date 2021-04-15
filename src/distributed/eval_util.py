@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from distributed.environment_set import EnvironmentSet
 from distributed.util import action_to_q_value_index, select_actions
+from distributed.eval_init_utils import OUT_OF_RANGE
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import (
     SOLVED_EPISODE_REWARD,
@@ -46,7 +47,7 @@ def run_evaluation_in_batches(
     plot_one_episode=True,
     discount_factor_gamma=0.9,
     annealing_intermediate_reward=1.0,
-    discount_intermediate_reward=0.75,
+    discount_intermediate_reward=0.3,
     punish_repeating_actions=0,
     p_err=0.0,
     p_msmt=0.0,
@@ -403,7 +404,7 @@ def create_user_eval_state(
     env: SurfaceCode,
     idx_episode: int,
     discount_factor_gamma=0.9,
-    discount_intermediate_reward=0.75,
+    discount_intermediate_reward=0.3,
     annealing_intermediate_reward=1.0,
     punish_repeating_actions: int = 0,
 ) -> Tuple[np.ndarray, List, float]:
@@ -685,3 +686,204 @@ def average_episode_metric(
         avg_value = np.mean(value_array)
 
     return avg_value
+
+
+def count_spikes_np(arr, verbosity=0):
+    """
+    Count spikes in an array. Each spike should hint at unnecessary actions
+    that undo the effects of previous actions.
+
+    With this, one could example look at whether the intermediate reward
+    goes back and forth during an episode if only one action was chosen
+    for the whole episode.
+
+    Parameters
+    ==========
+    arr: list-like container with evaluation metrics to analyze
+
+    Returns
+    =======
+    spikiness: measure between 0 (monotonic) and 1 (reocurring up and down)
+    """
+    arr_length = len(arr)
+
+    if arr_length < 3:
+        return 0
+
+    first_derivative = np.diff(arr)
+    sign_first_derivative = np.sign(first_derivative)
+    nonzero_sign_first_derivative = sign_first_derivative[first_derivative != 0]
+    second_derivative = np.diff(nonzero_sign_first_derivative)
+
+    nonzero_second_derivative = second_derivative.nonzero()[0]
+
+    spike_idx = nonzero_second_derivative + 1
+    if verbosity:
+        print(f"{sign_first_derivative=}")
+        print(f"{nonzero_sign_first_derivative=}")
+        print(f"{second_derivative=}")
+        print(f"{spike_idx=}")
+        print(f"{len(spike_idx)=}")
+
+    return len(spike_idx) / (arr_length - 2)
+
+
+def prepare_step(global_steps, terminals, steps_per_episode, states, device):
+    global_steps += 1
+
+    is_active = np.argwhere(1 - terminals).flatten()
+    steps_per_episode[is_active] += 1
+
+    assert len(states.shape) == 4  # need batch, stack_depth, d+1, d+1
+    torch_states = torch.tensor(states[is_active], dtype=torch.float32).to(device)
+
+    return global_steps, torch_states, is_active, steps_per_episode
+
+
+def reset_local_actions_and_qvalues(terminal_actions, empty_q_values):
+    actions = terminal_actions
+    q_values = empty_q_values
+
+    return actions, q_values
+
+
+def get_two_highest_q_values(q_values):
+    # gives the indices of the highest values for each row
+    top_idx = np.argpartition(q_values, (-2, -1), axis=1)[:, -2:]
+    highest_q_values = q_values[np.arange(q_values.shape[0])[:, None], top_idx]
+    q_value = highest_q_values[:, -1]
+    second_q_value = highest_q_values[:, -2]
+
+    return q_value, second_q_value
+
+
+def aggregate_q_value_stats(
+    q_value_aggregation,
+    q_value_diff_aggregation,
+    q_value_certainty_aggregation,
+    q_value,
+    second_q_value,
+    theoretical_q_values,
+):
+    q_value_aggregation += q_value
+    q_value_diff_aggregation += q_value - theoretical_q_values
+    q_value_certainty_aggregation += q_value - second_q_value
+
+    return q_value_aggregation, q_value_diff_aggregation, q_value_certainty_aggregation
+
+
+def calc_theoretical_q_value(
+    is_user_episode,
+    steps_per_episode,
+    theoretical_q_values,
+    states,
+    is_active,
+    discount_factor_gamma,
+    discount_intermediate_reward,
+):
+    recalculate_theoretical_value_mask = np.logical_not(
+        np.logical_and(is_user_episode, steps_per_episode == 1)
+    )
+
+    theoretical_q_values[recalculate_theoretical_value_mask] = np.array(
+        [
+            calculate_theoretical_max_q_value(
+                states[i], discount_factor_gamma, discount_intermediate_reward
+            )
+            for i in np.where(recalculate_theoretical_value_mask)[0]
+        ]
+    )
+
+    return theoretical_q_values
+
+
+def prepare_user_episodes(
+    states,
+    expected_actions_per_episode,
+    theoretical_q_values,
+    total_n_episodes,
+    num_of_random_episodes,
+    num_of_user_episodes,
+    env_set: EnvironmentSet,
+    discount_factor_gamma=0.9,
+    discount_intermediate_reward=0.3,
+    annealing_intermediate_reward=1,
+    punish_repeating_actions=0,
+):
+    # prepare masks to filter user_episodes
+    is_user_episode = np.zeros(total_n_episodes, dtype=int)
+    is_user_episode[num_of_random_episodes:] = 1
+
+    # prepare user defined episodes
+    for j_user_episode in range(num_of_user_episodes):
+        j_all_episodes = j_user_episode + num_of_random_episodes
+        state, expected_actions, theoretical_q_value = create_user_eval_state(
+            env_set.environments[j_all_episodes],
+            j_user_episode,
+            discount_factor_gamma=discount_factor_gamma,
+            discount_intermediate_reward=discount_intermediate_reward,
+            annealing_intermediate_reward=annealing_intermediate_reward,
+            punish_repeating_actions=punish_repeating_actions,
+        )
+        states[j_all_episodes] = state
+        expected_actions_per_episode[j_user_episode] = expected_actions
+        theoretical_q_values[j_all_episodes] = theoretical_q_value
+
+    return states, expected_actions_per_episode, theoretical_q_values, is_user_episode
+
+
+def check_correct_actions(
+    actions,
+    expected_actions_per_episode,
+    correct_actions_aggregation,
+    total_n_episodes,
+    num_of_random_episodes,
+    num_of_user_episodes,
+):
+    # check user-defined / expected actions
+    # in user episodes
+    correct_actions_all = np.array(
+        [
+            check_repeating_action(
+                actions[i],
+                expected_actions_per_episode[i - num_of_random_episodes],
+                len(expected_actions_per_episode[i - num_of_random_episodes]),
+            )
+            for i in range(total_n_episodes - num_of_user_episodes, total_n_episodes)
+        ]
+    )
+    correct_actions_aggregation += correct_actions_all
+
+    return correct_actions_aggregation
+
+
+def count_array_raises(arr):
+    num_raises = len(np.argwhere(np.diff(arr) > 0))
+    return 2 * num_raises / len(arr)
+
+
+def get_energy_stats(energies):
+    energies = energies[energies > OUT_OF_RANGE]
+    energy_spikes = count_spikes_np(energies)
+    energy_raises = count_array_raises(energies)
+    energy_final = energies[-1]
+    energy_difference = energy_final - energies[0]
+
+    return energy_spikes, energy_raises, energy_final, energy_difference
+
+
+def get_intermediate_reward_stats(inter_rewards):
+    inter_rewards = inter_rewards[inter_rewards > OUT_OF_RANGE]
+    inter_rew_spikes = count_spikes_np(inter_rewards)
+    negatives = np.where(inter_rewards < 0, inter_rewards, -99999).flatten()
+    num_negative_inter_rewards = len(np.argwhere(-5000 < negatives).flatten())
+    # num_negative_inter_rewards = len(np.argwhere(-5000 < inter_rewards < 0))
+    avg_positive_inter_rew = np.mean(inter_rewards[inter_rewards > 0])
+    min_inter_rew = np.min(inter_rewards)
+
+    return (
+        inter_rew_spikes,
+        num_negative_inter_rewards,
+        avg_positive_inter_rew,
+        min_inter_rew,
+    )

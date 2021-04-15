@@ -11,6 +11,7 @@ from distributed.eval_util import (
     run_evaluation_in_batches,
 )
 from distributed.learner_util import safe_append_in_dict
+from evaluation.batch_evaluation import RESULT_KEY_COUNTS, RESULT_KEY_ENERGY, RESULT_KEY_INCREASING, RESULT_KEY_Q_VALUE_STATS, RESULT_KEY_RATES, batch_evaluation
 from surface_rl_decoder.surface_code import SurfaceCode
 
 
@@ -31,7 +32,7 @@ def evaluate(
     max_num_of_steps=50,
     discount_factor_gamma=0.9,
     annealing_intermediate_reward=1.0,
-    discount_intermediate_reward=0.75,
+    discount_intermediate_reward=0.3,
     punish_repeating_actions=0,
     plot_one_episode=True,
     verbosity=0,
@@ -80,12 +81,14 @@ def evaluate(
 
     final_result_dict = {
         RESULT_KEY_EPISODE: {},
-        RESULT_KEY_STEP: {},
-        RESULT_KEY_P_ERR: {},
+        RESULT_KEY_Q_VALUE_STATS: {},
+        RESULT_KEY_ENERGY: {},
+        RESULT_KEY_COUNTS: {},
+        RESULT_KEY_RATES: {},
     }
 
     for i_err_list, p_error in enumerate(p_error_list):
-        eval_results, all_q_values = run_evaluation_in_batches(
+        eval_results, all_q_values = batch_evaluation(
             model,
             environment_def,
             device,
@@ -111,8 +114,6 @@ def evaluate(
     # end for; error_list
 
     return (
-        final_result_dict[RESULT_KEY_EPISODE],
-        final_result_dict[RESULT_KEY_STEP],
-        final_result_dict[RESULT_KEY_P_ERR],
-        all_q_values,
+        final_result_dict,
+        all_q_values
     )

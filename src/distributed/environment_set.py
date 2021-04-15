@@ -103,7 +103,7 @@ class EnvironmentSet:
     def step(
         self,
         actions: List,
-        discount_intermediate_reward=0.75,
+        discount_intermediate_reward=0.3,
         annealing_intermediate_reward=1.0,
         punish_repeating_actions=1,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:

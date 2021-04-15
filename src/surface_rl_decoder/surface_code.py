@@ -159,7 +159,7 @@ class SurfaceCode(gym.Env):
     def step(
         self,
         action,
-        discount_intermediate_reward=0.75,
+        discount_intermediate_reward=0.3,
         annealing_intermediate_reward=1.0,
         punish_repeating_actions=0,
     ):
@@ -191,13 +191,14 @@ class SurfaceCode(gym.Env):
         self.current_action_index += 1
 
         terminal = action[-1] == TERMINAL_ACTION
-        reward = self.get_reward(action)
-        reward += (
-            n_repeating_actions * REPEATING_ACTION_REWARD * punish_repeating_actions
-        )
+
         if terminal:
+            reward = self.get_reward(action)
             return self.state, reward, terminal, {}
 
+        reward = (
+            n_repeating_actions * REPEATING_ACTION_REWARD * punish_repeating_actions
+        )
         # execute operation throughout the stack
         self.qubits = perform_action(self.qubits, action)
 
@@ -216,8 +217,8 @@ class SurfaceCode(gym.Env):
             discount_factor=discount_intermediate_reward,
             annealing_factor=annealing_intermediate_reward,
         )
-        reward += intermediate_reward
 
+        reward += intermediate_reward
         self.state = self.next_state
 
         # if we reach the action history limit

@@ -1,7 +1,7 @@
 """
 Utility functions for the learner process
 """
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 import numpy as np
 import torch
 
@@ -9,6 +9,7 @@ import torch
 from torch import from_numpy
 from distributed.util import action_to_q_value_index
 
+from torch.utils.tensorboard import SummaryWriter
 
 def data_to_batch(
     data: Tuple, device: torch.device, batch_size: int
@@ -254,35 +255,28 @@ def safe_append_in_dict(dictionary, key, val):
 
 
 def log_evaluation_data(
-    tensorboard,
-    list_of_p_errors,
-    episode_results,
-    step_results,
-    p_error_results,
-    evaluation_step,
-    current_time_tb,
+    tensorboard: SummaryWriter,
+    all_results: Dict,
+    list_of_p_errors: List,
+    evaluation_step: int,
+    current_time_tb
 ):
     """
     Utility function to send the evaluation data to tensorboard.
     """
     for i, p_err in enumerate(list_of_p_errors):
-        tensorboard.add_scalars(
-            f"network/episode, p_error {p_err}",
-            episode_results[i],
-            evaluation_step,
-            walltime=current_time_tb,
-        )
-
-        tensorboard.add_scalars(
-            f"network/step, p_error {p_err}",
-            step_results[i],
-            evaluation_step,
-            walltime=current_time_tb,
-        )
-
-        tensorboard.add_scalars(
-            f"network/p_err, p_error {p_err}",
-            p_error_results[i],
-            evaluation_step,
-            walltime=current_time_tb,
-        )
+        for result_key, result_values in all_results.items():
+            # TODO remove try except            
+            try:
+                tensorboard.add_scalars(
+                    f"network/{result_key}, p_error {p_err}",
+                    result_values[i],
+                    evaluation_step,
+                    walltime=current_time_tb,
+                )
+            except Exception as err:
+                print(f"Caught error, {err=}")
+                print(
+                    f"{i=}, {result_key=}\n"
+                    f"{result_values=}\n"
+                )
