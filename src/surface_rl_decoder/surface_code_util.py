@@ -318,7 +318,7 @@ def create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask):
 
 
 def compute_intermediate_reward(
-    state, next_state, stack_depth, discount_factor=0.75, annealing_factor=1.0
+    state, next_state, stack_depth, discount_factor=0.3, annealing_factor=1.0
 ):
     """
     Calculate an intermediate reward based on the number of created/annihilated syndromes
