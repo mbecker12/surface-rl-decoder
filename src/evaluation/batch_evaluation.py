@@ -257,7 +257,7 @@ def batch_evaluation(
         # by applying an action.
         # Otherwise something went really wrong here
         non_terminal_episodes = np.where(actions[:, -1] != TERMINAL_ACTION)[0]
-        print(f"{non_terminal_episodes=}")
+        # print(f"{non_terminal_episodes=}")
         for j in non_terminal_episodes:
             if n_annihilated_syndromes[j] == 0 and n_created_syndromes[j] == 0:
                 # make sure that if a qubit changing action was chosen,
@@ -444,8 +444,8 @@ def batch_evaluation(
             RESULT_KEY_ENERGY: {
                 "number_of_steps": avg_number_of_steps,
                 "median number_of_steps": median_number_of_steps,
-                "inter_rew": avg_min_inter_rew,
-                "median inter_rew": median_min_inter_rew,
+                "min_inter_rew": avg_min_inter_rew,
+                "median min_inter_rew": median_min_inter_rew,
                 "num_neg_inter_rew": avg_num_neg_inter_rew,
                 "median num_neg_inter_rew": median_num_neg_inter_rew,
                 "mean_pos_inter_rew": avg_mean_positive_inter_rew,
