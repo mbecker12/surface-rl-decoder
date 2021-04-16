@@ -26,7 +26,7 @@ def evaluate(
     device,
     p_error_list,
     p_msmt_list,
-    num_of_random_episodes=24,
+    num_of_random_episodes=120,
     num_of_user_episodes=8,
     epsilon=0.0,
     max_num_of_steps=50,
