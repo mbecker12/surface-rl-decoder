@@ -7,8 +7,8 @@
         "output_channels": 32,
         "output_channels2": 64,
         "output_channels3": 128,
-        "output_channels4": 8,
-        "lstm_num_layers": 4,
+        "output_channels4": 64,
+        "lstm_num_layers": 8,
         "lstm_num_directions": 2,
         "lstm_output_size": 1024,
         "neurons_lin_layer": 1024
@@ -22,7 +22,7 @@
         "output_channels": 16,
         "output_channels2": 64,
         "output_channels3": 128,
-        "output_channels4": 16,
+        "output_channels4": 32,
         "neurons_lin_layer": 1024
     }
 }
