@@ -24,7 +24,7 @@ from distributed.util import anneal_factor, compute_priorities, select_actions, 
 from surface_rl_decoder.surface_code import SurfaceCode
 import ReplayBuffer
 
-
+Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "terminal"])
 
 
 def hindsight(config):
@@ -38,14 +38,22 @@ def hindsight(config):
     max_t: (int) maximum number of training episodes
     eps_start: (float) starting value of epsilon
     eps_end: (float) minimum value of epsilon
-    eps_decay: (float) multiplicative factor (per episode) for decreasing epsilom
+    eps_decay: (float) multiplicative factor (per episode) for decreasing epsilon
+
     """
 
-    #,  frames = 1000, eps_fixed = False, eps_frames = 1e6, min_eps = 0.01
-    frames = bool(config.get("frames"))
+    
+    frames = int(config.get("frames"))
     eps_fixed = bool(config.get("eps_fixed"))
     eps_frames = int(config.get("eps_frames"))
     min_eps = float(config.get("min_eps"))
+    writer = config.get("writer")
+    eps_start = config.get("eps_start", 0.999)
+    eps_end = config.get("eps_end", 0.001)
+    eps_decay = config.get("eps_decay", 0.998)
+    env = config.get("env")
+    num_environments = config.get("num_environments")
+    environments = EnvironmentSet(env, num_environments)
 
     scores = []
     scores_window = deque(maxlen = 100)
@@ -53,50 +61,71 @@ def hindsight(config):
     if eps_fixed:
         eps = 0
     else:
-        eps = 1
+        eps = eps_start
     
-    eps_start = 1
     i_episode = 1
-    dic = env.reset()
-    state = dic["state"]
-    goal_state = dic["goal"]
-    state = np.concatenate((state, goal_state))
+    
+    transition_type = np.dtype(
+        [
+            ("state", (np.uint8, (stack_depth, state_size, state_size))),
+            ("action", (np.uint8, 3)),
+            ("reward", float),
+            ("next_state", (np.uint8, (stack_depth, state_size, state_size))),
+            ("terminal", bool),
+        ]
+    )
+
+    #attempt to initialize the set here
+    states = environments.reset_all()
+    steps_per_episode = np.zeros(num_environments)
+
+    goal_states = ####provide the goal state here of no syndrome if it can be provided, otherwise simply make it an np.zeros array
+
+    size_local_memory_buffer = config.get("size_local_memory_buffer") + 1
+    local_buffer_transitions = np.empty((num_environments, size_local_memory_buffer), dtype = transition_type)
+    local_buffer_actions = np.empty((num_environments, size_local_memory_buffer, 3), dtype = np.uint8)
+    local_buffer_qvalues = np.empty((num_environments, size_of_local_memory_buffer), (num_actions_per_qubit * code_size * code_size + 1))
+    local_buffer_rewards = np.empty((num_environments, size_local_memory_buffer), dtype = float)
+
+    buffer_idx = 0
+
+    agent = DQN_Agent(config)
+
     score = 0
 
-    for frame in range(1, frames+1):
+    for frame in range(1, frames+1): #unlimited episodes or? 
 
-        action = agent.act(state, eps)
-        SandG, reward, done, _ = env.step(action)
-        next_state = SandG["state"]
-        next_state = np.concatenate((next_state, goal_state))
+        #take steps and states until we are done with the episode 
+        while True:
 
-        agent.step(state,action,reward, next_state, done, writer, SandG["goal"])
-        state = next_state
-        score += reward
+            actions = agent.act(states, eps)
+            next_states, rewards, terminals, _ = environments.step(action)   #Does our environment support this? in becker's code it uses more input variables
 
+
+            agent.step(states, actions, rewards, next_states, terminals, writer, goal_states) ####### Check what it produces
+            states = next_states
+            score += reward #change the score setting so that it can keep track of the multiple environment
+
+            if terminal:
+                scores_window.append(score) #change as well for the sake of the score setting
+                scores.append(score)
+                writer.add_scalar("Epsilon", eps, i_episode)
+                writer.add_scalar("Reward", score, i_episode)
+                writer.add_scalar("Average100", np.mean(scores_window), i_episode)
+                print('\rEpisode {}\tFrame {}\tAverage Score: {:.2f}'.format(i_episode, frame, np.mean(scores_window)), end = "")
+                if i_episode % 100 == 0:
+                    print('\rEpisode {}\tFrame {}\tAverage Score: {:.2f}'.format(i_episode, frame, np.mean(scores_window)))
+                i_episode += 1
+                states = environments.reset()
+                score = 0
+                break
 
         if eps_fixed == False:
-            if frame < eps_frames:
-                eps = max(eps_start - (frame*(1/eps_frames)), min_eps)
-            else:
-                eps = max(min_eps -min_eps*((frame-eps_frames)/(frames-eps_frames)), 0.001)
+                if frame < eps_frames:
+                    eps = max(eps_start - (frame*(1/eps_frames)), min_eps)
+                else:
+                    eps = max(min_eps -min_eps*((frame-eps_frames)/(frames-eps_frames)), 0.001)
         
-        if done:
-            scores_window.append(score)
-            scores.append(score)
-            writer.add_scalar("Epsilon", eps, i_episode)
-            writer.add_scalar("Reward", score, i_episode)
-            writer.add_scalar("Average100", np.mean(scores_window), i_episode)
-            print('\rEpisode {}\tFrame {}\tAverage Score: {:.2f}'.format(i_episode, frame, np.mean(scores_window)), end = "")
-            if i_episode % 100 == 0:
-                print('\rEpisode {}\tFrame {}\tAverage Score: {:.2f}'.format(i_episode, frame, np.mean(scores_window)))
-            i_episode += 1
-            dic = env.reset()
-            state = dic["state"]
-            goal_state = dic["goal"]
-            state = np.concatenate((state, goal_state))
-            score = 0
-
     return np.mean(scores_window)
 
 
@@ -105,9 +134,7 @@ def hindsight(config):
 if __name__ == "__main__":
     writer = SummaryWriter("runs/" + "BF_HER_4_")
 
-    FORMAT = "%(levelname)s %(asctime)s - %(message)s"
-    logging.basicConfig(filename = "Her_Log.log", level = logging.DEBUG, format = FORMAT, filemode = "w")
-    logger = logging.getLogger()
+    
 
     seed = 3
     buffer_size = 100000
@@ -121,27 +148,27 @@ if __name__ == "__main__":
 
     bit_length = 16
     np.random.seed(seed)
-    env = gym.make("")
-    env.__init__(bit_length = bit_length)
+    env = SurfaceCode()
 
-    env.seed(seed)
-    action_size = env.action_space.n
+
+    verbosity = 4
+    action_size = env.action_space.n #check if these are the old one belonging to the original bitflip problem 
     state_size = env.observation_space["state"].shape
-
-    agent = DQN_Agent(config)
 
 
     eps_fixed = False
 
-     config = {"code_size": 5,
+    config = {"code_size": env.syndrome_size-1,
+    "state_size": env.syndrome_size
+    "stack_depth": env.stack_depth
     "min_qbit_err": 2,
     "p_error": 0.1,
     "p_msmt": 0.05,
     "stack_depth": 8,
-    "nr_actions_per_qubit": 3,
-    "epsilon_from": 0.999,
-    "epsilon_to": 0.02,
-    "epsilon_decay": 0.998,
+    "num_actions_per_qubit": 3,
+    "eps_from": 0.999,
+    "eps_to": 0.02,
+    "eps_decay": 0.998,
     "max_actions": 32,
     "input_channels": 1,
     "kernel_size": 3,
@@ -150,16 +177,40 @@ if __name__ == "__main__":
     "output_channels3": 30,
     "padding_size": 1,
     "lstm_layerrs": 3,
+    "gamma": gamma,
+    "lr": lr,
+    "tau": tau,
+    "model_name": "Conv_2d_agent",
     "bit_length": int(bit_length),
     "eps_fixed": bool(eps_fixed);
     "frames": 35000, 
     "eps_frames": 8000, 
     "min_eps": 0.025,
-    "device": str(device)
+    "device": str(device),
+    "writer": writer,
+    "logger": logger,
+    "env": env,
+    "num_environments": num_environments,
+    "actor_id": id,
+    "size_action_history": size_action_history,
+    "benchmarking": benchmarking,
+    "load_model_flag": load_model_flag,
+    "old_model_path": old_model_path,
+    "verbosity": verbosity
      }
 
+
+    FORMAT = "%(levelname)s %(asctime)s - %(message)s"
+    logging.basicConfig(filename = "Her_Log.log", level = logging.DEBUG, format = FORMAT, filemode = "w")
+    logger = logging.getLogger(f"HER_{actor_id}")
+    if verbosity >= 4:
+        logger.setLevel(loggin.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+    logger.info("Fire up all the environments")
+
     t0 = time.time()
-    final_average100 = run()
+    final_average100 = hindsight(config)
     t1 = time.time()
 
     print("Training time: {}min".format(round((t1-t0)/60, 2)))

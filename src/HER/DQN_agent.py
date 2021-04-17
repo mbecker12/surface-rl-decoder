@@ -3,6 +3,8 @@ import torch
 from agents import Conv_2d_agent
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters, clip_grad_norm
+from distributed.environment_set import EnvironmentSet
+from distributed.model_util import choose_model, load_model
 import torch.optim as optim
 import gym
 import logging
@@ -31,11 +33,12 @@ class DQN_Agent:
             device: (str) device that is used for computation
             seed: (int) random seed
             update_every: (int) update frequency
+            bit_length: (int) length of bit map #will need to be revised to properly extract state
             n_step: (int) n_step for how far one should consider the rewards
             other parameters required for the neural network (dependant on the network)
 
         """
-        seed = int(config.get("seed"))
+        seed = int(config.get("seed",-1))
         self.device = config.get("device")
         self.tau = float(config.get("tau"))
         self.gamma = float(config.get("gamma"))
@@ -43,16 +46,32 @@ class DQN_Agent:
         self.batch_size = int(config.get("batch_size"))
         self.buffer_size = int(config.get("buffer_size"))
         learning_rate = float(config.get("learning_rate"))
+        load_model_flag = bool(config.get("load_model_flag"))
+        self.bit_length = int(config.get("bit_length")) #This may need to be revised
+        self.model_name = str(config.get("model_name"))
         self.q_updates = 0
-        self.n_step = int(config.get("n_step"))
+        self.n_step = int(config.get("n_step", 0))
         self.current_episode = []
         self.action_step = 4
         self.last_action = None
 
+
+
+        if seed != -1:
+            random.seed(seed)
+
         #Q-network
 
-        self.qnetwork_local = Conv_2d_agent(config).to(self.device) #see if we can make this choosable via config input, otherwise make it an explicit input
-        self.qnetwork_target = Conv_2d_agent(config).to(self.device)
+        self.qnetwork_local = choose_model(self.model_name, config)
+        self.qnetwork_target = choose_model(self.model_name, config)
+        if load_model_flag:
+            old_model_path = config.get("old_model_path")
+            self.qnetwork_local, _, _ = load_model(self.qnetwork_local, old_model_path) 
+            self.qnetwork_target, _, _ = load_model(self.qnetwork_target, old_model_path)
+            logger.info(f"Loaded actor model from {old_model_path}")
+
+        self.qnetwork_local.to(device)
+        self.qnetwork_target.to(device)
 
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr = learning_rate)
         print(self.qnetwork_local)
@@ -86,13 +105,13 @@ class DQN_Agent:
                     #logger.info("--- Her Sampling ---")
                     #logger.info("new goal: {}".format(new_goal))
 
-                    r_ = self.reward_function(state[:BIT_LENGTH], new_goal) #next_state
+                    r_ = self.reward_function(state[:self.bit_length], new_goal) #next_state #will need to be revised due to changed structure
                     #logger.info("new reward: {}".format(r_))
 
-                    next_state = np.concatenate((next_state[:BIT_LENGTH], new_goal))
-                    state = np.concatenate((state[:BIT_LENGTH], new_goal))
+                    next_state = np.concatenate((next_state[:self.bit_length], new_goal)) #will need to be revised to properly extract state
+                    state = np.concatenate((state[:self.bit_length], new_goal)) #will need to be revised to properly extract state
 
-                    if(next_state[:BIT_LENGTH] == new_goal).all():
+                    if(next_state[:self.bit_length] == new_goal).all(): #will need to be revised to properly extract state
                         d = 1
                     else:
                         d = 0
@@ -116,7 +135,7 @@ class DQN_Agent:
         for _in range(n):
             transition = random.choice(self.current_episode[idx:])
 
-            new_goal = transition[0][:BIT_LENGTH]
+            new_goal = transition[0][:self.bit_length] #will need to be revised to properly extract state
             new_goals.append(new_goal)
         return new_goals
 
@@ -130,9 +149,6 @@ class DQN_Agent:
 
         """
 
-        state = np.array(state)
-
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.qnetwork_local.eval()
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
@@ -159,7 +175,7 @@ class DQN_Agent:
         #Get max predicted Q values (for next states) from target model
         Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
         #Compute Q targets for current states
-        Q_targets = rewards + (self.GAMMA**self.n_step * Q_targets_next * (1-dones))
+        Q_targets = rewards + (self.gamma**self.n_step * Q_targets_next * (1-dones))
         #get expected Q values from local model
         Q_expected = self.qnetwork_local(states).gather(1,actions)
         #Compute loss
@@ -187,3 +203,4 @@ class DQN_Agent:
 
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(self.tau * local_param.data + (1.0-self.tau) * target_param.data)
+
