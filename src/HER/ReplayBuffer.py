@@ -5,7 +5,7 @@ import random
 import torch
 import numpy as np
 
-
+#may want to readjust to be able to take multiple environments
 class ReplayBuffer:
 
     def __init__(self, buffer_size, batch_size, device, seed, gamma, n_step = 1):

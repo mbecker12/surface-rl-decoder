@@ -49,11 +49,15 @@ class DQN_Agent:
         load_model_flag = bool(config.get("load_model_flag"))
         self.bit_length = int(config.get("bit_length")) #This may need to be revised
         self.model_name = str(config.get("model_name"))
+        self.stack_depth = int(config.get("stack_depth"))
+        self.state_size = int(config.get("state_size"))
+        self.logger = config.get("logger")
         self.q_updates = 0
         self.n_step = int(config.get("n_step", 0))
         self.current_episode = []
         self.action_step = 4
         self.last_action = None
+        self.num_goals = 4
 
 
 
@@ -86,32 +90,29 @@ class DQN_Agent:
     def step(self, state, action, reward, next_state, done, writer, current_goal):
 
         self.current_episode.append([state, action, reward, next_state, done])
-        if done == 1:
+        if done:
             for idx, exp in enumerate(self.current_episode):
                 state, action, reward, next_state, done = exp
-                #logger.info("Episode state: {}".format(state))
-                #logger.info("Episode action: {}".format(action))
-                #logger.info("Episode reward: {}".format(reward))
-                #logger.info("Episode next_state: {}".format(next_state))
+                #self.logger.info("Episode state: {}".format(state))
+                #self.logger.info("Episode action: {}".format(action))
+                #self.logger.info("Episode reward: {}".format(reward))
+                #self.logger.info("Episode next_state: {}".format(next_state))
 
                 #Save experience in replay memory
                 self.memory.add(state, action, reward, next_state, done)
 
                 #Sample additional goals for HER
-                new_goals = self.sample_goals(idx, 4)
-                #logger.info("new goal: {}".format(new_goal))
+                new_goals = self.sample_goals(idx, self.num_goals)
+                #self.logger.info("new goal: {}".format(new_goal))
 
                 for new_goal in new_goals:
-                    #logger.info("--- Her Sampling ---")
-                    #logger.info("new goal: {}".format(new_goal))
+                    #self.logger.info("--- Her Sampling ---")
+                    #self.logger.info("new goal: {}".format(new_goal))
 
-                    r_ = self.reward_function(state[:self.bit_length], new_goal) #next_state #will need to be revised due to changed structure
-                    #logger.info("new reward: {}".format(r_))
+                    r_ = self.reward_function(state, new_goal)
+                    #self.logger.info("new reward: {}".format(r_))
 
-                    next_state = np.concatenate((next_state[:self.bit_length], new_goal)) #will need to be revised to properly extract state
-                    state = np.concatenate((state[:self.bit_length], new_goal)) #will need to be revised to properly extract state
-
-                    if(next_state[:self.bit_length] == new_goal).all(): #will need to be revised to properly extract state
+                    if(next_state == new_goal).all():
                         d = 1
                     else:
                         d = 0
@@ -134,8 +135,8 @@ class DQN_Agent:
         new_goals = []
         for _in range(n):
             transition = random.choice(self.current_episode[idx:])
-
-            new_goal = transition[0][:self.bit_length] #will need to be revised to properly extract state
+            print("transition: " transition) #debug purposes
+            new_goal = transition
             new_goals.append(new_goal)
         return new_goals
 
@@ -149,7 +150,7 @@ class DQN_Agent:
 
         """
 
-        self.qnetwork_local.eval()
+        self.qnetwork_local.eval() #have this part elsewhere? trigger only if done?
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
         self.qnetwork_local.train()
@@ -157,6 +158,10 @@ class DQN_Agent:
         #Epsilon-greedy action selection
         if random.random() > eps: # select greedy action if random number is higher than epsilon or noisy network is used
             action = np.argmax(action_values.cpu().data.numpy())
+            self.last_action = action
+            return action
+        else:
+            action = random.randint(0, self.num_actions*self.stack_depth*self.state_size*self.state_size)
             self.last_action = action
             return action
 
