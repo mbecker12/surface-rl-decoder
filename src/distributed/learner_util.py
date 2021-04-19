@@ -11,6 +11,7 @@ from distributed.util import action_to_q_value_index
 
 from torch.utils.tensorboard import SummaryWriter
 
+
 def data_to_batch(
     data: Tuple, device: torch.device, batch_size: int
 ) -> Tuple[List, List, List, List, List, List, List]:
@@ -259,14 +260,14 @@ def log_evaluation_data(
     all_results: Dict,
     list_of_p_errors: List,
     evaluation_step: int,
-    current_time_tb
+    current_time_tb,
 ):
     """
     Utility function to send the evaluation data to tensorboard.
     """
     for i, p_err in enumerate(list_of_p_errors):
         for result_key, result_values in all_results.items():
-            # TODO remove try except            
+            # TODO remove try except
             try:
                 tensorboard.add_scalars(
                     f"network/{result_key}, p_error {p_err}",
@@ -276,7 +277,4 @@ def log_evaluation_data(
                 )
             except Exception as err:
                 print(f"Caught error, {err=}")
-                print(
-                    f"{i=}, {result_key=}\n"
-                    f"{result_values=}\n"
-                )
+                print(f"{i=}, {result_key=}\n" f"{result_values=}\n")

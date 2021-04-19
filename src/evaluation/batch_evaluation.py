@@ -54,6 +54,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("eval")
 logger.setLevel(logging.INFO)
 
+
 def batch_evaluation(
     model,
     environment_def,
@@ -157,7 +158,10 @@ def batch_evaluation(
 
         assert len(is_active.shape) <= 2, is_active.shape
 
-        energies = np.sum(np.sum(states[:, -1, :, :], axis=2), axis=1) * STATE_MULTIPLIER_INVERSE
+        energies = (
+            np.sum(np.sum(states[:, -1, :, :], axis=2), axis=1)
+            * STATE_MULTIPLIER_INVERSE
+        )
         assert energies.shape == (total_n_episodes,), energies.shape
         accumulators["energies"][:, global_episode_steps - 1] = energies
 
@@ -166,7 +170,7 @@ def batch_evaluation(
         )
 
         # evaluate active episodes
-        
+
         tmp_actions, tmp_q_values = select_actions(
             torch_states, model, code_size, epsilon=epsilon
         )
@@ -250,7 +254,9 @@ def batch_evaluation(
         # ... and infer how many syndromes were created or destroyed
         n_annihilated_syndromes = np.sum(diffs_all > 0, axis=1)
         n_created_syndromes = np.sum(diffs_all < 0, axis=1)
-        assert n_annihilated_syndromes.shape == (total_n_episodes,), n_annihilated_syndromes
+        assert n_annihilated_syndromes.shape == (
+            total_n_episodes,
+        ), n_annihilated_syndromes
 
         # if we have a non-terminal episode and no net syndrome
         # creation or annihilation, at least the state must have changed
@@ -266,7 +272,9 @@ def batch_evaluation(
                     states[j] == next_states[j]
                 ), f"{states[j]=}, \n{next_states[j]=}, \n{actions[j]=}"
 
-        accumulators["syndromes_annihilated"] += n_annihilated_syndromes[is_active].sum()
+        accumulators["syndromes_annihilated"] += n_annihilated_syndromes[
+            is_active
+        ].sum()
         accumulators["syndromes_created"] += n_created_syndromes[is_active].sum()
 
         # print(f"t={global_episode_steps}, {is_active=}")
@@ -282,7 +290,7 @@ def batch_evaluation(
                 if i not in is_active:
                     # print(f"skip episode {i}")
                     continue
-                
+
                 accumulators["intermediate_rewards"][
                     indices, global_episode_steps - 1
                 ] = np.repeat(0, len(indices))

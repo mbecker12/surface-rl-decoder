@@ -11,7 +11,14 @@ from distributed.eval_util import (
     run_evaluation_in_batches,
 )
 from distributed.learner_util import safe_append_in_dict
-from evaluation.batch_evaluation import RESULT_KEY_COUNTS, RESULT_KEY_ENERGY, RESULT_KEY_INCREASING, RESULT_KEY_Q_VALUE_STATS, RESULT_KEY_RATES, batch_evaluation
+from evaluation.batch_evaluation import (
+    RESULT_KEY_COUNTS,
+    RESULT_KEY_ENERGY,
+    RESULT_KEY_INCREASING,
+    RESULT_KEY_Q_VALUE_STATS,
+    RESULT_KEY_RATES,
+    batch_evaluation,
+)
 from surface_rl_decoder.surface_code import SurfaceCode
 
 
@@ -113,7 +120,4 @@ def evaluate(
 
     # end for; error_list
 
-    return (
-        final_result_dict,
-        all_q_values
-    )
+    return (final_result_dict, all_q_values)

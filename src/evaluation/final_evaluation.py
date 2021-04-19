@@ -25,9 +25,13 @@ from evaluation.batch_evaluation import (
     RESULT_KEY_RATES,
     RESULT_KEY_COUNTS,
     RESULT_KEY_INCREASING,
-    RESULT_KEY_EPISODE
+    RESULT_KEY_EPISODE,
 )
-from distributed.learner_util import log_evaluation_data, safe_append_in_dict, transform_list_dict
+from distributed.learner_util import (
+    log_evaluation_data,
+    safe_append_in_dict,
+    transform_list_dict,
+)
 from surface_rl_decoder.surface_code_util import (
     STATE_MULTIPLIER,
     TERMINAL_ACTION,
@@ -38,6 +42,7 @@ from surface_rl_decoder.surface_code_util import (
 from surface_rl_decoder.surface_code import SurfaceCode
 from distributed.util import select_actions
 import matplotlib.pyplot as plt
+
 
 def main_evaluation(model, device, epsilon=0.0):
     surface_code = SurfaceCode()
@@ -171,7 +176,7 @@ def main_evaluation(model, device, epsilon=0.0):
         f"Average positive intermediate reward: {np.mean(inter_rews[inter_rews > 0])}"
     )
     print(f"Min inter reward: {np.min(inter_rews)}")
-    
+
     if energy_spikes < 1 or inter_rew_spikes < 1 or syndromes_annihilated != 0.5:
         plt.plot(energies)
         plt.title("Energy")
@@ -188,6 +193,7 @@ def main_evaluation(model, device, epsilon=0.0):
 
         surface_code.render()
 
+
 if __name__ == "__main__":
     cfg = Config()
     _config = cfg.scan(".", True).read()
@@ -203,12 +209,12 @@ if __name__ == "__main__":
     load_path = eval_config.get("load_model_path")
 
     verbosity = 5
- 
+
     summary_path = "testing"
     summary_date = "1"
 
     tb_path = os.path.join(summary_path, summary_date, "learner")
-    tensorboard = SummaryWriter(tb_path) #TODO init tb
+    tensorboard = SummaryWriter(tb_path)  # TODO init tb
 
     for filename in glob.glob(load_path + "*"):
         if filename.endswith(".pt"):
@@ -256,7 +262,9 @@ if __name__ == "__main__":
         # then the first action
         qubits[:, 2, 2] = 1
         surface_code.qubits = qubits
-        state = create_syndrome_output_stack(qubits, surface_code.vertex_mask, surface_code.plaquette_mask)
+        state = create_syndrome_output_stack(
+            qubits, surface_code.vertex_mask, surface_code.plaquette_mask
+        )
         surface_code.state = state
         surface_code.render()
 
@@ -268,7 +276,7 @@ if __name__ == "__main__":
     # perform the main evaluation
     if True:
         main_evaluation(model, eval_device)
-    
+
     # test integration with evaluation routine in the real program
     if False:
         for t in range(5):
@@ -309,11 +317,7 @@ if __name__ == "__main__":
             current_time_tb = time()
             # print(f"{tb_results=}")
             log_evaluation_data(
-                tensorboard,
-                tb_results,
-                p_error_list,
-                t,
-                current_time_tb
+                tensorboard, tb_results, p_error_list, t, current_time_tb
             )
 
             if verbosity >= 4:
