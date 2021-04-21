@@ -175,7 +175,7 @@ def perform_q_learning_step(
 
     target_q_values = expected_q_values + batch_reward
     target_q_values = target_q_values.view(-1, 1)
-    target_q_values = target_q_values.clamp(-100, 100)
+    target_q_values = target_q_values.clamp(-200, 200)
 
     loss = criterion(target_q_values, policy_output_gathered)
 

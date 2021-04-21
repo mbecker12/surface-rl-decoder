@@ -878,7 +878,13 @@ def get_intermediate_reward_stats(inter_rewards):
     negatives = np.where(inter_rewards < 0, inter_rewards, -99999).flatten()
     num_negative_inter_rewards = len(np.argwhere(-5000 < negatives).flatten())
     # num_negative_inter_rewards = len(np.argwhere(-5000 < inter_rewards < 0))
-    avg_positive_inter_rew = np.mean(inter_rewards[inter_rewards > 0])
+
+    positive_rewards = inter_rewards > 0
+    if len(np.argwhere(positive_rewards)) > 0:
+        avg_positive_inter_rew = np.mean(inter_rewards[inter_rewards > 0])
+    else:
+        avg_positive_inter_rew = 0
+
     min_inter_rew = np.min(inter_rewards)
 
     return (

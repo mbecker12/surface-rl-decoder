@@ -46,7 +46,10 @@ def initialize_accumulation_stats(
     common_actions = np.zeros(total_n_episodes)
     correct_actions_aggregation = np.zeros(num_of_user_episodes)
     energies = np.zeros((total_n_episodes, max_num_of_steps)) + OUT_OF_RANGE
+    # TODO: not colleting stats about terminal energy atm
     terminal_energies = np.zeros(total_n_episodes) + OUT_OF_RANGE
+    # TODO: check implementation with OUT_OF_RANGE token,
+    # seems to cause problems in some calculations
     intermediate_rewards = np.zeros((total_n_episodes, max_num_of_steps)) + OUT_OF_RANGE
     q_value_aggregation = np.zeros(total_n_episodes)
     q_value_diff_aggregation = np.zeros(total_n_episodes)
