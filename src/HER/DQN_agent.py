@@ -33,7 +33,6 @@ class DQN_Agent:
             device: (str) device that is used for computation
             seed: (int) random seed
             update_every: (int) update frequency
-            bit_length: (int) length of bit map #will need to be revised to properly extract state
             n_step: (int) n_step for how far one should consider the rewards
             other parameters required for the neural network (dependant on the network)
 
@@ -47,7 +46,6 @@ class DQN_Agent:
         self.buffer_size = int(config.get("buffer_size"))
         learning_rate = float(config.get("learning_rate"))
         load_model_flag = bool(config.get("load_model_flag"))
-        self.bit_length = int(config.get("bit_length")) #This may need to be revised
         self.model_name = str(config.get("model_name"))
         self.stack_depth = int(config.get("stack_depth"))
         self.state_size = int(config.get("state_size"))
@@ -152,7 +150,7 @@ class DQN_Agent:
 
         self.qnetwork_local.eval() #have this part elsewhere? trigger only if done?
         with torch.no_grad():
-            action_values = self.qnetwork_local(state)
+            action_values = self.qnetwork_local(torch.tensor(state, dtype = torch.float32, device = self.device))
         self.qnetwork_local.train()
 
         #Epsilon-greedy action selection
@@ -178,7 +176,8 @@ class DQN_Agent:
         self.optimizer.zero_grad()
         states, actions, rewards, next_states, dones = experiences
         #Get max predicted Q values (for next states) from target model
-        Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+        Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1) #This may need a check so that it does things correctly
+        print("Q_targets_next: " + Q_targets_next)
         #Compute Q targets for current states
         Q_targets = rewards + (self.gamma**self.n_step * Q_targets_next * (1-dones))
         #get expected Q values from local model
