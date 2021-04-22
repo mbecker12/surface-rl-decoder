@@ -54,6 +54,7 @@ def initialize_accumulation_stats(
     q_value_aggregation = np.zeros(total_n_episodes)
     q_value_diff_aggregation = np.zeros(total_n_episodes)
     q_value_certainty_aggregation = np.zeros(total_n_episodes)
+    terminal_q_value_aggregation = np.zeros(total_n_episodes)
 
     return {
         "syndromes_annihilated": syndromes_annihilated,
@@ -66,6 +67,7 @@ def initialize_accumulation_stats(
         "q_value_aggregation": q_value_aggregation,
         "q_value_diff_aggregation": q_value_diff_aggregation,
         "q_value_certainty_aggregation": q_value_certainty_aggregation,
+        "terminal_q_value": terminal_q_value_aggregation,
     }
 
 
