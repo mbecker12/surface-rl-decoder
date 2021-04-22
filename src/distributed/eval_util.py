@@ -761,15 +761,18 @@ def aggregate_q_value_stats(
     q_value_aggregation,
     q_value_diff_aggregation,
     q_value_certainty_aggregation,
+    terminal_q_value_aggregation,
     q_value,
     second_q_value,
     theoretical_q_values,
+    terminal_q_value
 ):
     q_value_aggregation += q_value
     q_value_diff_aggregation += q_value - theoretical_q_values
     q_value_certainty_aggregation += q_value - second_q_value
+    terminal_q_value_aggregation += terminal_q_value
 
-    return q_value_aggregation, q_value_diff_aggregation, q_value_certainty_aggregation
+    return q_value_aggregation, q_value_diff_aggregation, q_value_certainty_aggregation, terminal_q_value_aggregation
 
 
 def calc_theoretical_q_value(
