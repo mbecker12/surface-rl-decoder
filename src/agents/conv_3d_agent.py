@@ -69,10 +69,20 @@ class Conv3dGeneralAgent(nn.Module):
 
         self.neurons_lin_layer = int(config.get("neurons_lin_layer"))
 
-        self.padding_size = int(config.get("padding_size"))
         self.kernel_size = int(config.get("kernel_size"))
         self.kernel_depth = int(config.get("kernel_depth", self.kernel_size))
-        self.kernel_size = (self.kernel_size, self.kernel_size, self.kernel_depth)
+
+        self.padding_size = int(config.get("padding_size"))
+        if self.padding_size != 1:
+            self.padding_size = (
+                int(self.kernel_depth / 2),
+                int(self.kernel_size / 2),
+                int(self.kernel_size / 2)
+            )
+        
+        self.kernel_size = (self.kernel_depth, self.kernel_size, self.kernel_size)
+
+        print(f"{self.padding_size=}")
 
         self.input_conv_layer_both = nn.Conv3d(
             self.input_channels,
@@ -162,6 +172,7 @@ class Conv3dGeneralAgent(nn.Module):
         """
         forward pass
         """
+        batch_size = state.shape[0]
 
         if self.split_input_toggle:
             x, z, both = interface(state, self.plaquette_mask, self.vertex_mask)
@@ -219,16 +230,34 @@ class Conv3dGeneralAgent(nn.Module):
                 (self.size + 1),
             )  # convolve both
             both = F.relu(self.input_conv_layer_both(both))
+            assert both.shape[-3:] == (
+                self.stack_depth,
+                (self.size + 1),
+                (self.size + 1)
+            ), f"start {both.shape=}"
             both = F.relu(self.nd_conv_layer_both(both))
             both = F.relu(self.rd_conv_layer_both(both))
             both = F.relu(self.comp_conv_layer_both(both))
+            assert both.shape[-3:] == (
+                self.stack_depth,
+                (self.size + 1),
+                (self.size + 1)
+            ), f"end {both.shape=}"
+            assert both.shape[0] == batch_size, f"end compare batch_size {both.shape=}"
 
             # TODO flatten here already
+            # print(both.shape)
             complete = both.view(
                 -1,
                 self.stack_depth,
                 (self.size + 1) * (self.size + 1) * self.output_channels4,
             )  # make sure the dimensions are in order
+
+            # complete = both.view(
+            #     -1,
+            #     (self.size + 1) * (self.size + 1) * self.output_channels4 * self.stack_depth,
+            # )  # make sure the dimensions are in order
+            assert complete.shape[0] == batch_size, complete.shape
 
         complete = F.relu(self.almost_final_layer(complete))
         # shift the dimension so that
