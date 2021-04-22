@@ -42,6 +42,9 @@ def hindsight(config):
     eps_decay: (float) multiplicative factor (per episode) for decreasing epsilon
 
     """
+
+
+    
     writer = SummaryWriter("runs/" + "BF_HER_4_")
 
     

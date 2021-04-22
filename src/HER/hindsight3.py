@@ -224,3 +224,38 @@ def hindsight3(self, config):
         annealing_intermediate_reward = anneal_factor(delta_t, 
         decay_factor = decay_factor_intermediate_reward,
         min_value = min_value_factor_intermediate_reward)
+
+        next_states, rewards, terminals, _ = environment.step(actions, 
+        discount_intermediate_reward = discount_intermediate_reward,
+        annealing_intermediate_reward = annealing_intermediate_reward,
+        punish_repeating_actions = 0)
+
+        if benchmarking and steps_to_benchmark % benchmark_frequency ==0:
+            steps_stop = time()
+            logger.info(f"time to step through environments: {steps_stop-steps_start}")
+
+        if verbosity >= 2:
+            current_time_tb = time_tb()
+            tensorboard.add_scalars("hindsight/effect_intermediate_reward",
+            {"anneal_factor": annealing_intermediate_reward},
+            delta_t,
+            walltime = current_time_tb)
+        
+        transitions = np.asarray(
+            [
+            Transition(
+                states[i], actions[i], reward[i], next_states[i], terminals[i]
+            ) for i in range(num_environments)
+        ], dtype = transition_type)
+
+        local_buffer_transitions[:buffer_idx] = transitions
+        local_buffer_actions[:, buffer_idx] = actions
+        local_buffer_qvalues[:, buffer_idx] = q_values
+        local_buffer_rewards[:, buffer_idx] = rewards
+        buffer_idx += 1
+
+
+        #prepare to send local transitions to replay memory
+        if buffer_idx >= size_local_memory_buffer:
+            #get new weights for the policy model here
+            if (learner_qsize :=  learner)
