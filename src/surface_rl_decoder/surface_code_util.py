@@ -352,6 +352,12 @@ def compute_intermediate_reward(
     )
 
     intermediate_reward = np.sum(layer_rewards)
+    # weight negative differences more strongly than positive differences,
+    # this will correspond to a stronger punishment compared to the reward
+    # for an analogous action
+    if intermediate_reward < 0:
+        intermediate_reward *= 2
+
     return intermediate_reward
 
 
