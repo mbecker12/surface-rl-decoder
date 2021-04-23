@@ -6,8 +6,10 @@ and linear layers to generate q values.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.modules import transformer
 from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 from agents.interface import interface
+from gtrxl_torch.gtrxl_torch import GTrXL
 
 
 class SimpleConv2D(nn.Module):
@@ -67,8 +69,18 @@ class SimpleConv2D(nn.Module):
         self.output_channels4 = int(config.get("output_channels4", 1))
         self.padding_size = int(config.get("padding_size"))
         self.use_lstm = int(config.get("use_lstm", 0))
+        self.use_rnn = int(config.get("use_rnn", 0))
+        self.use_transformer = int(config.get("use_gtrxl", 0))
+        self.use_all_syndrome_layers = int(config.get("use_all_syndrome_layers", 0))
 
-        if self.use_lstm:
+        if self.use_transformer:
+            self.gtrxl_dim = int(config.get("gtrxl_dim"))
+            self.gtrxl_heads = int(config.get("gtrxl_heads"))
+            self.gtrxl_layers = int(config.get("gtrxl_layers"))
+            self.gtrxl_hidden_dims = int(config.get("gtrxl_hidden_dims", 2048))
+            self.gtrxl_rnn_layers = int(config.get("gtrxl_rnn_layers", 1))
+
+        if self.use_lstm or self.use_rnn:
             self.lstm_num_layers = int(config.get("lstm_num_layers"))
             self.lstm_num_directions = int(config.get("lstm_num_directions"))
             assert self.lstm_num_directions in (1, 2)
@@ -78,6 +90,8 @@ class SimpleConv2D(nn.Module):
         self.neurons_lin_layer1 = int(config.get("neurons_lin_layer1"))
         self.neurons_lin_layer2 = int(config.get("neurons_lin_layer2"))
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
+
+        self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.output_channels4
 
         self.input_conv_layer_both = nn.Conv2d(
             self.input_channels,
@@ -107,6 +121,7 @@ class SimpleConv2D(nn.Module):
             padding=self.padding_size,
         )
         if self.use_lstm:
+            print("Using LSTM!")
             self.lstm_layer = nn.LSTM(
                 (self.size + 1) * (self.size + 1) * self.output_channels4,
                 self.lstm_output_size,
@@ -115,14 +130,53 @@ class SimpleConv2D(nn.Module):
                 batch_first=True,
             )
 
+            lstm_total_output_size = self.lstm_output_size * self.lstm_num_directions
+            if self.use_all_syndrome_layers:
+                lstm_total_output_size *= self.stack_depth
+
             self.lin_layer1 = nn.Linear(
-                self.lstm_output_size * self.lstm_num_directions * self.stack_depth, self.neurons_lin_layer1
+                lstm_total_output_size, self.neurons_lin_layer1
             )
+        elif self.use_rnn:
+            self.rnn_layer = nn.RNN(
+                (self.size + 1) * (self.size + 1) * self.output_channels4,
+                self.lstm_output_size,
+                num_layers=self.lstm_num_layers,
+                bidirectional=self.lstm_is_bidirectional,
+                batch_first=True,
+            )
+
+            lstm_total_output_size = self.lstm_output_size * self.lstm_num_directions
+            if self.use_all_syndrome_layers:
+                lstm_total_output_size *= self.stack_depth
+
+            self.lin_layer1 = nn.Linear(
+                lstm_total_output_size, self.neurons_lin_layer1
+            )
+        elif self.use_transformer:
+            # TODO: should be possible to choose gtrxl dimension
+            self.grxl_dimension = self.cnn_dimension
+            self.gated_transformer = GTrXL(
+                d_model=self.grxl_dimension,
+                nheads=self.gtrxl_heads,
+                transformer_layers=self.gtrxl_layers,
+                hidden_dims=self.gtrxl_hidden_dims,
+                n_layers=self.gtrxl_rnn_layers
+            )
+
+            gtrxl_total_output_size = self.grxl_dimension
+            if self.use_all_syndrome_layers:
+                gtrxl_total_output_size *= self.stack_depth
+            self.lin_layer1 = nn.Linear(
+                gtrxl_total_output_size, self.neurons_lin_layer1
+            )
+
         else:
+            print("NOT Using LSTM!")
             self.lin_layer1 = nn.Linear(
-                (self.size + 1) * (self.size + 1) * self.output_channels4 * self.stack_depth, self.neurons_lin_layer1
+                self.cnn_dimension * self.stack_depth, self.neurons_lin_layer1
             )
-        
+
         self.lin_layer2 = nn.Linear(self.neurons_lin_layer1, self.neurons_lin_layer2)
         self.final_layer = nn.Linear(self.neurons_lin_layer2, self.neurons_output)
 
@@ -133,6 +187,7 @@ class SimpleConv2D(nn.Module):
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
         batch_size, timesteps, H, W = state.size()
+
         state = state.view(
             -1, self.input_channels, (self.size + 1), (self.size + 1)
         )  # convolve both
@@ -145,8 +200,9 @@ class SimpleConv2D(nn.Module):
         complete = state.view(
             batch_size,
             self.stack_depth,
-            (self.size + 1) * (self.size + 1) * self.output_channels4,
+            self.cnn_dimension
         )
+        
         assert complete.shape[0] == batch_size
 
         if self.use_lstm:
@@ -159,13 +215,32 @@ class SimpleConv2D(nn.Module):
             ), f"{output.shape=}, {self.lstm_output_size=}, {self.lstm_num_directions=}"
             assert len(output.shape) == 3
 
-            output = output[:, -1, :]
+            if not self.use_all_syndrome_layers:
+                output = output[:, -1, :]
+        elif self.use_rnn:
+            hidden = None
+
+            output, _h = self.rnn_layer(complete)
+            assert (
+                output.shape[2] == self.lstm_output_size * self.lstm_num_directions
+            ), f"{output.shape=}, {self.lstm_output_size=}, {self.lstm_num_directions=}"
+            assert len(output.shape) == 3
+
+            if not self.use_all_syndrome_layers:
+                output = output[:, -1, :]
+        elif self.use_transformer:
+            complete = complete.permute(1, 0, 2)
+            output = self.gated_transformer(complete)
+            if not self.use_all_syndrome_layers:
+                output = output[-1, :, :]
+            else:
+                output = output.permute(1, 0, 2)
 
         else:
             output = complete.view(batch_size, -1)
 
         output = F.relu(
-            self.lin_layer1(output.squeeze())
+            self.lin_layer1(output)
         )  # take the last output feature vector from the lstm for each sample in the batch
         assert output.shape == (batch_size, self.neurons_lin_layer1), \
             f"{output.shape=}, {(batch_size, self.neurons_lin_layer1)=}"
