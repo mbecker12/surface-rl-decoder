@@ -90,6 +90,7 @@ def start_mp():
     )
     decay_factor_epsilon = float(actor_config.get("decay_factor_epsilon", 1.0))
     min_value_factor_epsilon = float(actor_config.get("min_value_factor_epsilon", 0.0))
+    seed = int(actor_config.get("seed", 0))
 
     # set up replay memory configuration
     replay_memory_size = int(memory_config["size"])
@@ -185,6 +186,7 @@ def start_mp():
         "decay_factor_intermediate_reward": decay_factor_intermediate_reward,
         "decay_factor_epsilon": decay_factor_epsilon,
         "min_value_factor_epsilon": min_value_factor_epsilon,
+        "seed": seed
     }
 
     learner_args = {
