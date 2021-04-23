@@ -251,8 +251,10 @@ class Conv2dAgentUpdate(nn.Module):
         output = F.relu(
             self.almost_final_layer(output.squeeze())
         )  # take the last output feature vector from the lstm for each sample in the batch
-        assert output.shape == (batch_size, self.neurons_lin_layer), \
-            f"{output.shape=}, {(batch_size, self.neurons_lin_layer)=}"
+        assert output.shape == (
+            batch_size,
+            self.neurons_lin_layer,
+        ), f"{output.shape=}, {(batch_size, self.neurons_lin_layer)=}"
         final_output = self.final_layer(output)
 
         assert (

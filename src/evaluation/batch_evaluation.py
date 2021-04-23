@@ -233,7 +233,7 @@ def batch_evaluation(
             first_q_value,
             second_q_value,
             theoretical_q_values[is_active],
-            terminal_q_value
+            terminal_q_value,
         )
 
         # apply the chosen action

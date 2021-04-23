@@ -44,7 +44,7 @@ def test_conv2d_agent_w_opposite_split_toggle():
     code_size = syndrome_size - 1
     stack_depth = 8
     model_config = extend_model_config(model_config, syndrome_size, stack_depth)
-    
+
     model = choose_model(model_name, model_config)
 
     batch_size = 16
@@ -54,6 +54,7 @@ def test_conv2d_agent_w_opposite_split_toggle():
     state = torch.tensor(state, dtype=torch.float32)
     output = model(state)
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
+
 
 def test_conv2d_agent_lstm():
     model_name = "simple_conv"
@@ -77,6 +78,7 @@ def test_conv2d_agent_lstm():
     output = model(state)
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
 
+
 def test_conv2d_agent_rnn():
     model_name = "simple_conv"
     with open("src/config/model_spec/conv_agents.json") as model_conf_file:
@@ -98,6 +100,7 @@ def test_conv2d_agent_rnn():
     state = torch.tensor(state, dtype=torch.float32)
     output = model(state)
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
+
 
 def test_conv2d_agent_gtrxl():
     model_name = "simple_conv"

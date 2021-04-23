@@ -86,7 +86,7 @@ class SimpleConv2D(nn.Module):
             assert self.lstm_num_directions in (1, 2)
             self.lstm_is_bidirectional = bool(self.lstm_num_directions - 1)
             self.lstm_output_size = int(config.get("lstm_output_size"))
-        
+
         self.neurons_lin_layer1 = int(config.get("neurons_lin_layer1"))
         self.neurons_lin_layer2 = int(config.get("neurons_lin_layer2"))
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
@@ -134,9 +134,7 @@ class SimpleConv2D(nn.Module):
             if self.use_all_syndrome_layers:
                 lstm_total_output_size *= self.stack_depth
 
-            self.lin_layer1 = nn.Linear(
-                lstm_total_output_size, self.neurons_lin_layer1
-            )
+            self.lin_layer1 = nn.Linear(lstm_total_output_size, self.neurons_lin_layer1)
         elif self.use_rnn:
             self.rnn_layer = nn.RNN(
                 (self.size + 1) * (self.size + 1) * self.output_channels4,
@@ -150,9 +148,7 @@ class SimpleConv2D(nn.Module):
             if self.use_all_syndrome_layers:
                 lstm_total_output_size *= self.stack_depth
 
-            self.lin_layer1 = nn.Linear(
-                lstm_total_output_size, self.neurons_lin_layer1
-            )
+            self.lin_layer1 = nn.Linear(lstm_total_output_size, self.neurons_lin_layer1)
         elif self.use_transformer:
             # TODO: should be possible to choose gtrxl dimension
             self.grxl_dimension = self.cnn_dimension
@@ -161,7 +157,7 @@ class SimpleConv2D(nn.Module):
                 nheads=self.gtrxl_heads,
                 transformer_layers=self.gtrxl_layers,
                 hidden_dims=self.gtrxl_hidden_dims,
-                n_layers=self.gtrxl_rnn_layers
+                n_layers=self.gtrxl_rnn_layers,
             )
 
             gtrxl_total_output_size = self.grxl_dimension
@@ -197,12 +193,8 @@ class SimpleConv2D(nn.Module):
         state = F.relu(self.rd_conv_layer_both(state))
         state = F.relu(self.comp_conv_layer_both(state))
 
-        complete = state.view(
-            batch_size,
-            self.stack_depth,
-            self.cnn_dimension
-        )
-        
+        complete = state.view(batch_size, self.stack_depth, self.cnn_dimension)
+
         assert complete.shape[0] == batch_size
 
         if self.use_lstm:
@@ -242,8 +234,10 @@ class SimpleConv2D(nn.Module):
         output = F.relu(
             self.lin_layer1(output)
         )  # take the last output feature vector from the lstm for each sample in the batch
-        assert output.shape == (batch_size, self.neurons_lin_layer1), \
-            f"{output.shape=}, {(batch_size, self.neurons_lin_layer1)=}"
+        assert output.shape == (
+            batch_size,
+            self.neurons_lin_layer1,
+        ), f"{output.shape=}, {(batch_size, self.neurons_lin_layer1)=}"
 
         output = F.relu(self.lin_layer2(output))
         final_output = self.final_layer(output)
