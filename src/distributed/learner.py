@@ -3,6 +3,7 @@ Define the learner process in the multi-process
 reinforcement learning setup.
 """
 import os
+import yaml
 from time import time
 import traceback
 from typing import Dict
@@ -131,6 +132,9 @@ def learner(args: Dict):
         model_config, syndrome_size, stack_depth, device=device
     )
 
+    logger.debug(
+        "\nNetwork Config: \n\n" f"{yaml.dump(model_config, default_flow_style=False)}"
+    )
     policy_net = choose_model(model_name, model_config)
     target_net = choose_model(model_name, model_config)
 
