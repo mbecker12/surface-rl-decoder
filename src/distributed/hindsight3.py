@@ -7,28 +7,26 @@ reinforcment learning.¨
 
 import os
 from time import time
-from collections import deque, namedtuple
-import gym
+from collections import namedtuple
+#import gym
 import logging
-import random
-import math
 import numpy as np
 
 import torch
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
-from torch.nn.utils import vector_to_parameters, clip_grad_norm
+from torch.nn.utils import clip_grad_norm
 import torch.optim as optim
 from distributed.environment_set import EnvironmentSet
 from distributed.model_util import choose_model, extend_model_config, load_model
-from distributed.util import anneal_factor, compute_priorities, select_actions, time_tb
+from distributed.util import anneal_factor, select_actions, time_tb
 from surface_rl_decoder.surface_code import SurfaceCode
-import ReplayBuffer
-import DQN_Agent
+from replay_buffer import ReplayBuffer
 
 
 Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "terminal", "goal"])
 
-def hindsight3(self, config):
+def hindsight3(config):
     """
     Deep Q-learning with hindsight experience replay
     Create agent network for the hindsight learning. 
@@ -75,8 +73,8 @@ def hindsight3(self, config):
 
 
 
-    hindsight_id = config["id"]
-    n_episodes = int(config.get("n_episodes"))
+    hindsight_id = config.get("id")
+    #n_episodes = int(config.get("n_episodes"))
     size_action_history = int(config.get("size_action_history"))
     num_actions_per_qubit = int(config.get("num_actions_per_qubit"))
     verbosity = int(config.get("verbosity"))
@@ -84,12 +82,12 @@ def hindsight3(self, config):
     buffer_size = int(config.get("buffer_size"))
     learning_rate = float(config.get("learning_rate"))
     tau = float(config.get("tau"))
-    benchmarking = int(config.get("benchmarking"))
+    benchmarking = int(config.get("benchmarking"), 0)
     summary_path = str(config.get("summary_path"))
     summary_date = str(config.get("summary_date"))
     
     discount_intermediate_reward = float(config.get("discount_intermediate_reward"))
-    discount_factor = foat(config.get("discount_factor", 0))
+    discount_factor = float(config.get("discount_factor", 0))
     min_value_factor_intermediate_reward = float(config.get("min_value_factor_intermediate_reward",0.0))
     min_value_factor_epsilon = float(config.get("min_value_factor_epsilon"))
     epsilon = float(config.get(epsilon, 1))
@@ -100,7 +98,7 @@ def hindsight3(self, config):
     decay_factor_epsilon = float(config.get("decay_factor_epsilon", 0.0))
     device = str(config.get("device"))
     hindsight_id = int(config.get("id"))
-    update_every = int(config.get("update_every", 4))
+    #update_every = int(config.get("update_every", 4))
     n_step = int(config.get("n_step", 1))
     n = int(config.get("n",4))
 
@@ -120,7 +118,6 @@ def hindsight3(self, config):
     state_size = env.syndrome_size
     code_size = state_size - 1
     stack_depth = env.stack_depth
-
 
     #create a collection of independent environments
     environments = EnvironmentSet(env, num_environments)
@@ -150,7 +147,7 @@ def hindsight3(self, config):
 
     buffer_idx = np.zeros(num_environments)
     
-    replay_buffer = ReplayBuffer(buffer_size, batch_size, device, gamma, n_step)
+    replay_buffer = ReplayBuffer(buffer_size, batch_size, device, discount_factor, n_step)
 
 
     #initalize agent
@@ -166,7 +163,8 @@ def hindsight3(self, config):
 
     qnetwork_target.to(device)
     qnetwork_local.to(device)
-
+    
+    optimizer = optim.Adam(qnetwork_local.parameters(), lr = learning_rate)
 
     performance_start = time()
     heart = time()
@@ -181,8 +179,9 @@ def hindsight3(self, config):
     steps_to_benchmark = 0
     benchmark_frequency = 1000
 
-    epoch_steps = int(config.get("epoch_steps", 100000)) 
+    #epoch_steps = int(config.get("epoch_steps", 100000)) 
     steps_in_this_epoch = 0
+    Q_updates = 0
 
     while True:
         steps_per_episode += 1
@@ -199,9 +198,9 @@ def hindsight3(self, config):
         min_value = min_value_factor_epsilon,
         base_factor = epsilon)
 
-        actions, q_values = select_actions(_states, qnetwork_target, code_size, epsilon = annealed_epsilon
+        actions, q_values = select_actions(_states, qnetwork_target, code_size, epsilon = annealed_epsilon)
         
-        if (benchmarking and steps_to_benchmark % benchmark_frequency == 0):
+        if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             select_action_stop = time()
             logger.info(f"time for select action: {select_action_stop-select_action_start}")
 
@@ -215,12 +214,12 @@ def hindsight3(self, config):
         decay_factor = decay_factor_intermediate_reward,
         min_value = min_value_factor_intermediate_reward)
 
-        next_states, rewards, terminals, _ = environment.step(actions, 
+        next_states, rewards, terminals, _ = environments.step(actions, 
         discount_intermediate_reward = discount_intermediate_reward,
         annealing_intermediate_reward = annealing_intermediate_reward,
         punish_repeating_actions = 0)
 
-        if benchmarking and steps_to_benchmark % benchmark_frequency ==0:
+        if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             steps_stop = time()
             logger.info(f"time to step through environments: {steps_stop-steps_start}")
 
@@ -270,11 +269,20 @@ def hindsight3(self, config):
                     np.argmax(local_buffer_qvalues[index,step]), #action in terms of theneural network
                     local_buffer_transitions[index, step][2], # reward
                     local_buffer_transitions[index,step][3], #next_state
-                    local_buffer[index, step][4],  #terminal
-                    local_buffer[index, step][5]) #goal 
+                    local_buffer_transitions[index, step][4],  #terminal
+                    local_buffer_transitions[index, step][5]) #goal 
                 replay_buffer.new_goals(index, buffer_idx[index], local_buffer_transitions, local_buffer_qvalues, n)
+                N = buffer_idx[index]
+                for _ in range(N):
+                    #If enough samples are available in memory, get random subset and learn
+                    if len(replay_buffer) > batch_size:
+                        experiences = replay_buffer.sample()
+                        loss = learn(experiences, qnetwork_local, qnetwork_target, optimizer, discount_factor, tau, n_step)
+                        Q_updates += 1
+                        #writer.add_scalar("Q_loss", loss, Q_updates)
                 buffer_idx[index] = 0
                 
+            
 
         too_many_steps = steps_per_episode > size_action_history
 
@@ -297,20 +305,51 @@ def hindsight3(self, config):
 
 
         steps_in_this_epoch += 1
-        if steps_in_this_epoch == epoch_steps:
-            break
-
-
-    
-    for training_step in range(epoch_steps):
-        samples = replay_buffer.sample()
+        #if steps_in_this_epoch == epoch_steps:
+        #    break
 
 
 
 
+def learn(experiences, qnetwork_local, qnetwork_target, optimizer, gamma, tau, n_step):
+    """Update value parameters of provided models using given batch of experience tuples
+    Parameters
+    ==========
+        experiences: (Tuple[torch.Tensor]) tuple of (s,a,r,s', terminals, goals) tuples
+        gamma: (float) discount factor
+        tau: interpolation factor for the soft update
+        qnetwork_local: model for prediction
+        qnetwork_target: model for the target network
+    """
+    optimizer.zero_grad()
+    states, actions, rewards, next_states, terminals, _ = experiences
+    #Get max predicted Q values (for next states) from target model
+    Q_targets_next = qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+    #Compute Q targets for current states
+    Q_targets = rewards + (gamma**n_step * Q_targets_next * ( 1 - terminals))
+    #Get expected Q values from local model
+    Q_expected = qnetwork_local(states).gather(1, actions)
+    #Compute loss
+    loss = F.mse_loss(Q_expected, Q_targets)
+    #Minimise the loss
+    loss.backward()
+    clip_grad_norm(qnetwork_local.parameters(),1)
+    optimizer.step()
 
+    #Update target network
+    soft_update(qnetwork_local, qnetwork_target, tau)
+    return loss.detach().cpu().numpy()
 
+def soft_update(local_model, target_model, tau):
+    """Soft update model parameters
+    Parameters
+    ==========
+        local_model: (Pytorch model) weights will be copied from
+        target_model (Pytorch model): weights will be copied to
+        tau: (float) interpolation parameter
+    """
 
-
+    for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
+        target_param.data.copy_(tau*local_param.data + (1.0 - tau)*target_param.data)
 
 

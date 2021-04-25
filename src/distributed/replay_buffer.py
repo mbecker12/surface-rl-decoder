@@ -53,7 +53,7 @@ class ReplayBuffer:
         new_goals = []
         indexes = []
         #create new goals
-        for idx, exp in enumerate(local_buffer_transitions[buffer_idx,:buffer_size]):
+        for idx in range(buffer_size):
             for _ in range(n):
                 random_index = random.randint(idx, buffer_size)
                 indexes.append(random_index)
@@ -69,7 +69,7 @@ class ReplayBuffer:
                 
                 r = self.reward_function(transition[0], new_goal)
                 
-                if (next_state == new_goal).all():
+                if (ns == new_goal).all():
                     d = 1
                 else:
                     d = 0
