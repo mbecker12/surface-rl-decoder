@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import clip_grad_norm
 import torch.optim as optim
+from copy import deepcopy
 from distributed.environment_set import EnvironmentSet
 from distributed.model_util import choose_model, extend_model_config, load_model
 from distributed.util import anneal_factor, select_actions, time_tb
@@ -90,7 +91,7 @@ def hindsight3(config):
     discount_factor = float(config.get("discount_factor", 0))
     min_value_factor_intermediate_reward = float(config.get("min_value_factor_intermediate_reward",0.0))
     min_value_factor_epsilon = float(config.get("min_value_factor_epsilon"))
-    epsilon = float(config.get(epsilon, 1))
+    epsilon = float(config.get("epsilon", 1))
     load_model_flag = int(config.get("load_model"))
     if load_model_flag == 1:
         old_model_path = str(config.get("old_model_path"))
@@ -107,7 +108,9 @@ def hindsight3(config):
     model_config = config.get("model_config")
     num_environments = config.get("num_environments")
 
-    logger = basicConfig(level = logging.INFO)
+
+    logging.basicConfig(level = logging.INFO)
+    logger = logging.getLogger(f"hindsight_{hindsight_id}")
     if verbosity >= 4:
         logger.setLevel(logging.DEBUG)
     else:
@@ -235,7 +238,7 @@ def hindsight3(config):
         transitions = np.asarray(
             [
                 Transition(
-                    states[i], actions[i], rewards[i], next_states[i], terminals[i], goals[i]
+                    states[i], actions[i], rewards[i], next_states[i], terminals[i], true_goal
                 )
                 for i in range(num_environments)
             ],
@@ -262,7 +265,7 @@ def hindsight3(config):
 
         #if anywhere has a finished episode or there is too much data then push it to the memory
         if np.any(buffer_idx) >= size_local_memory_buffer or np.any(terminals):
-            indices = argwhere(np.logical_or(terminals, buffer_idx >= size_local_memory_buffer)).flatten
+            indices = np.argwhere(np.logical_or(terminals, buffer_idx >= size_local_memory_buffer)).flatten
             for index in indices:
                 for step in range(buffer_idx[index]+1):
                     replay_buffer.add(local_buffer_transitions[index,step][0], #state
@@ -277,7 +280,8 @@ def hindsight3(config):
                     #If enough samples are available in memory, get random subset and learn
                     if len(replay_buffer) > batch_size:
                         experiences = replay_buffer.sample()
-                        loss = learn(experiences, qnetwork_local, qnetwork_target, optimizer, discount_factor, tau, n_step)
+                        learn(experiences, qnetwork_local, qnetwork_target, optimizer, discount_factor, tau, n_step)
+                        #loss = learn(experiences, qnetwork_local, qnetwork_target, optimizer, discount_factor, tau, n_step)
                         Q_updates += 1
                         #writer.add_scalar("Q_loss", loss, Q_updates)
                 buffer_idx[index] = 0
