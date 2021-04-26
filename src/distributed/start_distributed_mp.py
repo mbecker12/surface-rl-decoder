@@ -186,7 +186,7 @@ def start_mp():
         "decay_factor_intermediate_reward": decay_factor_intermediate_reward,
         "decay_factor_epsilon": decay_factor_epsilon,
         "min_value_factor_epsilon": min_value_factor_epsilon,
-        "seed": seed
+        "seed": seed,
     }
 
     learner_args = {
