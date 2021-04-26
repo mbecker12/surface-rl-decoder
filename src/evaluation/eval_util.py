@@ -320,7 +320,7 @@ def average_episode_metric(
     return avg_value
 
 
-def count_spikes_np(arr, verbosity=0):
+def count_spikes(arr, verbosity=0):
     """
     Count spikes in an array. Each spike should hint at unnecessary actions
     that undo the effects of previous actions.
@@ -361,6 +361,14 @@ def count_spikes_np(arr, verbosity=0):
 
 
 def prepare_step(global_steps, terminals, steps_per_episode, states, device):
+    """
+    Utility function to prepare central quantites before executing a step in the
+    environment.
+
+    Gets information about current active environments, increases each active environment's
+    step count, and converts the state to a torch tensor with which the neural
+    network can work.
+    """
     global_steps += 1
 
     is_active = np.argwhere(1 - terminals).flatten()
@@ -373,6 +381,13 @@ def prepare_step(global_steps, terminals, steps_per_episode, states, device):
 
 
 def reset_local_actions_and_qvalues(terminal_actions, empty_q_values):
+    """
+    Fill up all actions with terminal actions as the predetermined default
+    and set up the q values with all zero q values.
+
+    These values should be overwritten in all active environments with the
+    correct actions and q values.
+    """
     actions = terminal_actions
     q_values = empty_q_values
 
@@ -380,6 +395,10 @@ def reset_local_actions_and_qvalues(terminal_actions, empty_q_values):
 
 
 def get_two_highest_q_values(q_values):
+    """
+    To get statistics about the q values and the q value certainty,
+    we need to extract the two highest q values proposed by the model.
+    """
     # gives the indices of the highest values for each row
     top_idx = np.argpartition(q_values, (-2, -1), axis=1)[:, -2:]
     highest_q_values = q_values[np.arange(q_values.shape[0])[:, None], top_idx]
@@ -399,6 +418,11 @@ def aggregate_q_value_stats(
     theoretical_q_values,
     terminal_q_value,
 ):
+    """
+    Add q value statistics to the aggregation variables.
+
+    Call this function in each step and for each active environment.
+    """
     q_value_aggregation += q_value
     q_value_diff_aggregation += q_value - theoretical_q_values
     q_value_certainty_aggregation += q_value - second_q_value
@@ -417,10 +441,19 @@ def calc_theoretical_q_value(
     steps_per_episode,
     theoretical_q_values,
     states,
-    is_active,
     discount_factor_gamma,
     discount_intermediate_reward,
 ):
+    """
+    Calculate an approximated theoretical q value.
+
+    First, determine if a recalculation is necessary based on whether
+    the episode is active and a random episode or a user-generated episode
+    beyond the first step.
+
+    The calculation is based on an approximated average syndrome depth
+    and assumes two syndromes for every qubit error.
+    """
     recalculate_theoretical_value_mask = np.logical_not(
         np.logical_and(is_user_episode, steps_per_episode == 1)
     )
@@ -437,6 +470,7 @@ def calc_theoretical_q_value(
     return theoretical_q_values
 
 
+# pylint: disable=too-many-arguments
 def prepare_user_episodes(
     states,
     expected_actions_per_episode,
@@ -450,6 +484,10 @@ def prepare_user_episodes(
     annealing_intermediate_reward=1,
     punish_repeating_actions=0,
 ):
+    """
+    Load predetermined user episodes
+    and prepare all surrounding quantities that come with it.
+    """
     # prepare masks to filter user_episodes
     is_user_episode = np.zeros(total_n_episodes, dtype=int)
     is_user_episode[num_of_random_episodes:] = 1
@@ -480,6 +518,10 @@ def check_correct_actions(
     num_of_random_episodes,
     num_of_user_episodes,
 ):
+    """
+    Check whether the proposed actions match the expected, most optimal
+    actions defined for user-defined episodes.
+    """
     # check user-defined / expected actions
     # in user episodes
     correct_actions_all = np.array(
@@ -498,13 +540,21 @@ def check_correct_actions(
 
 
 def count_array_raises(arr):
+    """
+    Get a metric measuring how often an array made up of a sequence of numbers
+    shows a positive slope.
+    """
     num_raises = len(np.argwhere(np.diff(arr) > 0))
     return 2 * num_raises / len(arr)
 
 
 def get_energy_stats(energies):
+    """
+    Get different statistics for the accumulated energy statistics from
+    every step.
+    """
     energies = energies[energies > OUT_OF_RANGE]
-    energy_spikes = count_spikes_np(energies)
+    energy_spikes = count_spikes(energies)
     energy_raises = count_array_raises(energies)
     energy_final = energies[-1]
     energy_difference = energy_final - energies[0]
@@ -513,8 +563,12 @@ def get_energy_stats(energies):
 
 
 def get_intermediate_reward_stats(inter_rewards):
+    """
+    Get different statistics for the accumulated statistics about
+    intermediate rewards from every step.
+    """
     inter_rewards = inter_rewards[inter_rewards > OUT_OF_RANGE]
-    inter_rew_spikes = count_spikes_np(inter_rewards)
+    inter_rew_spikes = count_spikes(inter_rewards)
     negatives = np.where(inter_rewards < 0, inter_rewards, -99999).flatten()
     num_negative_inter_rewards = len(np.argwhere(-5000 < negatives).flatten())
     # num_negative_inter_rewards = len(np.argwhere(-5000 < inter_rewards < 0))

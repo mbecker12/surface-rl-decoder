@@ -6,10 +6,8 @@ and linear layers to generate q values.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.modules import transformer
-from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
-from agents.interface import interface
 from gtrxl_torch.gtrxl_torch import GTrXL
+from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 
 
 class SimpleConv2D(nn.Module):
@@ -48,8 +46,9 @@ class SimpleConv2D(nn.Module):
             such that the shortening in dimension length due to the kernel is negated
     """
 
+    # pylint: disable=too-many-statements
     def __init__(self, config):
-        super(SimpleConv2D, self).__init__()
+        super().__init__()
         self.device = config.get("device")
         assert self.device is not None
         self.size = int(config.get("code_size"))
@@ -150,7 +149,6 @@ class SimpleConv2D(nn.Module):
 
             self.lin_layer1 = nn.Linear(lstm_total_output_size, self.neurons_lin_layer1)
         elif self.use_transformer:
-            # TODO: should be possible to choose gtrxl dimension
             self.grxl_dimension = self.cnn_dimension
             self.gated_transformer = GTrXL(
                 d_model=self.grxl_dimension,
@@ -182,7 +180,7 @@ class SimpleConv2D(nn.Module):
         """
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
-        batch_size, timesteps, H, W = state.size()
+        batch_size, timesteps, _, _ = state.size()
 
         state = state.view(
             -1, self.input_channels, (self.size + 1), (self.size + 1)
@@ -198,9 +196,7 @@ class SimpleConv2D(nn.Module):
         assert complete.shape[0] == batch_size
 
         if self.use_lstm:
-            hidden = None
-
-            output, (_h, _c) = self.lstm_layer(complete)
+            output, (_, _) = self.lstm_layer(complete)
 
             assert (
                 output.shape[2] == self.lstm_output_size * self.lstm_num_directions
@@ -210,9 +206,7 @@ class SimpleConv2D(nn.Module):
             if not self.use_all_syndrome_layers:
                 output = output[:, -1, :]
         elif self.use_rnn:
-            hidden = None
-
-            output, _h = self.rnn_layer(complete)
+            output, _ = self.rnn_layer(complete)
             assert (
                 output.shape[2] == self.lstm_output_size * self.lstm_num_directions
             ), f"{output.shape=}, {self.lstm_output_size=}, {self.lstm_num_directions=}"

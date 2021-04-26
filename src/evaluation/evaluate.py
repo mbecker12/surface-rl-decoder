@@ -9,7 +9,6 @@ from evaluation.batch_evaluation import (
     RESULT_KEY_COUNTS,
     RESULT_KEY_ENERGY,
     RESULT_KEY_EPISODE,
-    RESULT_KEY_INCREASING,
     RESULT_KEY_Q_VALUE_STATS,
     RESULT_KEY_RATES,
     batch_evaluation,
@@ -36,7 +35,6 @@ def evaluate(
     annealing_intermediate_reward=1.0,
     discount_intermediate_reward=0.3,
     punish_repeating_actions=0,
-    plot_one_episode=True,
     verbosity=0,
 ) -> Tuple[Dict, Dict, Dict]:
     """
@@ -55,7 +53,6 @@ def evaluate(
         availabe examples in the helper function
     epsilon: probability of the agent choosing a random action
     max_num_of_steps: maximum number of steps per environment
-    plot_one_episode: whether or not to render an example episode
     discount_factor_gamma: gamma / discount factor in reinforcement learning
     p_error_list: list of error rates for physical errors
     p_msmt_list: list of error rates for syndrome measurement errors

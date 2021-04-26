@@ -1,6 +1,11 @@
+"""
+Provide a script like function to perform evaluation
+on multiple episodes in parallel.
+"""
 import logging
 from copy import deepcopy
 import numpy as np
+from distributed.util import action_to_q_value_index, select_actions
 from distributed.environment_set import EnvironmentSet
 from evaluation.eval_util import (
     aggregate_q_value_stats,
@@ -25,7 +30,6 @@ from surface_rl_decoder.surface_code_util import (
     compute_layer_diff,
 )
 from surface_rl_decoder.surface_code import SurfaceCode
-from distributed.util import action_to_q_value_index, select_actions
 
 # define keys for different groups in the result dictionary
 RESULT_KEY_EPISODE_AVG = "avg_per_episode"
@@ -50,7 +54,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("eval")
 logger.setLevel(logging.INFO)
 
-
+# pylint: disable=too-many-statements, too-many-branches, too-many-locals, too-many-arguments
 def batch_evaluation(
     model,
     environment_def,
@@ -67,6 +71,18 @@ def batch_evaluation(
     p_msmt=0.0,
     verbosity=0,
 ):
+    """
+    Run evaluation on multiple episodes.
+    Gather metrics about the proficiency of the agent being evaluated.
+
+    Returns
+    =======
+    (metrics dict, q values dict)
+    metrics dict:
+        Dictionary containing different groups of metrics
+    q values dict:
+        Dictionary containing a histogram describing the occurence of different q values
+    """
 
     model.eval()
     # initialize environments for different episodes
@@ -76,7 +92,6 @@ def batch_evaluation(
 
     env_set = EnvironmentSet(environment_def, total_n_episodes)
     code_size = env_set.code_size
-    syndrome_size = code_size + 1
     stack_depth = env_set.stack_depth
     states = env_set.reset_all(
         np.repeat(p_err, total_n_episodes), np.repeat(p_msmt, total_n_episodes)
@@ -128,7 +143,6 @@ def batch_evaluation(
 
     actions_in_one_episode = np.zeros((total_n_episodes, max_num_of_steps)) - 1
 
-    # TODO: initialize all_q_values for high verbosity level
     if verbosity >= 4:
         all_q_values = np.zeros(
             (max_num_of_steps, total_n_episodes, 3 * code_size ** 2 + 1)
@@ -206,7 +220,6 @@ def batch_evaluation(
             essentials["steps_per_episode"],
             essentials["theoretical_q_values"],
             states,
-            is_active,
             discount_factor_gamma,
             discount_intermediate_reward,
         )
@@ -433,7 +446,6 @@ def batch_evaluation(
     if verbosity >= 4:
         all_q_values = all_q_values.flatten()
 
-    # TODO: reorder/regroup evaluation metrics y their range
     return (
         {
             RESULT_KEY_RATES: {

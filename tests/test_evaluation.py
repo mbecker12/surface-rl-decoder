@@ -3,8 +3,8 @@ from time import time
 import torch
 
 # pylint: disable=no-member
-from src.distributed.eval_util import run_evaluation_in_batches
 from src.distributed.dummy_agent import DummyModel
+from src.evaluation.batch_evaluation import batch_evaluation
 
 
 def test_batch_evaluation(configure_env, restore_env):
@@ -23,9 +23,7 @@ def test_batch_evaluation(configure_env, restore_env):
 
     start_time = time()
     for _ in range(3):
-        eval_metrics = run_evaluation_in_batches(
-            model_, "", device_, p_err=0.01, p_msmt=0.0
-        )
+        eval_metrics = batch_evaluation(model_, "", device_, p_err=0.01, p_msmt=0.0)
 
         print(f"{eval_metrics=}")
 

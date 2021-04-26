@@ -3,11 +3,11 @@ Define the learner process in the multi-process
 reinforcement learning setup.
 """
 import os
-import yaml
 from time import time
 import traceback
 from typing import Dict
 import logging
+import yaml
 import numpy as np
 from torch.optim import Adam
 from torch import nn
@@ -263,7 +263,6 @@ def learner(args: Dict):
                 device,
                 p_error_list,
                 p_msmt_list,
-                plot_one_episode=False,
                 epsilon=learner_epsilon,
                 discount_factor_gamma=discount_factor,
                 num_of_random_episodes=120,

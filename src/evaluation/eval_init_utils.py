@@ -1,3 +1,7 @@
+"""
+Utility functions to initialize different groups of containers
+and aggregators used in the evaluation routine.
+"""
 import numpy as np
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
 
@@ -5,6 +9,10 @@ OUT_OF_RANGE = -9999
 
 
 def initialize_avg_containers(total_n_episodes):
+    """
+    Initialize all containers which we will use to obtain average and median
+    values later.
+    """
     # initialize containers for mean metrics
     averaging_terminals = np.zeros(total_n_episodes, dtype=bool)
 
@@ -40,6 +48,10 @@ def initialize_avg_containers(total_n_episodes):
 def initialize_accumulation_stats(
     total_n_episodes, num_of_user_episodes, max_num_of_steps
 ):
+    """
+    Initialize containers which we will use to accumulate stats after each
+    step.
+    """
     # initialize values to be accumulated across al episodes and steps
     syndromes_annihilated = 0
     syndromes_created = 0
@@ -72,6 +84,10 @@ def initialize_accumulation_stats(
 
 
 def initialize_empty_containers(total_n_episodes, num_of_user_episodes, code_size):
+    """
+    Initialize base quantities for the general execution and running
+    of the different environments.
+    """
     steps_per_episode = np.zeros(total_n_episodes)
     terminals = np.zeros(total_n_episodes, dtype=bool)
 

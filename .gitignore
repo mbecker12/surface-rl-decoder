@@ -54,3 +54,10 @@ MANIFEST
 networks/*
 runs/*
 **/tmp*/*
+plots/*
+
+# singularity images
+**/*.sif
+
+# ipython notebooks
+**/*.ipynb

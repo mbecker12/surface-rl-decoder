@@ -47,7 +47,7 @@ class Conv2dAgentUpdate(nn.Module):
     """
 
     def __init__(self, config):
-        super(Conv2dAgentUpdate, self).__init__()
+        super().__init__()
         self.device = config.get("device")
         assert self.device is not None
         self.size = int(config.get("code_size"))
@@ -177,7 +177,7 @@ class Conv2dAgentUpdate(nn.Module):
         """
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
-        batch_size, timesteps, H, W = state.size()
+        batch_size, timesteps, _, _ = state.size()
 
         if self.split_input_toggle:
             x, z, both = interface(state, self.plaquette_mask, self.vertex_mask)

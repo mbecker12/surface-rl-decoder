@@ -7,9 +7,8 @@ import torch
 
 # pylint: disable=no-name-in-module
 from torch import from_numpy
-from distributed.util import action_to_q_value_index
-
 from torch.utils.tensorboard import SummaryWriter
+from distributed.util import action_to_q_value_index
 
 
 def data_to_batch(
@@ -267,14 +266,9 @@ def log_evaluation_data(
     """
     for i, p_err in enumerate(list_of_p_errors):
         for result_key, result_values in all_results.items():
-            # TODO remove try except
-            try:
-                tensorboard.add_scalars(
-                    f"network/{result_key}, p_error {p_err}",
-                    result_values[i],
-                    evaluation_step,
-                    walltime=current_time_tb,
-                )
-            except Exception as err:
-                print(f"Caught error, {err=}")
-                print(f"{i=}, {result_key=}\n" f"{result_values=}\n")
+            tensorboard.add_scalars(
+                f"network/{result_key}, p_error {p_err}",
+                result_values[i],
+                evaluation_step,
+                walltime=current_time_tb,
+            )

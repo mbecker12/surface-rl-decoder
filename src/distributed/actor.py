@@ -100,7 +100,7 @@ def actor(args):
     else:
         logger.setLevel(logging.INFO)
     logger.info("Fire up all the environments!")
-    # TODO: do we need different seeds for each actor? Look at grokking rl book/notebooks
+
     seed = int(args.get("seed", 0))
 
     if seed != 0:

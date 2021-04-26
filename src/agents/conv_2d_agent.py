@@ -47,7 +47,7 @@ class Conv2dAgent(nn.Module):
     """
 
     def __init__(self, config):
-        super(Conv2dAgent, self).__init__()
+        super().__init__()
         self.device = config.get("device")
         assert self.device is not None
         self.size = int(config.get("code_size"))

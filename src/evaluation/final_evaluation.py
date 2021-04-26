@@ -1,13 +1,37 @@
+"""
+A collection of different evaluation routines.
+Meant to be altered by the developer by changing
+the truth value of different if statements to perform different tests.
+"""
 from time import time
 import os
-from torch.utils.tensorboard.writer import SummaryWriter
-import yaml
 import glob
+import yaml
+
+# pylint: disable=not-callable
 import torch
+from torch.utils.tensorboard.writer import SummaryWriter
 import numpy as np
 from iniparser import Config
+import matplotlib.pyplot as plt
 from distributed.model_util import choose_model, load_model
-from evaluation.eval_util import count_spikes_np, create_user_eval_state
+from distributed.learner_util import (
+    log_evaluation_data,
+    safe_append_in_dict,
+    transform_list_dict,
+)
+from distributed.util import select_actions
+from surface_rl_decoder.surface_code_util import (
+    STATE_MULTIPLIER,
+    TERMINAL_ACTION,
+    compute_intermediate_reward,
+    compute_layer_diff,
+    create_syndrome_output_stack,
+)
+from surface_rl_decoder.surface_code import SurfaceCode
+from evaluation.eval_util import count_spikes, create_user_eval_state
+
+# pylint: disable=unused-import
 from evaluation.batch_evaluation import (
     RESULT_KEY_ENERGY,
     batch_evaluation,
@@ -27,29 +51,20 @@ from evaluation.batch_evaluation import (
     RESULT_KEY_INCREASING,
     RESULT_KEY_EPISODE,
 )
-from distributed.learner_util import (
-    log_evaluation_data,
-    safe_append_in_dict,
-    transform_list_dict,
-)
-from surface_rl_decoder.surface_code_util import (
-    STATE_MULTIPLIER,
-    TERMINAL_ACTION,
-    compute_intermediate_reward,
-    compute_layer_diff,
-    create_syndrome_output_stack,
-)
-from surface_rl_decoder.surface_code import SurfaceCode
-from distributed.util import select_actions
-import matplotlib.pyplot as plt
 
-
+# pylint: disable=too-many-locals, too-many-statements
 def main_evaluation(model, device, epsilon=0.0):
+    """
+    The main program to be executed.
+    Visualizes the surface code before and after
+    the agent has done its work.
+    Gives additional info about the evolution of energy and
+    intermediate rewards.
+    """
+    # pylint: disable=redefined-outer-name
     surface_code = SurfaceCode()
     code_size = surface_code.code_size
-    state, expected_actions, theoretical_q_value = create_user_eval_state(
-        surface_code, 0, discount_factor_gamma=0.95
-    )
+    state, _, _ = create_user_eval_state(surface_code, 0, discount_factor_gamma=0.95)
 
     surface_code.reset()
     stack_depth = surface_code.stack_depth
@@ -85,9 +100,7 @@ def main_evaluation(model, device, epsilon=0.0):
         energy = np.sum(states[0, -1, :, :]) / STATE_MULTIPLIER
         energies.append(energy)
         torch_states = torch.tensor(states, dtype=torch.float32).to(device)
-        actions, q_values = select_actions(
-            torch_states, model, code_size, epsilon=epsilon
-        )
+        actions, _ = select_actions(torch_states, model, code_size, epsilon=epsilon)
 
         assert np.all(
             state == surface_code.state
@@ -106,7 +119,6 @@ def main_evaluation(model, device, epsilon=0.0):
             assert not np.all(state == next_state)
             assert np.all(surface_code.state == next_state)
         rewards.append(reward)
-        # NOTE intermediate rewards seem to be badly designed
 
         # assert not np.all(surface_code.next_state == next_state)
         if terminal:
@@ -131,7 +143,6 @@ def main_evaluation(model, device, epsilon=0.0):
         print("")
         # surface_code.render()
 
-    terminal_action = [0, 0, 4]
     (
         next_state,
         reward,
@@ -157,20 +168,22 @@ def main_evaluation(model, device, epsilon=0.0):
 
     print(f"Final energy: {energies[-1]}")
     print(f"Net energy difference: {energies[-1] - energies[0]}")
-    # need to punish up and down movement in energy, resulting from repeating one action all the time
-    energy_spikes = count_spikes_np(energies)
+    # need to punish up and down movement in energy,
+    # resulting from repeating one action all the time
+    energy_spikes = count_spikes(energies)
 
     num_energy_raises = len(np.argwhere(np.diff(energies) > 0))
     print(f"Number of energy raises: {2 * num_energy_raises / len(energies)}")
     print("")
 
     inter_rews = np.array(inter_rews)
-    inter_rew_spikes = count_spikes_np(inter_rews)
+    inter_rew_spikes = count_spikes(inter_rews)
     print(f"Intermediate reward spikes: {inter_rew_spikes}")
 
     num_negative_inter_rewards = len(np.argwhere(inter_rews < 0))
     print(
-        f"Number of negative intermediate rewards: {2 * num_negative_inter_rewards / len(inter_rews)}"
+        "Number of negative intermediate rewards: "
+        f"{2 * num_negative_inter_rewards / len(inter_rews)}"
     )
     print(
         f"Average positive intermediate reward: {np.mean(inter_rews[inter_rews > 0])}"
@@ -195,6 +208,9 @@ def main_evaluation(model, device, epsilon=0.0):
 
 
 if __name__ == "__main__":
+    # Contains different tests which can be switched on or off by different
+    # if statements (if True/False).
+    # pylint: disable=using-constant-test
     cfg = Config()
     _config = cfg.scan(".", True).read()
     config = cfg.config_rendered.get("eval_config")
@@ -214,7 +230,7 @@ if __name__ == "__main__":
     summary_date = "1"
 
     tb_path = os.path.join(summary_path, summary_date, "learner")
-    tensorboard = SummaryWriter(tb_path)  # TODO init tb
+    tensorboard = SummaryWriter(tb_path)
 
     for filename in glob.glob(load_path + "*"):
         if filename.endswith(".pt"):
@@ -302,8 +318,7 @@ if __name__ == "__main__":
                     p_msmt=0.0,
                     verbosity=5,
                 )
-                # print(f"{eval_results.keys()=}")
-                # TODO: is there a way to construct final_result_dict just from eval_results?
+
                 for category_name, category in eval_results.items():
                     for key, val in category.items():
                         final_result_dict[category_name] = safe_append_in_dict(

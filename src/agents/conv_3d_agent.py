@@ -49,7 +49,7 @@ class Conv3dGeneralAgent(nn.Module):
     """
 
     def __init__(self, config):
-        super(Conv3dGeneralAgent, self).__init__()
+        super().__init__()
 
         self.device = config.get("device")
         # pylint: disable=not-callable
@@ -81,8 +81,6 @@ class Conv3dGeneralAgent(nn.Module):
             )
 
         self.kernel_size = (self.kernel_depth, self.kernel_size, self.kernel_size)
-
-        print(f"{self.padding_size=}")
 
         self.input_conv_layer_both = nn.Conv3d(
             self.input_channels,
@@ -246,7 +244,6 @@ class Conv3dGeneralAgent(nn.Module):
             assert both.shape[0] == batch_size, f"end compare batch_size {both.shape=}"
 
             # TODO flatten here already
-            # print(both.shape)
             complete = both.view(
                 -1,
                 self.stack_depth,
