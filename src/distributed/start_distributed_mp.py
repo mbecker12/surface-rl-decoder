@@ -62,6 +62,8 @@ def start_mp():
 
     # set up surface code environment configuration
     env_config = global_config.get("env")
+    p_error = float(env_config.get("p_error", 0.01))
+    p_msmt = float(env_config.get("p_msmt", 0.01))
 
     size_action_history = int(env_config.get("max_actions", "256"))
     code_size = int(env_config["size"])
@@ -116,8 +118,8 @@ def start_mp():
     eval_frequency = int(learner_config["eval_frequency"])
     max_timesteps = int(learner_config["max_timesteps"])
     learner_epsilon = float(learner_config["learner_epsilon"])
-    learner_eval_p_errors = [0.01, 0.05]
-    learner_eval_p_msmt = [0.01, 0.05]
+    learner_eval_p_errors = [p_error, p_error * 1.5]
+    learner_eval_p_msmt = [p_msmt, p_msmt * 1.5]
     learner_load_model = int(learner_config["load_model"])
     old_model_path = learner_config["load_model_path"]
     save_model_path = learner_config["save_model_path"]
@@ -129,7 +131,7 @@ def start_mp():
     for i in range(num_actors):
         actor_io_queues[i] = mp.Queue()
         learner_actor_queues[i] = mp.Queue()
-    # actor_io_queue = mp.Queue()
+
     learner_io_queue = mp.Queue()
     io_learner_queue = mp.Queue()
 
