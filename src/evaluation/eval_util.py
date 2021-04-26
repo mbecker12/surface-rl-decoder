@@ -31,6 +31,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("eval")
 logger.setLevel(logging.INFO)
 
+
 def create_user_eval_state(
     env: SurfaceCode,
     idx_episode: int,
