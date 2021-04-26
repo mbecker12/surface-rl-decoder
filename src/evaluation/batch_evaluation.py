@@ -186,8 +186,6 @@ def batch_evaluation(
         assert not np.all(actions[is_active][-1] == TERMINAL_ACTION), actions
         assert not np.all(active_actions[-1] == TERMINAL_ACTION), actions
 
-        # TODO collect all_q_values here (high verbosity level)
-
         # revert action back to q value index fo later use
         q_value_indices = np.array(
             [action_to_q_value_index(actions[i], code_size) for i in is_active]
