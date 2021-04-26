@@ -67,7 +67,7 @@ def initialize_accumulation_stats(
         "q_value_aggregation": q_value_aggregation,
         "q_value_diff_aggregation": q_value_diff_aggregation,
         "q_value_certainty_aggregation": q_value_certainty_aggregation,
-        "terminal_q_value": terminal_q_value_aggregation,
+        "terminal_q_value_aggregation": terminal_q_value_aggregation,
     }
 
 

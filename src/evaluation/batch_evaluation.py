@@ -186,8 +186,6 @@ def batch_evaluation(
         assert not np.all(actions[is_active][-1] == TERMINAL_ACTION), actions
         assert not np.all(active_actions[-1] == TERMINAL_ACTION), actions
 
-        # TODO collect all_q_values here (high verbosity level)
-
         # revert action back to q value index fo later use
         q_value_indices = np.array(
             [action_to_q_value_index(actions[i], code_size) for i in is_active]
@@ -224,16 +222,16 @@ def batch_evaluation(
             accumulators["q_value_aggregation"][is_active],
             accumulators["q_value_diff_aggregation"][is_active],
             accumulators["q_value_certainty_aggregation"][is_active],
-            accumulators["terminal_q_value"][is_active],
+            accumulators["terminal_q_value_aggregation"][is_active],
         ) = aggregate_q_value_stats(
             accumulators["q_value_aggregation"][is_active],
             accumulators["q_value_diff_aggregation"][is_active],
             accumulators["q_value_certainty_aggregation"][is_active],
-            accumulators["terminal_q_value"][is_active],
+            accumulators["terminal_q_value_aggregation"][is_active],
             first_q_value,
             second_q_value,
             theoretical_q_values[is_active],
-            terminal_q_value
+            terminal_q_value,
         )
 
         # apply the chosen action

@@ -6,3 +6,4 @@ gym>=0.18.0
 tensorboard>=2.4.1
 pyyaml>=5.0.0
 nvgpu>=0.9.0
+gtrxl-torch>=0.1.6

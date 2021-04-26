@@ -77,9 +77,9 @@ class Conv3dGeneralAgent(nn.Module):
             self.padding_size = (
                 int(self.kernel_depth / 2),
                 int(self.kernel_size / 2),
-                int(self.kernel_size / 2)
+                int(self.kernel_size / 2),
             )
-        
+
         self.kernel_size = (self.kernel_depth, self.kernel_size, self.kernel_size)
 
         print(f"{self.padding_size=}")
@@ -233,7 +233,7 @@ class Conv3dGeneralAgent(nn.Module):
             assert both.shape[-3:] == (
                 self.stack_depth,
                 (self.size + 1),
-                (self.size + 1)
+                (self.size + 1),
             ), f"start {both.shape=}"
             both = F.relu(self.nd_conv_layer_both(both))
             both = F.relu(self.rd_conv_layer_both(both))
@@ -241,7 +241,7 @@ class Conv3dGeneralAgent(nn.Module):
             assert both.shape[-3:] == (
                 self.stack_depth,
                 (self.size + 1),
-                (self.size + 1)
+                (self.size + 1),
             ), f"end {both.shape=}"
             assert both.shape[0] == batch_size, f"end compare batch_size {both.shape=}"
 

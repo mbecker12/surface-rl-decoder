@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
     # test integration with evaluation routine in the real program
     if False:
-        for t in range(5):
+        for t in range(1):
             final_result_dict = {
                 RESULT_KEY_EPISODE: {},
                 RESULT_KEY_Q_VALUE_STATS: {},
@@ -287,15 +287,15 @@ if __name__ == "__main__":
                 RESULT_KEY_COUNTS: {},
                 RESULT_KEY_RATES: {},
             }
-            p_error_list = [0.01, 0.02]
+            p_error_list = [0.0000000000000000001]
             for i_err_list, p_error in enumerate(p_error_list):
 
                 eval_results, all_q_values = batch_evaluation(
                     model,
                     "",
                     eval_device,
-                    num_of_random_episodes=4,
-                    num_of_user_episodes=4,
+                    num_of_random_episodes=2040,
+                    num_of_user_episodes=8,
                     max_num_of_steps=10,
                     discount_intermediate_reward=0.3,
                     p_err=p_error,
@@ -328,3 +328,5 @@ if __name__ == "__main__":
                         t,
                         walltime=current_time_tb,
                     )
+            print(f"{tb_results=}")
+            # print(f"{yaml.dump(tb_results, default_flow_style=False)}")
