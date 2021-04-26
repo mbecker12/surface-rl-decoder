@@ -26,6 +26,7 @@ REPEATING_ACTION_REWARD = float(reward_config.get("repeating_action", "-2"))
 
 # alter state
 STATE_MULTIPLIER = int(env_config.get("state_multiplier", "20"))
+STATE_MULTIPLIER_INVERSE = 1.0 / STATE_MULTIPLIER
 
 
 def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
@@ -317,7 +318,7 @@ def create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask):
 
 
 def compute_intermediate_reward(
-    state, next_state, stack_depth, discount_factor=0.75, annealing_factor=1.0
+    state, next_state, stack_depth, discount_factor=0.3, annealing_factor=1.0
 ):
     """
     Calculate an intermediate reward based on the number of created/annihilated syndromes
@@ -351,6 +352,12 @@ def compute_intermediate_reward(
     )
 
     intermediate_reward = np.sum(layer_rewards)
+    # weight negative differences more strongly than positive differences,
+    # this will correspond to a stronger punishment compared to the reward
+    # for an analogous action
+    if intermediate_reward < 0:
+        intermediate_reward *= 2
+
     return intermediate_reward
 
 

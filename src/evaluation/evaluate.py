@@ -4,13 +4,15 @@ to decode syndromes
 """
 import logging
 from typing import Dict, Tuple
-from distributed.eval_util import (
-    RESULT_KEY_EPISODE,
-    RESULT_KEY_STEP,
-    RESULT_KEY_P_ERR,
-    run_evaluation_in_batches,
-)
 from distributed.learner_util import safe_append_in_dict
+from evaluation.batch_evaluation import (
+    RESULT_KEY_COUNTS,
+    RESULT_KEY_ENERGY,
+    RESULT_KEY_EPISODE,
+    RESULT_KEY_Q_VALUE_STATS,
+    RESULT_KEY_RATES,
+    batch_evaluation,
+)
 from surface_rl_decoder.surface_code import SurfaceCode
 
 
@@ -25,15 +27,14 @@ def evaluate(
     device,
     p_error_list,
     p_msmt_list,
-    num_of_random_episodes=24,
+    num_of_random_episodes=120,
     num_of_user_episodes=8,
     epsilon=0.0,
     max_num_of_steps=50,
     discount_factor_gamma=0.9,
     annealing_intermediate_reward=1.0,
-    discount_intermediate_reward=0.75,
+    discount_intermediate_reward=0.3,
     punish_repeating_actions=0,
-    plot_one_episode=True,
     verbosity=0,
 ) -> Tuple[Dict, Dict, Dict]:
     """
@@ -52,7 +53,6 @@ def evaluate(
         availabe examples in the helper function
     epsilon: probability of the agent choosing a random action
     max_num_of_steps: maximum number of steps per environment
-    plot_one_episode: whether or not to render an example episode
     discount_factor_gamma: gamma / discount factor in reinforcement learning
     p_error_list: list of error rates for physical errors
     p_msmt_list: list of error rates for syndrome measurement errors
@@ -80,12 +80,14 @@ def evaluate(
 
     final_result_dict = {
         RESULT_KEY_EPISODE: {},
-        RESULT_KEY_STEP: {},
-        RESULT_KEY_P_ERR: {},
+        RESULT_KEY_Q_VALUE_STATS: {},
+        RESULT_KEY_ENERGY: {},
+        RESULT_KEY_COUNTS: {},
+        RESULT_KEY_RATES: {},
     }
 
     for i_err_list, p_error in enumerate(p_error_list):
-        eval_results, all_q_values = run_evaluation_in_batches(
+        eval_results, all_q_values = batch_evaluation(
             model,
             environment_def,
             device,
@@ -110,9 +112,4 @@ def evaluate(
 
     # end for; error_list
 
-    return (
-        final_result_dict[RESULT_KEY_EPISODE],
-        final_result_dict[RESULT_KEY_STEP],
-        final_result_dict[RESULT_KEY_P_ERR],
-        all_q_values,
-    )
+    return (final_result_dict, all_q_values)

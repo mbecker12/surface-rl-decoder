@@ -10,7 +10,7 @@ from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 from agents.interface import interface
 
 
-class Conv2dAgent(nn.Module):
+class Conv2dAgentUpdate(nn.Module):
 
     """
     Description:
@@ -57,7 +57,7 @@ class Conv2dAgent(nn.Module):
 
         self.nr_actions_per_qubit = int(config.get("num_actions_per_qubit"))
         self.stack_depth = int(config.get("stack_depth"))
-        self.split_input_toggle = int(config.get("split_input_toggle", 1))
+        self.split_input_toggle = int(config.get("split_input_toggle", 0))
 
         self.input_channels = int(config.get("input_channels"))
         self.kernel_size = int(config.get("kernel_size"))
@@ -177,6 +177,8 @@ class Conv2dAgent(nn.Module):
         """
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
+        batch_size, timesteps, _, _ = state.size()
+
         if self.split_input_toggle:
             x, z, both = interface(state, self.plaquette_mask, self.vertex_mask)
 
@@ -217,31 +219,46 @@ class Conv2dAgent(nn.Module):
             state = state.view(
                 -1, self.input_channels, (self.size + 1), (self.size + 1)
             )  # convolve both
+            assert state.shape[0] == batch_size * timesteps, state.shape
             state = F.relu(self.input_conv_layer_both(state))
             state = F.relu(self.nd_conv_layer_both(state))
             state = F.relu(self.rd_conv_layer_both(state))
             state = F.relu(self.comp_conv_layer_both(state))
 
             complete = state.view(
-                -1,
+                batch_size,
                 self.stack_depth,
                 (self.size + 1) * (self.size + 1) * self.output_channels4,
             )
+            assert complete.shape[0] == batch_size
 
-        output, (_h, _c) = self.lstm_layer(complete)
-        assert (
-            output.shape[1] == self.stack_depth
-        ), f"{output.shape=}, {self.stack_depth=}"
+        hidden = None
+
+        # try the manual loop
+        for i in range(self.stack_depth):
+            output, hidden = self.lstm_layer(complete[:, i, :].unsqueeze(1), hidden)
+        assert output.shape[1] == 1
+
+        # output, (final_hidden, _c) = self.lstm_layer(complete)
+        # assert (
+        #     output.shape[1] == self.stack_depth
+        # ), f"{output.shape=}, {self.stack_depth=}"
         assert (
             output.shape[2] == self.lstm_output_size * self.lstm_num_directions
         ), f"{output.shape=}, {self.lstm_output_size=}, {self.lstm_num_directions=}"
+        assert len(output.shape) == 3
 
         output = F.relu(
-            self.almost_final_layer(output[:, -1, :])
+            self.almost_final_layer(output.squeeze())
         )  # take the last output feature vector from the lstm for each sample in the batch
+        assert output.shape == (
+            batch_size,
+            self.neurons_lin_layer,
+        ), f"{output.shape=}, {(batch_size, self.neurons_lin_layer)=}"
         final_output = self.final_layer(output)
+
         assert (
             final_output.shape[-1]
             == self.nr_actions_per_qubit * self.size * self.size + 1
-        )
+        ), final_output.shape
         return final_output

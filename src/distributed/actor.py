@@ -101,6 +101,14 @@ def actor(args):
         logger.setLevel(logging.INFO)
     logger.info("Fire up all the environments!")
 
+    seed = int(args.get("seed", 0))
+
+    if seed != 0:
+        np.random.seed(seed + actor_id)
+        torch.manual_seed(seed + actor_id)
+        torch.cuda.manual_seed(seed + actor_id)
+        torch.cuda.manual_seed_all(seed + actor_id)
+
     env = SurfaceCode()
     state_size = env.syndrome_size
     code_size = state_size - 1

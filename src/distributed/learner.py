@@ -7,12 +7,14 @@ from time import time
 import traceback
 from typing import Dict
 import logging
+import yaml
 import numpy as np
 from torch.optim import Adam
 from torch import nn
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
-from distributed.evaluate import evaluate
+from evaluation.evaluate import evaluate
+from evaluation.eval_util import RESULT_KEY_HISTOGRAM_Q_VALUES
 from distributed.learner_util import (
     log_evaluation_data,
     perform_q_learning_step,
@@ -25,7 +27,7 @@ from distributed.model_util import (
     save_model,
 )
 from distributed.util import time_tb
-from distributed.eval_util import RESULT_KEY_HISTOGRAM_Q_VALUES
+
 
 # pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def learner(args: Dict):
@@ -131,6 +133,9 @@ def learner(args: Dict):
         model_config, syndrome_size, stack_depth, device=device
     )
 
+    logger.debug(
+        "\nNetwork Config: \n\n" f"{yaml.dump(model_config, default_flow_style=False)}"
+    )
     policy_net = choose_model(model_name, model_config)
     target_net = choose_model(model_name, model_config)
 
@@ -252,16 +257,15 @@ def learner(args: Dict):
             count_to_eval = 0
 
             evaluation_start = time()
-            episode_results, step_results, p_error_results, all_q_values = evaluate(
+            final_result_dict, all_q_values = evaluate(
                 policy_net,
                 "",
                 device,
                 p_error_list,
                 p_msmt_list,
-                plot_one_episode=False,
                 epsilon=learner_epsilon,
                 discount_factor_gamma=discount_factor,
-                num_of_random_episodes=8,
+                num_of_random_episodes=120,
                 num_of_user_episodes=8,
                 verbosity=verbosity,
             )
@@ -271,34 +275,32 @@ def learner(args: Dict):
                     f"Time for evaluation: {evaluation_stop - evaluation_start} s."
                 )
 
-            episode_results = transform_list_dict(episode_results)
-            step_results = transform_list_dict(step_results)
-            p_error_results = transform_list_dict(p_error_results)
+            tb_results = {}
+            for key, values in final_result_dict.items():
+                tb_results[key] = transform_list_dict(values)
 
             if verbosity:
                 log_evaluation_data(
                     tensorboard,
+                    tb_results,
                     p_error_list,
-                    episode_results,
-                    step_results,
-                    p_error_results,
-                    t,
+                    t + 1,
                     current_time_tb,
                 )
 
-                if verbosity >= 5:
+                if verbosity >= 4:
                     for p_err in p_error_list:
                         tensorboard.add_histogram(
                             f"network/q_values, p_error {p_err}",
                             all_q_values[RESULT_KEY_HISTOGRAM_Q_VALUES],
-                            t,
+                            t + 1,
                             walltime=current_time_tb,
                         )
 
             eval_step += 1
 
             # monitor policy network parameters
-            if verbosity >= 4:
+            if verbosity >= 5:
                 policy_params = list(policy_net.parameters())
                 n_layers = len(policy_params)
                 for i, param in enumerate(policy_params):

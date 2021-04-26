@@ -12,8 +12,9 @@ from torch.nn.modules.loss import MSELoss
 from torch.optim import Adam
 from torch import nn
 import yaml
-from agents.conv_2d_agent import Conv2dAgent
+from agents.conv_2d_agent_rework import Conv2dAgentUpdate
 from agents.conv_3d_agent import Conv3dGeneralAgent
+from agents.simple_2dconv import SimpleConv2D
 from distributed.dummy_agent import DummyModel
 
 
@@ -36,9 +37,11 @@ def choose_model(model_name, model_config):
     if "dummy" in model_name:
         model = DummyModel(model_config)
     elif model_name.lower() in "conv2d_lstm":
-        model = Conv2dAgent(model_config)
+        model = Conv2dAgentUpdate(model_config)
     elif model_name.lower() in "conv3d":
         model = Conv3dGeneralAgent(model_config)
+    elif "simple" in model_name.lower():
+        model = SimpleConv2D(model_config)
     else:
         raise Exception(f"Error! Model '{model_name}' not supported or not recognized.")
 
@@ -105,7 +108,7 @@ def load_model(
     criterion: loss instance, overwritten with saved state in state_dict
     """
     # load model
-    model.load_state_dict(torch.load(old_model_path))
+    model.load_state_dict(torch.load(old_model_path, map_location=model_device))
     if model_device is not None:
         model = model.to(model_device)
 
@@ -113,7 +116,9 @@ def load_model(
     if load_optimizer:
         assert learning_rate is not None
         optimizer = Adam(model.parameters(), lr=learning_rate)
-        optimizer.load_state_dict(torch.load(old_model_path + ".optimizer"))
+        optimizer.load_state_dict(
+            torch.load(old_model_path + ".optimizer", map_location=optimizer_device)
+        )
         assert optimizer_device is not None
         optimizer = optimizer_to(optimizer, optimizer_device)
     else:
