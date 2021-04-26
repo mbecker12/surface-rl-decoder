@@ -1,23 +1,19 @@
-from logging import log
 import logging
 from copy import deepcopy
-import torch
 import numpy as np
 from distributed.environment_set import EnvironmentSet
-from distributed.eval_util import (
+from evaluation.eval_util import (
     aggregate_q_value_stats,
     calc_theoretical_q_value,
     check_correct_actions,
-    count_array_raises,
     get_energy_stats,
     get_intermediate_reward_stats,
     get_two_highest_q_values,
     prepare_step,
     prepare_user_episodes,
     reset_local_actions_and_qvalues,
-    count_spikes_np,
 )
-from distributed.eval_init_utils import (
+from evaluation.eval_init_utils import (
     initialize_accumulation_stats,
     initialize_avg_containers,
     initialize_empty_containers,

@@ -7,7 +7,7 @@ import torch
 import numpy as np
 from iniparser import Config
 from distributed.model_util import choose_model, load_model
-from distributed.eval_util import count_spikes_np, create_user_eval_state
+from evaluation.eval_util import count_spikes_np, create_user_eval_state
 from evaluation.batch_evaluation import (
     RESULT_KEY_ENERGY,
     batch_evaluation,

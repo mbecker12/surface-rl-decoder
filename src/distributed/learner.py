@@ -13,7 +13,8 @@ from torch.optim import Adam
 from torch import nn
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.tensorboard import SummaryWriter
-from distributed.evaluate import evaluate
+from evaluation.evaluate import evaluate
+from evaluation.eval_util import RESULT_KEY_HISTOGRAM_Q_VALUES
 from distributed.learner_util import (
     log_evaluation_data,
     perform_q_learning_step,
@@ -26,7 +27,7 @@ from distributed.model_util import (
     save_model,
 )
 from distributed.util import time_tb
-from distributed.eval_util import RESULT_KEY_HISTOGRAM_Q_VALUES
+
 
 # pylint: disable=too-many-locals, too-many-statements, too-many-branches
 def learner(args: Dict):

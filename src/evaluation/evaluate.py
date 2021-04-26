@@ -4,16 +4,11 @@ to decode syndromes
 """
 import logging
 from typing import Dict, Tuple
-from distributed.eval_util import (
-    RESULT_KEY_EPISODE,
-    RESULT_KEY_STEP,
-    RESULT_KEY_P_ERR,
-    run_evaluation_in_batches,
-)
 from distributed.learner_util import safe_append_in_dict
 from evaluation.batch_evaluation import (
     RESULT_KEY_COUNTS,
     RESULT_KEY_ENERGY,
+    RESULT_KEY_EPISODE,
     RESULT_KEY_INCREASING,
     RESULT_KEY_Q_VALUE_STATS,
     RESULT_KEY_RATES,
