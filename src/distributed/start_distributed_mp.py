@@ -80,7 +80,7 @@ def start_mp():
     actor_load_model = int(actor_config["load_model"])
     num_actions_per_qubit = 3
     discount_intermediate_reward = float(
-        actor_config.get("discount_intermediate_reward", 0.75)
+        actor_config.get("discount_intermediate_reward", 0.3)
     )
     min_value_factor_intermediate_reward = float(
         actor_config.get("min_value_intermediate_reward", 0.0)
