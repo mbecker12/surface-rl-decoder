@@ -30,7 +30,6 @@ jobs:
         python -m pytest --cov-report=annotate --cov=src;
     - name: Testrun
       run: |
-        mv src/config/static_config.ini src/config/config.ini
         export CONFIG_ENV_SIZE=5;
         export CONFIG_ENV_STACK_DEPTH=8;
         export CONFIG_LEARNER_MODEL_NAME=dummy_agent;
