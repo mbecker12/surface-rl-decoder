@@ -71,6 +71,7 @@ class Conv3DEvolvedAgent(nn.Module):
         modules = []
         for i in range(len(module_list)-1):
             modules.append(nn.Conv3d(i, i+1, self.kernel_size, padding = self.padding_size))
+            modules.append(nn.ReLU())
         self.sequential_x = nn.Sequential(*modules)
         self.sequential_z = nn.Sequential(*modules)
         self.sequential_both = nn.Sequential(*modules)
@@ -85,6 +86,7 @@ class Conv3DEvolvedAgent(nn.Module):
             self.last_output_channels = second_module_list[-1]
             for i in range(1, len(second_module_list)):
                 second_modules.append(nn.Conv3d(i-1, i,self.kernel_size, padding = self.padding_size))
+                second_modules.append(nn.ReLU())
             self.sequential_complete = nn.Sequential(*modules)
             
         else:
