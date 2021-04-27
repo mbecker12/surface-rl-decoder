@@ -13,13 +13,14 @@ import logging
 import numpy as np
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import clip_grad_norm
 import torch.optim as optim
 from copy import deepcopy
 from distributed.environment_set import EnvironmentSet
-from distributed.model_util import choose_model, extend_model_config, load_model
+from distributed.model_util import choose_model, extend_model_config, load_model, save_model
 from distributed.util import anneal_factor, select_actions, time_tb
 from surface_rl_decoder.surface_code import SurfaceCode
 from replay_buffer import ReplayBuffer
@@ -65,6 +66,7 @@ def hindsight3(config):
     n: (int) how many extra goals to have
     load_model: (int) 1 or 0, toggle on whether to download a pretrained model or not
     old_model_path: (str) if load_model is 1, then load from this path
+    save_model_path: (str) path to save model & optimizer state_dict and metadata
     
 
     model_name: (str) dqn network type
@@ -83,18 +85,22 @@ def hindsight3(config):
     buffer_size = int(config.get("buffer_size"))
     learning_rate = float(config.get("learning_rate"))
     tau = float(config.get("tau"))
+
     benchmarking = int(config.get("benchmarking"), 0)
     summary_path = str(config.get("summary_path"))
     summary_date = str(config.get("summary_date"))
     
-    discount_intermediate_reward = float(config.get("discount_intermediate_reward"))
-    discount_factor = float(config.get("discount_factor", 0))
-    min_value_factor_intermediate_reward = float(config.get("min_value_factor_intermediate_reward",0.0))
-    min_value_factor_epsilon = float(config.get("min_value_factor_epsilon"))
     epsilon = float(config.get("epsilon", 1))
     load_model_flag = int(config.get("load_model"))
     if load_model_flag == 1:
         old_model_path = str(config.get("old_model_path"))
+
+    save_model_path = config.get("save_model_path")
+
+    discount_intermediate_reward = float(config.get("discount_intermediate_reward"))
+    discount_factor = float(config.get("discount_factor", 0))
+    min_value_factor_intermediate_reward = float(config.get("min_value_factor_intermediate_reward",0.0))
+    min_value_factor_epsilon = float(config.get("min_value_factor_epsilon"))    
     decay_factor_intermediate_reward = float(config.get("decay_factor_intermediate_reward", 0.0))
     decay_factor_epsilon = float(config.get("decay_factor_epsilon", 0.0))
     device = str(config.get("device"))
@@ -121,6 +127,9 @@ def hindsight3(config):
     state_size = env.syndrome_size
     code_size = state_size - 1
     stack_depth = env.stack_depth
+
+    
+    save_model_path_date = os.path.join(save_model_path, str(code_size), summary_date, f"{model_name}_{code_size}_{summary_date}.pt")
 
     #create a collection of independent environments
     environments = EnvironmentSet(env, num_environments)
@@ -161,14 +170,28 @@ def hindsight3(config):
     qnetwork_local = choose_model(model_name, model_config)
 
     if load_model_flag == 1:
-        qnetwork_target, _, _ = load_model(qnetwork_target, old_model_path)
-        qnetwork_local, _, _ = load_model(qnetwork_local, old_model_path)
+        qnetwork_target, _, _ = load_model(qnetwork_target, 
+        old_model_path,
+        model_device = device)
 
-    qnetwork_target.to(device)
-    qnetwork_local.to(device)
+        qnetwork_local, optimizer, criterion = load_model(qnetwork_local, 
+        old_model_path, 
+        load_optimizer = True, 
+        optimizer_device = device, 
+        model_device = device, 
+        learning_rate = learning_rate)
+
+    else:
+        
+        qnetwork_target.to(device)
+        qnetwork_local.to(device)
+        optimizer = optim.Adam(qnetwork_local.parameters(), lr = learning_rate)
+        criterion = nn.MSELoss(reduction = "none")
+
+
+
     
-    optimizer = optim.Adam(qnetwork_local.parameters(), lr = learning_rate)
-
+    
     performance_start = time()
     heart = time()
     heartbeat_interval = 60 #seconds
@@ -182,7 +205,7 @@ def hindsight3(config):
     steps_to_benchmark = 0
     benchmark_frequency = 1000
 
-    #epoch_steps = int(config.get("epoch_steps", 100000)) 
+    epoch_steps = int(config.get("epoch_steps", 100000)) 
     steps_in_this_epoch = 0
     Q_updates = 0
 
@@ -249,12 +272,7 @@ def hindsight3(config):
             local_buffer_qvalues[i, buffer_idx[i]] = q_values[i]
         buffer_idx += 1
 
-
-
-
-        #for environ in range(num_environments):
-        #    replay_buffer.add(states[environ,:,:,:], np.argmax(q_values[environ,:]), rewards[environ], next_states[environ,:,:,:], terminals[environ])
-            
+    
         if verbosity >= 4:
             tensorboard.add_scalar("hindsight/transitions",
             num_environments * steps_in_this_epoch,
@@ -280,10 +298,10 @@ def hindsight3(config):
                     #If enough samples are available in memory, get random subset and learn
                     if len(replay_buffer) > batch_size:
                         experiences = replay_buffer.sample()
-                        learn(experiences, qnetwork_local, qnetwork_target, optimizer, discount_factor, tau, n_step)
-                        #loss = learn(experiences, qnetwork_local, qnetwork_target, optimizer, discount_factor, tau, n_step)
+                        #learn(experiences, qnetwork_local, qnetwork_target, optimizer, discount_factor, tau, n_step)
+                        loss = learn(experiences, qnetwork_local, qnetwork_target, optimizer, discount_factor, tau, n_step)
                         Q_updates += 1
-                        #writer.add_scalar("Q_loss", loss, Q_updates)
+                        tensorboard.add_scalar("Q_loss", loss, Q_updates)
                 buffer_idx[index] = 0
                 
             
@@ -309,8 +327,11 @@ def hindsight3(config):
 
 
         steps_in_this_epoch += 1
-        #if steps_in_this_epoch == epoch_steps:
-        #    break
+        if steps_in_this_epoch == epoch_steps:
+            break
+
+    save_model(qnetwork_local, optimizer, criterion, save_model_path_date)
+    logger.info(f"Saved policy network to {save_model_path_date}")
 
 
 
