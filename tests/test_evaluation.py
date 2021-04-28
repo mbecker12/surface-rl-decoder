@@ -3,7 +3,7 @@ from time import time
 import torch
 
 # pylint: disable=no-member
-from src.distributed.dummy_agent import DummyModel
+from src.agents.dummy_agent import DummyModel
 from src.evaluation.batch_evaluation import batch_evaluation
 
 
@@ -16,6 +16,7 @@ def test_batch_evaluation(configure_env, restore_env):
         "syndrome_size": int(os.environ.get("CONFIG_ENV_SIZE")) + 1,
         "stack_depth": int(os.environ.get("CONFIG_ENV_STACK_DEPTH")),
         "num_actions_per_qubit": 3,
+        "device": "cpu"
     }
     model_ = DummyModel(config=config_)
 
