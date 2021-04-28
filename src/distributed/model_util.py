@@ -15,7 +15,7 @@ import yaml
 from agents.conv_2d_agent_rework import Conv2dAgentUpdate
 from agents.conv_3d_agent import Conv3dGeneralAgent
 from agents.simple_2dconv import SimpleConv2D
-from distributed.dummy_agent import DummyModel
+from agents.dummy_agent import DummyModel
 
 
 def choose_model(model_name, model_config):

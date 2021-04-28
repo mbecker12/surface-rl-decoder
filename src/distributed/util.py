@@ -179,6 +179,7 @@ def q_value_index_to_action(q_value_index, code_size, num_actions_per_qubit=3):
     # grid_index_group = (22 - 1) // 3 = 7
     # x = 7 % 5 = 2
     # y = 7 // 5 = 1
+    assert code_size is not None
     if q_value_index in (num_actions_per_qubit * code_size * code_size, -1):
         return (0, 0, TERMINAL_ACTION)
 
