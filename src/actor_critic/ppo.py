@@ -16,16 +16,11 @@ logger = logging.getLogger("ppo")
 logger.setLevel(logging.INFO)
 
 
-class PPO():
-    def __init__(self,
-        worker_args,
-        mem_args,
-        learner_args,
-        env_args,
-        global_config,
-        queues
+class PPO:
+    def __init__(
+        self, worker_args, mem_args, learner_args, env_args, global_config, queues
     ) -> None:
-        
+
         self.num_cuda_workers = env_args["num_cuda_actors"]
         self.num_cpu_workers = env_args["num_cpu_actors"]
         self.num_workers = self.num_cuda_workers + self.num_cpu_workers
@@ -37,29 +32,33 @@ class PPO():
         self.device = learner_args["device"]
         self.learning_rate = learner_args.get("learning_rate")
         self.max_episodes = learner_args["max_episodes"]
-        
-        self.model = None # TODO choose model
+
+        self.model = None  # TODO choose model
         # TODO change model to one single model
         model_name = learner_args["model_name"]
         model_config = learner_args["model_config"]
         model_config = extend_model_config(
             model_config, self.syndrome_size, self.stack_depth, device=self.device
         )
-        
+
         self.policy_model = choose_model(model_name, model_config)
         self.value_model = choose_model(model_name, model_config)
-        
+
         model_config["rl_type"] = "ppo"
         self.combined_model = choose_model(model_name, model_config)
 
         self.combined_model.to(self.device)
         self.policy_model.to(self.device)
         self.value_model.to(self.device)
-        
+
         self.optimizer = Adam(self.combined_model.parameters(), lr=self.learning_rate)
-        self.policy_optimizer = Adam(self.policy_model.parameters(), lr=self.learning_rate)
-        self.value_optimizer = Adam(self.value_model.parameters(), lr=self.learning_rate)
-        
+        self.policy_optimizer = Adam(
+            self.policy_model.parameters(), lr=self.learning_rate
+        )
+        self.value_optimizer = Adam(
+            self.value_model.parameters(), lr=self.learning_rate
+        )
+
         self.policy_model_max_grad_norm = learner_args.get("policy_model_max_grad_norm")
         self.policy_clip_range = learner_args.get("policy_clip_range")
         self.policy_stopping_kl = learner_args.get("policy_stopping_kl")
@@ -94,7 +93,12 @@ class PPO():
 
     def optimize_model(self):
         (
-            states, actions, returns, gaes, logpas, values
+            states,
+            actions,
+            returns,
+            gaes,
+            logpas,
+            values,
         ) = self.episode_buffer.get_stacks()
 
         actions = torch.tensor(
@@ -117,13 +121,16 @@ class PPO():
             returns_batch = returns[batch_idxs]
             values_batch = values[batch_idxs]
 
-            logpas_pred, entropies_pred, values_pred = self.combined_model.get_predictions_ppo(states_batch, actions_batch)
-            
+            (
+                logpas_pred,
+                entropies_pred,
+                values_pred,
+            ) = self.combined_model.get_predictions_ppo(states_batch, actions_batch)
+
             ratios = (logpas_pred - logpas_batch).exp()
             pi_obj = gaes_batch * ratios
             pi_obj_clipped = gaes_batch * ratios.clamp(
-                1.0 - self.policy_clip_range,
-                1.0 + self.policy_clip_range
+                1.0 - self.policy_clip_range, 1.0 + self.policy_clip_range
             )
 
             policy_loss = -torch.min(pi_obj, pi_obj_clipped).mean()
@@ -134,21 +141,21 @@ class PPO():
             )
             v_loss = (returns_batch - values_pred).pow(2)
             v_loss_clipped = (returns_batch - values_pred_clipped).pow(2)
-            value_loss = torch.max(v_loss, v_loss_clipped).mul(0.5).mean() * self.value_loss_weight
+            value_loss = (
+                torch.max(v_loss, v_loss_clipped).mul(0.5).mean()
+                * self.value_loss_weight
+            )
 
             torch.autograd.set_detect_anomaly(True)
             self.optimizer.zero_grad()
             (policy_loss + entropy_loss + value_loss).backward()
             torch.nn.utils.clip_grad_norm_(
-                self.combined_model.parameters(),
-                self.policy_model_max_grad_norm
+                self.combined_model.parameters(), self.policy_model_max_grad_norm
             )
             self.optimizer.step()
 
             # # optimize value separately ?
             # _, _, values_pred = self.combined_model.get_predictions_ppo(states_batch, actions_batch)
-
-            
 
             # self.optimizer.zero_grad()
             # value_loss.backward()
@@ -158,7 +165,9 @@ class PPO():
 
             with torch.no_grad():
                 # TODO: do we need this?
-                logpas_pred_all, _, _ = self.combined_model.get_predictions_ppo(states, actions)
+                logpas_pred_all, _, _ = self.combined_model.get_predictions_ppo(
+                    states, actions
+                )
                 kl = (logpas - logpas_pred_all).mean()
                 if kl.item() > self.policy_stopping_kl:
                     break
@@ -170,12 +179,11 @@ class PPO():
                     break
 
     def train(self, seed):
-        training_start, last_debug_time = time(), float('-inf')
+        training_start, last_debug_time = time(), float("-inf")
         logger.info("Inside training function")
 
         # num_environments = args["num_environments"]
         # env = SurfaceCode()
-        
 
         self.seed = seed
         self.gamma = self.discount_factor
@@ -183,7 +191,7 @@ class PPO():
         if self.seed != 0:
             torch.manual_seed(self.seed)
             np.random.seed(self.seed)
-            
+
         self.episode_timestep, self.episode_reward = [], []
         self.episode_seconds, self.episode_exploration = [], []
         self.evaluation_scores = []
@@ -194,9 +202,12 @@ class PPO():
         episode = 0
 
         while True:
-            episode_timestep, episode_reward, episode_exploration, episode_seconds = self.episode_buffer.fill(
-                self.env_set, self.combined_model
-            )
+            (
+                episode_timestep,
+                episode_reward,
+                episode_exploration,
+                episode_seconds,
+            ) = self.episode_buffer.fill(self.env_set, self.combined_model)
 
             n_ep_batch = len(episode_timestep)
             self.episode_timestep.extend(episode_timestep)

@@ -39,7 +39,7 @@ class MultiprocessEnv:
 
             worker_args["worker_queue"] = self.worker_queues[i][1]
             worker_args["id"] = i
-            
+
             self.worker_processes.append(
                 mp.Process(target=self.worker, args=(worker_args,))
             )
@@ -117,4 +117,6 @@ class MultiprocessEnv:
             results.append((new_state, float(reward), float(terminal), info))
 
         # logger.info(f"{results=}")
-        return [np.stack(block).squeeze() for block in np.array(results, dtype=object).T]
+        return [
+            np.stack(block).squeeze() for block in np.array(results, dtype=object).T
+        ]

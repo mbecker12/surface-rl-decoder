@@ -76,8 +76,6 @@ def configure_processes(rl_type="q_learning"):
     replay_memory_decay_beta = float(memory_config.get("decay_beta", 1.0))
     nvidia_log_frequency = int(memory_config.get("nvidia_log_frequency", 100))
 
-    
-
     # set up learner configuration
     learner_verbosity = int(learner_config["verbosity"])
     learner_benchmarking = int(learner_config["benchmarking"])
@@ -219,17 +217,33 @@ def configure_processes(rl_type="q_learning"):
     }
 
     if "ppo" in rl_type.lower():
-        learner_args["policy_model_max_grad_norm"] = float(learner_config.get("policy_model_max_grad_norm"))
-        learner_args["policy_clip_range"] = float(learner_config.get("policy_clip_range"))
-        learner_args["policy_stopping_kl"] = float(learner_config.get("policy_stopping_kl"))
-        learner_args["value_model_max_grad_norm"] = float(learner_config.get("value_model_max_grad_norm"))
+        learner_args["policy_model_max_grad_norm"] = float(
+            learner_config.get("policy_model_max_grad_norm")
+        )
+        learner_args["policy_clip_range"] = float(
+            learner_config.get("policy_clip_range")
+        )
+        learner_args["policy_stopping_kl"] = float(
+            learner_config.get("policy_stopping_kl")
+        )
+        learner_args["value_model_max_grad_norm"] = float(
+            learner_config.get("value_model_max_grad_norm")
+        )
         learner_args["value_clip_range"] = float(learner_config.get("value_clip_range"))
-        learner_args["value_stopping_mse"] = float(learner_config.get("value_stopping_mse"))
-        learner_args["entropy_loss_weight"] = float(learner_config.get("entropy_loss_weight"))
-        learner_args["value_loss_weight"] = float(learner_config.get("value_loss_weight"))
+        learner_args["value_stopping_mse"] = float(
+            learner_config.get("value_stopping_mse")
+        )
+        learner_args["entropy_loss_weight"] = float(
+            learner_config.get("entropy_loss_weight")
+        )
+        learner_args["value_loss_weight"] = float(
+            learner_config.get("value_loss_weight")
+        )
         learner_args["max_episodes"] = int(learner_config.get("max_episodes"))
-        learner_args["optimization_epochs"] = int(learner_config.get("optimization_epochs"))
-        
+        learner_args["optimization_epochs"] = int(
+            learner_config.get("optimization_epochs")
+        )
+
         episode_buffer_tau = float(memory_config.get("episode_buffer_tau"))
         max_buffer_episodes = int(memory_config.get("max_buffer_episodes"))
         max_buffer_episode_steps = int(memory_config.get("max_buffer_episode_steps"))

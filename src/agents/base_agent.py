@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+
 # pylint: disable=not-callable
 import torch
 from torch import nn
@@ -37,9 +38,12 @@ class BaseAgent(nn.Module, ABC):
         is_exploratory = np_actions != np.argmax(np_logits, axis=1)
         # TODO: convert action to 3-tuple
         # TODO: define code_size
-        np_action_tuples = np.array([
-            q_value_index_to_action(ac, self.code_size) for _, ac in enumerate(np_actions)
-        ])
+        np_action_tuples = np.array(
+            [
+                q_value_index_to_action(ac, self.code_size)
+                for _, ac in enumerate(np_actions)
+            ]
+        )
         return np_action_tuples, np_logpas, is_exploratory, np_values
 
     def select_action_ppo(self, states):

@@ -16,7 +16,7 @@ def test_batch_evaluation(configure_env, restore_env):
         "syndrome_size": int(os.environ.get("CONFIG_ENV_SIZE")) + 1,
         "stack_depth": int(os.environ.get("CONFIG_ENV_STACK_DEPTH")),
         "num_actions_per_qubit": 3,
-        "device": "cpu"
+        "device": "cpu",
     }
     model_ = DummyModel(config=config_)
 
