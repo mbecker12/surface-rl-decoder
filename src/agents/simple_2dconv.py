@@ -7,10 +7,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from gtrxl_torch.gtrxl_torch import GTrXL
+from agents.base_agent import BaseAgent
 from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 
 
-class SimpleConv2D(nn.Module):
+class SimpleConv2D(BaseAgent):
 
     """
     Description:

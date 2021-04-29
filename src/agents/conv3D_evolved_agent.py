@@ -6,10 +6,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from agents.interface import interface
+from agents.base_agent import BaseAgent
 from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 
 
-class Conv3DEvolvedAgent(nn.Module):
+class Conv3DEvolvedAgent(BaseAgent):
 
     """
     Description:
@@ -70,12 +71,14 @@ class Conv3DEvolvedAgent(nn.Module):
         module_list = config.get("channel_list")
         modules = []
         for i in range(len(module_list)-1):
-            modules.append(nn.Conv3d(i, i+1, self.kernel_size, padding = self.padding_size))
+            modules.append(nn.Conv3d(module_list[i], module_list[i+1], self.kernel_size, padding = self.padding_size))
             modules.append(nn.ReLU())
-        self.sequential_x = nn.Sequential(*modules)
-        self.sequential_z = nn.Sequential(*modules)
         self.sequential_both = nn.Sequential(*modules)
         self.output_channels = module_list[-1] #for the view in the run to ascertain the tensor shape
+
+        if self.split_input_toggle:
+            self.sequential_x = nn.Sequential(*modules)
+            self.sequential_z = nn.Sequential(*modules)
 
         second_module_list = config.get("second_channel_list", [])
         
@@ -85,7 +88,7 @@ class Conv3DEvolvedAgent(nn.Module):
             second_modules.append(nn.Conv3d(module_list[-1], second_module_list[0], self.kernel_size, padding = self.padding_size))
             self.last_output_channels = second_module_list[-1]
             for i in range(1, len(second_module_list)):
-                second_modules.append(nn.Conv3d(i-1, i,self.kernel_size, padding = self.padding_size))
+                second_modules.append(nn.Conv3d(second_module_list[i-1], second_module_list[i],self.kernel_size, padding = self.padding_size))
                 second_modules.append(nn.ReLU())
             self.sequential_complete = nn.Sequential(*modules)
             

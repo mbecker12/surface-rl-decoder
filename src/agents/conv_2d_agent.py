@@ -6,11 +6,12 @@ and linear layers to generate q values.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from agents.base_agent import BaseAgent
 from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 from agents.interface import interface
 
 
-class Conv2dAgent(nn.Module):
+class Conv2dAgent(BaseAgent):
 
     """
     Description:

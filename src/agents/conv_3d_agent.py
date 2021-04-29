@@ -5,11 +5,12 @@ followed by linear layers
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from agents.base_agent import BaseAgent
 from agents.interface import interface
 from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
 
 
-class Conv3dGeneralAgent(nn.Module):
+class Conv3dGeneralAgent(BaseAgent):
 
     """
     Description:
@@ -243,7 +244,6 @@ class Conv3dGeneralAgent(nn.Module):
             ), f"end {both.shape=}"
             assert both.shape[0] == batch_size, f"end compare batch_size {both.shape=}"
 
-            # TODO flatten here already
             complete = both.view(
                 -1,
                 self.stack_depth,
