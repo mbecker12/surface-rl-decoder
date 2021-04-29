@@ -1,5 +1,5 @@
 {
-    "Conv3DEvolvedAgent": {
+    "conv3d_evolved": {
         "split_input_toggle": 0,
         "num_actions_per_qubit": 3,
         "kernel_size": 3,

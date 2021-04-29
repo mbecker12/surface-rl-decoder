@@ -157,6 +157,7 @@ def start_mp():
     }
 
     #set up tensorboard for monitoring
-    tensorboard = SummaryWriter(os.path.join(summary_path,str(code_size), summary_date, summary_run_info)
+    tensorboard = SummaryWriter(
+        os.path.join(summary_path,str(code_size), summary_date, summary_run_info)
     )
     

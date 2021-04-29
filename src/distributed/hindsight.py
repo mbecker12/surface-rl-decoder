@@ -37,7 +37,6 @@ def hindsight(config):
 
     Parameters
     ==========
-    n_episodes: (int) maximum number of training episodes
     epoch_steps: (int) number of steps in an epoch before it goes over to the training section
     size_action_history: (int) maximum size of the action history of the environment,
             trying to execute more actions than this in one environment causes the environment
@@ -77,7 +76,6 @@ def hindsight(config):
 
 
     hindsight_id = config.get("id")
-    #n_episodes = int(config.get("n_episodes"))
     size_action_history = int(config.get("size_action_history"))
     num_actions_per_qubit = int(config.get("num_actions_per_qubit"))
     verbosity = int(config.get("verbosity"))
