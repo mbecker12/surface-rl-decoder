@@ -1,0 +1,11 @@
+{
+    "Conv3DEvolvedAgent": {
+        "split_input_toggle": 0,
+        "num_actions_per_qubit": 3,
+        "kernel_size": 3,
+        "padding_size": 2,
+        "neurons_lin_layer": 512,
+        "channel_list": [3,6,8,16,32,16,8,6,3],
+        "second_channel_list": [3,6,8,16,32,16,8,6,3]
+    }
+}

@@ -28,7 +28,7 @@ from replay_buffer import ReplayBuffer
 
 Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "terminal", "goal"])
 
-def hindsight3(config):
+def hindsight(config):
     """
     Deep Q-learning with hindsight experience replay
     Create agent network for the hindsight learning. 
