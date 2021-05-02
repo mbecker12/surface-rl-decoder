@@ -36,6 +36,7 @@ def evaluate(
     discount_intermediate_reward=0.3,
     punish_repeating_actions=0,
     verbosity=0,
+    rl_type="q",
 ) -> Tuple[Dict, Dict, Dict]:
     """
     Evaluate the current policy.
@@ -102,6 +103,7 @@ def evaluate(
             p_err=p_error,
             p_msmt=p_msmt_list[i_err_list],
             verbosity=verbosity,
+            rl_type=rl_type,
         )
 
         for category_name, category in eval_results.items():

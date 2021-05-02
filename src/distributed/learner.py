@@ -167,12 +167,12 @@ def learner(args: Dict):
 
     # start the actual learning
     t = 0  # no worries, t gets incremented at the end of the while loop
-    perfromance_start = time()
+    performance_start = time()
     eval_step = 0
     while t < timesteps:
         current_time = time()
         current_time_tb = time_tb()
-        delta_t = current_time - perfromance_start
+        delta_t = current_time - performance_start
 
         if time() - start_time > max_time:
             logger.warning("Learner: time exceeded, aborting...")

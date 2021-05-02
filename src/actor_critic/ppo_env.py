@@ -117,6 +117,7 @@ class MultiprocessEnv:
             results.append((new_state, float(reward), float(terminal), info))
 
         # logger.info(f"{results=}")
+        # pylint: disable=not-an-iterable
         return [
             np.stack(block).squeeze() for block in np.array(results, dtype=object).T
         ]

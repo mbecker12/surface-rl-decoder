@@ -24,6 +24,11 @@ class EpisodeBuffer:
         self.max_steps = args["max_buffer_episode_steps"]
         self.device = args["episode_buffer_device"]
 
+        self.total_received_samples = args["total_received_samples"]
+        self.tensorboard = args["tensorboard"]
+
+        self.counter = 0
+
         assert self.max_episodes >= self.num_workers
 
         self.all_worker_idx = np.arange(self.num_workers)
@@ -278,6 +283,14 @@ class EpisodeBuffer:
         ep_rewards = self.episode_rewards[ep_idxs]
         ep_exploration = self.episode_exploration[ep_idxs]
         ep_seconds = self.episode_seconds[ep_idxs]
+
+        total_samples = len(self.states_mem)
+
+        current_time = time()
+        self.tensorboard.add_scalar(
+            "io/buffer_recv_samples", total_samples, self.counter, current_time
+        )
+        self.counter += 1
         return ep_steps, ep_rewards, ep_exploration, ep_seconds
 
     def get_stacks(self):

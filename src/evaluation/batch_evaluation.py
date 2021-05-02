@@ -5,7 +5,11 @@ on multiple episodes in parallel.
 import logging
 from copy import deepcopy
 import numpy as np
-from distributed.util import action_to_q_value_index, select_actions
+from distributed.util import (
+    action_to_q_value_index,
+    q_value_index_to_action,
+    select_actions,
+)
 from distributed.environment_set import EnvironmentSet
 from evaluation.eval_util import (
     aggregate_q_value_stats,
@@ -70,6 +74,7 @@ def batch_evaluation(
     p_err=0.0,
     p_msmt=0.0,
     verbosity=0,
+    rl_type="q",
 ):
     """
     Run evaluation on multiple episodes.
@@ -180,13 +185,31 @@ def batch_evaluation(
         )
 
         # evaluate active episodes
+        if "q" in rl_type.lower():
+            tmp_actions, tmp_q_values = select_actions(
+                torch_states, model, code_size, epsilon=epsilon
+            )
+        elif "ppo" in rl_type.lower():
+            if epsilon == 1:
+                tmp_actions, logits = model.select_greedy_action_ppo(
+                    torch_states, return_logits=True
+                )
+            else:
+                tmp_actions, logits = model.select_action_ppo(
+                    torch_states, return_logits=True
+                )
 
-        tmp_actions, tmp_q_values = select_actions(
-            torch_states, model, code_size, epsilon=epsilon
-        )
+            tmp_actions = np.array(
+                [q_value_index_to_action(action, code_size) for action in tmp_actions]
+            )
+            tmp_q_values = logits.detach().numpy()
+        else:
+            logger.error(f"Error! Unknown RL type {rl_type}")
+            raise Exception()
         # print(f"{tmp_actions.shape=}, {tmp_q_values.shape=}")
         # print(f"{actions[is_active].shape=}, {actions.shape=}, {is_active.shape=}")
-        actions[is_active], q_values[is_active] = tmp_actions, tmp_q_values
+        actions[is_active] = tmp_actions
+        q_values[is_active] = tmp_q_values
 
         if verbosity >= 4:
             all_q_values[global_episode_steps - 1, :, :] = q_values

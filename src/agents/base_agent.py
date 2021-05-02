@@ -46,23 +46,28 @@ class BaseAgent(nn.Module, ABC):
         )
         return np_action_tuples, np_logpas, is_exploratory, np_values
 
-    def select_action_ppo(self, states):
+    def select_action_ppo(self, states, return_logits=False):
         logits, _ = self.forward(states)
         dist = torch.distributions.Categorical(logits=logits)
         action = dist.sample()
-        # TODO: think about using q_value_index_to_action() here
-        return action.detach().cpu().item()
+        detached_actions = action.detach().cpu().squeeze()
+        if return_logits:
+            return detached_actions, logits
+        return detached_actions
 
     def get_predictions_ppo(self, states, actions):
-        # TODO: think about using q_value_index_to_action() or its inverse here
-        states, actions = self._format(states), self._format(actions)
+        states = self._format(states)
+        actions = self._format(actions)
+        actions = actions.squeeze()
         logits, values = self.forward(states)
         dist = torch.distributions.Categorical(logits=logits)
         logpas = dist.log_prob(actions)
         entropies = dist.entropy()
         return logpas, entropies, values
 
-    def select_greedy_action_ppo(self, states):
+    def select_greedy_action_ppo(self, states, return_logits=False):
         logits, _ = self.forward(states)
-        # TODO: think about using q_value_index_to_action() here
-        return np.argmax(logits.detach().squeeze().cpu().numpy())
+        action_index = np.argmax(logits.detach().squeeze().cpu().numpy(), axis=1)
+        if return_logits:
+            return action_index, logits
+        return action_index
