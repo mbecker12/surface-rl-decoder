@@ -10,6 +10,7 @@ from time import time
 import logging
 import traceback
 import nvgpu
+
 # pylint: disable=not-callable
 import torch
 import numpy as np
@@ -57,6 +58,8 @@ class PPO:
             self.logger.setLevel(logging.DEBUG)
         else:
             self.logger.setLevel(logging.INFO)
+
+        self.io_verbosity = mem_args["verbosity"]
 
         summary_path = env_args["summary_path"]
         summary_date = env_args["summary_date"]
@@ -174,7 +177,7 @@ class PPO:
 
         self.total_learner_recv_samples += states.shape[0]
         current_time = time()
-        if self.verbosity:
+        if self.io_verbosity:
             self.tensorboard.add_scalar(
                 "io/learner_recv_samples",
                 self.total_learner_recv_samples,
@@ -288,7 +291,7 @@ class PPO:
                 episode_seconds,
             ) = self.episode_buffer.fill(self.env_set, self.combined_model)
 
-            if self.verbosity:
+            if self.io_verbosity:
                 if (
                     self.gpu_available
                     and self.nvidia_log_time > self.nvidia_log_frequency
@@ -296,7 +299,7 @@ class PPO:
                     monitor_gpu_memory(
                         self.tensorboard, current_time, performance_start, current_time
                     )
-                if self.verbosity >= 3:
+                if self.io_verbosity >= 3:
                     monitor_cpu_memory(
                         self.tensorboard, current_time, performance_start, current_time
                     )
@@ -307,7 +310,6 @@ class PPO:
             self.episode_exploration.extend(episode_exploration)
             self.episode_seconds.extend(episode_seconds)
 
-            self.logger.info("optimize model")
             try:
                 self.optimize_model(t)
             except TypeError as _:
