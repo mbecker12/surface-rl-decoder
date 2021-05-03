@@ -206,8 +206,7 @@ def batch_evaluation(
         else:
             logger.error(f"Error! Unknown RL type {rl_type}")
             raise Exception()
-        # print(f"{tmp_actions.shape=}, {tmp_q_values.shape=}")
-        # print(f"{actions[is_active].shape=}, {actions.shape=}, {is_active.shape=}")
+
         actions[is_active] = tmp_actions
         q_values[is_active] = tmp_q_values
 
@@ -371,7 +370,6 @@ def batch_evaluation(
         ) = get_intermediate_reward_stats(accumulators["intermediate_rewards"][i])
 
         if i not in is_active:
-            # print(f"skip episode {i} for real")
             continue
 
         _, _ground_state, (n_syndromes, n_loops) = check_final_state(
@@ -401,7 +399,6 @@ def batch_evaluation(
     avg_energy_raises = np.mean(averages["energy_raises"])
     avg_energy_final = np.mean(averages["energy_final"])
     avg_energy_difference = np.mean(averages["energy_difference"])
-    # avg_inte_rew_spikes = np.mean(averages["inter_rew_spikes"])
     avg_num_neg_inter_rew = np.mean(averages["num_negative_inter_rew"])
     avg_mean_positive_inter_rew = np.mean(averages["mean_positive_inter_rew"])
     avg_min_inter_rew = np.mean(averages["min_inter_rew"])
@@ -418,7 +415,6 @@ def batch_evaluation(
     median_energy_raises = np.median(averages["energy_raises"])
     median_energy_final = np.median(averages["energy_final"])
     median_energy_difference = np.median(averages["energy_difference"])
-    # median_inte_rew_spikes = np.median(averages["inter_rew_spikes"])
     median_num_neg_inter_rew = np.median(averages["num_negative_inter_rew"])
     median_mean_positive_inter_rew = np.median(averages["mean_positive_inter_rew"])
     median_min_inter_rew = np.median(averages["min_inter_rew"])

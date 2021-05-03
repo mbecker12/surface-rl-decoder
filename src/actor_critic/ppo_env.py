@@ -1,4 +1,8 @@
-import pickle
+"""
+Implementation of environments for the PPO strategy.
+Defines different communication routines and spawns multiple
+worker processes.
+"""
 import logging
 import multiprocessing as mp
 from time import sleep
@@ -116,7 +120,6 @@ class MultiprocessEnv:
             new_state, reward, terminal, info = parent_end.recv()
             results.append((new_state, float(reward), float(terminal), info))
 
-        # logger.info(f"{results=}")
         # pylint: disable=not-an-iterable
         return [
             np.stack(block).squeeze() for block in np.array(results, dtype=object).T

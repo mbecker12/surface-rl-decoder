@@ -1,11 +1,19 @@
+"""
+Implementation of the general PPO class.
+This class spawns the required helper classes for
+the replay buffer and different workers.
+Furthermore, this class implements the communication with the
+replay buffer to request episode samples and performs the actual learner step.
+"""
 import os
 from time import time
 import logging
 import traceback
 import nvgpu
+# pylint: disable=not-callable
 import torch
 import numpy as np
-from torch.optim.adam import Adam
+from torch.optim import Adam
 from torch.utils.tensorboard.writer import SummaryWriter
 from actor_critic.ppo_env import MultiprocessEnv
 from actor_critic.replay_buffer import EpisodeBuffer
@@ -16,15 +24,14 @@ from distributed.model_util import (
     save_model,
 )
 from distributed.util import action_to_q_value_index
-from evaluation.batch_evaluation import RESULT_KEY_HISTOGRAM_Q_VALUES
-from evaluation.evaluate import evaluate
 from distributed.learner_util import log_evaluation_data, transform_list_dict
 from distributed.io_util import monitor_cpu_memory, monitor_gpu_memory
+from evaluation.batch_evaluation import RESULT_KEY_HISTOGRAM_Q_VALUES
+from evaluation.evaluate import evaluate
 
 EPS = 1e-16
-logging.basicConfig(level=logging.INFO)
 
-
+# pylint: disable=attribute-defined-outside-init
 class PPO:
     def __init__(
         self, worker_args, mem_args, learner_args, env_args, global_config, queues
@@ -66,8 +73,6 @@ class PPO:
             f"{model_name}_{self.code_size}_{summary_date}.pt",
         )
 
-        self.model = None  # TODO choose model
-        # TODO change model to one single model
         self.start_time = time()
         max_time_h = learner_args["max_time"]  # hours
         max_time_min = float(learner_args.get("max_time_minutes", 0))  # minutes
@@ -83,10 +88,6 @@ class PPO:
         model_config = extend_model_config(
             model_config, self.syndrome_size, self.stack_depth, device=self.device
         )
-
-        self.policy_model = choose_model(model_name, model_config)
-        self.value_model = choose_model(model_name, model_config)
-
         model_config["rl_type"] = "ppo"
         self.combined_model = choose_model(model_name, model_config)
 
@@ -103,17 +104,9 @@ class PPO:
             self.logger.info(f"Loaded learner models from {old_model_path}")
         else:
             self.combined_model.to(self.device)
-            self.policy_model.to(self.device)
-            self.value_model.to(self.device)
 
             self.optimizer = Adam(
                 self.combined_model.parameters(), lr=self.learning_rate
-            )
-            self.policy_optimizer = Adam(
-                self.policy_model.parameters(), lr=self.learning_rate
-            )
-            self.value_optimizer = Adam(
-                self.value_model.parameters(), lr=self.learning_rate
             )
 
         # initialize tensorboard
@@ -140,11 +133,6 @@ class PPO:
         self.p_msmt_list = learner_args["learner_eval_p_msmt"]
         self.learner_epsilon = learner_args["learner_epsilon"]
 
-        # self.tau = mem_args.get("tau")
-        # episode_buffer_device = mem_args.get("episode_buffer_device")
-        # self.max_buffer_episodes = mem_args.get("max_buffer_episodes")
-        # self.max_buffer_episode_steps = mem_args.get("max_buffer_episode_steps")
-
         assert self.num_workers > 1
 
         # extend buffer configuration
@@ -168,8 +156,7 @@ class PPO:
         self.logger.info("Initialize Episode Buffer")
         self.episode_buffer = EpisodeBuffer(mem_args)
 
-        # TODO check best way for initialization
-        self.logger.info("Set up multi process environment")
+        self.logger.info("Set up Multi Process Environment")
         self.worker_queues = queues["worker_queues"]
         self.env_set = MultiprocessEnv(env_args, worker_args, queues)
 
@@ -187,12 +174,13 @@ class PPO:
 
         self.total_learner_recv_samples += states.shape[0]
         current_time = time()
-        self.tensorboard.add_scalar(
-            "io/learner_recv_samples",
-            self.total_learner_recv_samples,
-            current_timestep,
-            current_time,
-        )
+        if self.verbosity:
+            self.tensorboard.add_scalar(
+                "io/learner_recv_samples",
+                self.total_learner_recv_samples,
+                current_timestep,
+                current_time,
+            )
 
         actions = torch.tensor(
             [action_to_q_value_index(action, self.code_size) for action in actions]
@@ -201,11 +189,9 @@ class PPO:
         gaes = (gaes - gaes.mean()) / (gaes.std() + EPS)
         n_samples = len(actions)
 
-        # TODO grokking loops over self.policy_optimization_epochs here
-        # while True:
-        self.logger.info("start optimization loop")
+        if self.verbosity >= 5:
+            self.logger.debug("start optimization loop")
         for _ in range(self.optimization_epochs):
-            # optimize policy model
             batch_idxs = np.random.choice(n_samples, self.batch_size, replace=False)
             states_batch = states[batch_idxs]
             actions_batch = actions[batch_idxs]
@@ -261,14 +247,12 @@ class PPO:
             #     mse = (values - values_pred_all).pow(2).mul(0.5).mean()
             #     if mse.item() > self.value_stopping_mse:
             #         break
-        self.logger.info("end optimization loop")
+        if self.verbosity >= 5:
+            self.logger.debug("end optimization loop")
 
     def train(self, seed):
         training_start, last_debug_time = time(), float("-inf")
         self.logger.info("Inside training function")
-
-        # num_environments = args["num_environments"]
-        # env = SurfaceCode()
 
         self.seed = seed
         self.gamma = self.discount_factor
@@ -297,7 +281,6 @@ class PPO:
                 self.logger.warning("Learner: time exceeded, aborting...")
                 break
 
-            # TODO: find a way to parallelize this
             (
                 episode_timestep,
                 episode_reward,
@@ -334,7 +317,6 @@ class PPO:
             self.episode_buffer.clear()
 
             # stats
-            # TODO evaluation
             if self.eval_frequency != -1 and count_to_eval >= self.eval_frequency:
                 self.logger.info(f"Start Evaluation, Step {t+1}")
                 count_to_eval = 0
@@ -415,7 +397,7 @@ class PPO:
                     "I'm alive my friend. I can see the shadows everywhere!"
                 )
 
-        self.logger.info("Reach maximum number of training steps. Terminate!")
+        self.logger.info("Reached maximum number of training steps. Terminate!")
         msg = ("terminate", None)
         for queue in self.worker_queues:
             queue[0].send(msg)

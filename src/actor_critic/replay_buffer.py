@@ -1,3 +1,9 @@
+"""
+This is the implementation of the replay buffer to be used in the PPO context.
+Triggers the environment process and its underlying worker processes to
+step through episodes and generate samples this way.
+The samples are stored in arrays in this class.
+"""
 import logging
 from time import time
 import gc
@@ -26,6 +32,12 @@ class EpisodeBuffer:
 
         self.total_received_samples = args["total_received_samples"]
         self.tensorboard = args["tensorboard"]
+        self.verbosity = args["verbosity"]
+
+        if self.verbosity >= 4:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
 
         self.counter = 0
 
@@ -105,7 +117,7 @@ class EpisodeBuffer:
         gc.collect()
 
     def fill(self, env_set: MultiprocessEnv, combined_model):
-        logger.info("Filling episode buffer")
+        logger.debug("Filling episode buffer")
         states = env_set.reset()
 
         worker_rewards = np.zeros(
@@ -287,9 +299,10 @@ class EpisodeBuffer:
         total_samples = len(self.states_mem)
 
         current_time = time()
-        self.tensorboard.add_scalar(
-            "io/buffer_recv_samples", total_samples, self.counter, current_time
-        )
+        if self.verbosity:
+            self.tensorboard.add_scalar(
+                "io/buffer_recv_samples", total_samples, self.counter, current_time
+            )
         self.counter += 1
         return ep_steps, ep_rewards, ep_exploration, ep_seconds
 
