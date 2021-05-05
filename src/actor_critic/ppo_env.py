@@ -16,18 +16,19 @@ logger.setLevel(logging.INFO)
 
 # pylint: disable=expression-not-assigned
 class MultiprocessEnv:
-    # TODO change init args
-    def __init__(self, env_args, worker_args, queues) -> None:
-        # TODO all these might be unnecessary here
-        summary_path = env_args["summary_path"]
-        summary_date = env_args["summary_date"]
-        summary_run_info = env_args["summary_run_info"]
-        code_size = env_args["code_size"]
-        save_model_path = env_args["save_model_path"]
-        model_name = env_args["model_name"]
-        model_config = env_args["model_config"]
-        learner_device = env_args["learner_device"]
+    """
+    Wrapper class to handle I/O with multiple workers.
+    This spawns a new subprocess for each worker instance
+    and provides different routines based for different
+    messages.
 
+    No instance of any neural network model is needed.
+    Via interaction with e.g. the replay buffer class,
+    this MultiprocessEnv class merely receives information
+    about the suggested action and performs a step in the gym
+    environment.
+    """
+    def __init__(self, env_args, worker_args, queues) -> None:
         self.num_cuda_workers = env_args["num_cuda_actors"]
         self.num_cpu_workers = env_args["num_cpu_actors"]
         self.num_workers = self.num_cpu_workers + self.num_cuda_workers

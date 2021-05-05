@@ -33,7 +33,19 @@ from evaluation.evaluate import evaluate
 EPS = 1e-16
 
 # pylint: disable=attribute-defined-outside-init
+# pylint: disable=too-many-locals, too-many-statements, too-many-branches
 class PPO:
+    """
+    Main class to run the PPO learning method.
+    This will take care of initializing the replay buffer and worker
+    environment which in turn will spawn multiple workers.
+
+    Configuration of this and all daughter processes may be done
+    through a helper function,
+    this class takes as input multiple dictionaries which said helper
+    function should provide.
+    """
+
     def __init__(
         self, worker_args, mem_args, learner_args, env_args, global_config, queues
     ) -> None:
@@ -166,6 +178,19 @@ class PPO:
         self.total_learner_recv_samples = 0
 
     def optimize_model(self, current_timestep):
+        """
+        Calculate the actual loss function value and perform the gradient
+        descent step.
+        To achieve that, samples are drawn from the replay buffer stacks
+        and the required quantities, such as entropy, logpas, values, are
+        calculated. This is done in multiple epochs, where each time a new
+        sample is drawn from the replay buffer. This makes it possible
+        to reuse worker episodes.
+
+        Parameter
+        =========
+        current_timestep: current learner timestep; used for tensorboard logging
+        """
         (
             states,
             actions,
@@ -236,26 +261,18 @@ class PPO:
             )
             self.optimizer.step()
 
-            # with torch.no_grad():
-            #     # TODO: do we need this?
-            #     logpas_pred_all, _, _ = self.combined_model.get_predictions_ppo(
-            #         states, actions
-            #     )
-            #     kl = (logpas - logpas_pred_all).mean()
-            #     if kl.item() > self.policy_stopping_kl:
-            #         break
-
-            # with torch.no_grad():
-            #     _, values_pred_all = self.combined_model(states)
-            #     mse = (values - values_pred_all).pow(2).mul(0.5).mean()
-            #     if mse.item() > self.value_stopping_mse:
-            #         break
         if self.verbosity >= 5:
             self.logger.debug("end optimization loop")
 
     def train(self, seed):
-        training_start, last_debug_time = time(), float("-inf")
-        self.logger.info("Inside training function")
+        """
+        Set up the learning/training framework:
+        Trigger the replay buffer to be filled by telling the
+        workers to generate episodes.
+        Those samples are then used to optimize the model,
+        i.e. perform the actual gradient descent steps.
+        """
+        self.logger.debug("Inside training function")
 
         self.seed = seed
         self.gamma = self.discount_factor
@@ -270,15 +287,13 @@ class PPO:
 
         result = np.empty((self.max_episodes, 5))
         result[:] = np.nan
-        training_time = 0
-        episode = 0
+
         performance_start = time()
         count_to_eval = 0
         eval_step = 0
 
         for t in range(self.max_timesteps):
             current_time = time()
-            delta_t = current_time - performance_start
 
             if time() - self.start_time > self.max_time:
                 self.logger.warning("Learner: time exceeded, aborting...")
@@ -304,7 +319,6 @@ class PPO:
                         self.tensorboard, current_time, performance_start, current_time
                     )
 
-            n_ep_batch = len(episode_timestep)
             self.episode_timestep.extend(episode_timestep)
             self.episode_reward.extend(episode_reward)
             self.episode_exploration.extend(episode_exploration)

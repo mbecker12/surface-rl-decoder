@@ -1,4 +1,7 @@
-import multiprocessing as mp
+"""
+Start the PPO learning algorithm
+by initializing the PPO class."
+"""
 import logging
 from distributed.mp_util import configure_processes
 from actor_critic.ppo import PPO
@@ -9,6 +12,14 @@ logger.setLevel(logging.INFO)
 
 
 def start_ppo():
+    """
+    With the help of a utility function, all configuration
+    is read from a config.ini file and the configuration parameters
+    are provided in logically grouped dictionaries.
+    With that, the PPO class is instantiated
+    and its train() function is called to start the PPO
+    learning process.
+    """
     (
         worker_args,
         mem_args,
@@ -29,5 +40,4 @@ def start_ppo():
 
 
 if __name__ == "__main__":
-    # mp.set_start_method("spawn", force=True)
     start_ppo()
