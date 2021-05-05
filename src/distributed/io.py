@@ -189,7 +189,7 @@ def io_replay_memory(args):
                         _priorities,
                         float,
                     ), f"{type(_priorities)=}"
-                    assert _priorities > 0, f"{_priorities=}"
+                    assert _priorities >= 0, f"{_priorities=}"
                     priority_sample[i] = _priorities
                 # end if; logging
             # end for loop; transitions
