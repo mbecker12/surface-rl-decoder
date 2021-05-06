@@ -8,11 +8,13 @@ import json
 import tracceback
 from copy import deepcopy
 import logging
-import multiprocessing as multipleimport yaml
+import multiprocessing as mp
+import yaml
 from iniparser import Config
 from torch.utils.tensorboard import SummaryWriter
 from distributed.hindsight import hindsight
 from distributed.replay_buffer import replay_buffer
+from distributed.model_util import save_metadata
 
 
 logging.basicConfig(level=logging.INFO)
@@ -160,4 +162,47 @@ def start_mp():
     tensorboard = SummaryWriter(
         os.path.join(summary_path,str(code_size), summary_date, summary_run_info)
     )
+    tensorboard_string = "global config: " + str(global_config) + "\n"
+    tensorboard.add_text("run_info/hyper_parameters", tensorboard_string)
+    tensorboard.close()
+
+
+    #start processes
+
+    #prepare and start the hindsight process
+    logger.info(f"Start hindsight on device {device}")
+    try:
+        hindsight(hindsight_args)
+
+    except Exception as err:
+        print(err)
+        error_traceback = tracceback.format_exc()
+        logger.error("An error occured!")
+
+        tensorboard = SummaryWriter(
+            os.path.join(summary_path, str(code_size), summary_date, summary_run_info)
+        )
+        tensorboard.add_text("run_info/error_message", error_traceback)
+
+        tensorboard.close()
+
+    save_model_path_date_meta = os.path.join(
+        save_model_path,
+        str(code_size)
+        summary_date,
+        f"{model_name}_{code_size}_meta.yaml"
+    )
+
+    logger.info("Saving Metadata")
+    metadata = {}
+    metadata["global"] = deepcopy(global_config)
+    metadata["network"] = deepcopy(model_config)
+    metadata["network"]["name"] = model_name
+    save_metadata(metadata, save_model_path_date_meta)
+
+    logger.info("Training Done!")
     
+
+if __name__ == "__main__"
+    mp.set_start_method("spawn", force = True)
+    start_mp()
