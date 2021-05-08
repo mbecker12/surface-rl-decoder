@@ -13,6 +13,7 @@ from distributed.environment_set import EnvironmentSet
 from evaluation.eval_init_utils import OUT_OF_RANGE
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import (
+    RULE_TABLE,
     SOLVED_EPISODE_REWARD,
     STATE_MULTIPLIER,
     STATE_MULTIPLIER_INVERSE,
@@ -587,3 +588,34 @@ def get_intermediate_reward_stats(inter_rewards):
         avg_positive_inter_rew,
         min_inter_rew,
     )
+
+def initialize_states_for_eval(n_environments, code_size, stack_depth, num_errors, p_msmt=0):
+    layer_depths = np.arange(0, stack_depth)
+    surface_code = SurfaceCode()
+    vertex_mask = surface_code.vertex_mask
+    plaquette_mask = surface_code.plaquette_mask
+    del surface_code
+
+    states = np.zeros((n_environments, stack_depth, code_size + 1, code_size + 1), dtype=np.uint8)
+    qubits = np.zeros((n_environments, stack_depth, code_size, code_size), dtype=np.uint8)
+
+    for n_env in range(n_environments):
+        error_start_indices = np.random.choice(layer_depths, num_errors)
+        error_start_indices = np.sort(error_start_indices)
+        for h_idx in error_start_indices:
+            x, y = np.random.randint(0, code_size, size=2)
+            new_operator = np.random.randint(1, 3+1, size=1)[0]
+
+            qubits[n_env, h_idx:, x, y] = [
+                RULE_TABLE[
+                    qubits[n_env, h, x, y], new_operator
+                ] for h in range(h_idx, stack_depth)
+            ]
+        states[n_env] = create_syndrome_output_stack(
+            qubits[n_env], vertex_mask, plaquette_mask
+        )
+
+    return qubits, states
+
+if __name__ == "__main__":
+    initialize_states_for_eval(1, 3, 8, 3)
