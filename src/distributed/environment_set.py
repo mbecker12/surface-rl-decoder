@@ -100,6 +100,18 @@ class EnvironmentSet:
                 self.states[i] = env.reset(p_error=p_error[i], p_msmt=p_msmt[i])
         return self.states
 
+    def post_run_eval_reset_all(
+        self, all_qubits, all_states, syndrome_errors=None
+    ):
+        for i, env in enumerate(self.environments):
+            state = env.initialize_hidden_quantities(
+                all_qubits[i], all_states[i], syndrome_errors=syndrome_errors
+            )
+            self.states[i] = state
+
+        return self.states
+
+
     def step(
         self,
         actions: List,
