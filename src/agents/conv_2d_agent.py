@@ -204,9 +204,6 @@ class Conv2dAgent(BaseAgent):
             if self.use_all_rnn_layers:
                 gtrxl_total_output_size *= self.stack_depth
 
-            linear_modules.append(
-                nn.Linear(gtrxl_total_output_size, int(input_neuron_numbers[0]))
-            )
             lin_layer_count = 0
             self.lin0 = nn.Linear(gtrxl_total_output_size, int(input_neuron_numbers[0]))
         
@@ -284,6 +281,7 @@ class Conv2dAgent(BaseAgent):
         else:
             output = complete.view(batch_size, -1)
 
+        output = output.view(batch_size, -1)
         complete = F.relu(self.lin0(output))
         if self.network_size in NETWORK_SIZES:
             complete = F.relu(self.lin1(complete))
