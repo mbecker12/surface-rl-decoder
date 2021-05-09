@@ -3,12 +3,13 @@ Define the Environment for decoding of the quantum surface code
 to use it in reinforcement learning.
 """
 import gym
+from copy import deepcopy
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from matplotlib.patches import Wedge, Rectangle
 from iniparser import Config
-from .syndrome_masks import vertex_mask, plaquette_mask
+from .syndrome_masks import get_plaquette_mask, get_vertex_mask
 from .surface_code_util import (
     NON_TRIVIAL_LOOP_REWARD,
     REPEATING_ACTION_REWARD,
@@ -65,7 +66,7 @@ class SurfaceCode(gym.Env):
 
     """
 
-    def __init__(self):
+    def __init__(self, code_size=None, stack_depth=None):
         """
         Initialize Surface Code environment.
         Loads configuration via config-env-parsers, therefore we
@@ -79,11 +80,15 @@ class SurfaceCode(gym.Env):
         env_config = self.config.get("env")
 
         self.code_size = int(env_config.get("size"))
+        if code_size is not None:
+            self.code_size = code_size
         self.syndrome_size = self.code_size + 1
         self.min_qbit_errors = int(env_config.get("min_qbit_err"))
         self.p_error = float(env_config.get("p_error"))
         self.p_msmt = float(env_config.get("p_msmt"))
         self.stack_depth = int(env_config.get("stack_depth"))
+        if stack_depth is not None:
+            self.stack_depth = stack_depth
         self.error_channel = env_config.get("error_channel")
         self.max_actions = int(env_config.get("max_actions"))
 
@@ -101,6 +106,8 @@ class SurfaceCode(gym.Env):
         )
 
         # imported from file
+        vertex_mask = get_vertex_mask(self.code_size)
+        plaquette_mask = get_plaquette_mask(self.code_size)
         self.vertex_mask = np.tile(vertex_mask, (self.stack_depth, 1, 1))
         self.plaquette_mask = np.tile(plaquette_mask, (self.stack_depth, 1, 1))
         assert self.vertex_mask.shape == (
@@ -438,7 +445,7 @@ class SurfaceCode(gym.Env):
         error_mask = (uniform_random_vector < self.p_msmt).astype(np.uint8)
 
         # take into account positions of vertices and plaquettes
-        error_mask = np.multiply(error_mask, np.add(plaquette_mask, vertex_mask))
+        error_mask = np.multiply(error_mask, np.add(self.plaquette_mask, self.vertex_mask))
 
         # where an error occurs, flip the true syndrome measurement
         faulty_syndrome = np.where(error_mask > 0, 1 - true_syndrome, true_syndrome)
@@ -493,6 +500,30 @@ class SurfaceCode(gym.Env):
         self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
 
         self.qubits = copy_array_values(self.actual_errors)
+        return self.state
+
+    def initialize_hidden_quantities(self, qubits, state, p_error=-1, p_msmt=-1, syndrome_errors=None):
+        self.reset(p_error=0, p_msmt=0)
+        self.ground_state = True
+        if p_msmt >= 0:
+            self.p_msmt = p_msmt
+        if p_error >= 0:
+            self.p_error = p_error
+
+        self.actual_errors = deepcopy(qubits)
+        self.qubits = qubits
+        self.next_state = np.zeros_like(state)
+
+        self.actions = np.zeros_like(self.actions)
+        self.current_action_index = 0
+        self.syndrome_errors = np.zeros_like(state)
+
+        if syndrome_errors is not None:
+            self.syndrome_errors = syndrome_errors
+
+        self.state = np.logical_xor(state, self.syndrome_errors)
+        self.state = self.state.astype(np.uint8)
+        self.state *= STATE_MULTIPLIER
         return self.state
 
     def get_reward(self, action):

@@ -1,6 +1,7 @@
 """
 Utility functions for the surface code environment
 """
+from copy import deepcopy
 import numpy as np
 from iniparser import Config
 
@@ -81,7 +82,6 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
 
     return final_state, is_ground_state, (0, n_loops)
 
-
 def perform_all_actions(qubits, actions):
     """
     Perform all actions in the action history
@@ -101,11 +101,12 @@ def perform_all_actions(qubits, actions):
         Therefore, in the optimal case, there should be no
         physical errors left.
     """
+    _qubits = deepcopy(qubits)
     for action in actions:
         if action[-1] == TERMINAL_ACTION:
-            return qubits
-        qubits = perform_action(qubits, action)
-    return qubits
+            return _qubits
+        _qubits = perform_action(_qubits, action)
+    return _qubits
 
 
 def perform_action(qubits, action):
