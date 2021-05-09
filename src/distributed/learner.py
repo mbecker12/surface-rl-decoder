@@ -132,6 +132,7 @@ def learner(args: Dict):
     model_config = extend_model_config(
         model_config, syndrome_size, stack_depth, device=device
     )
+    model_config["model_name"] = model_name
 
     logger.debug(
         "\nNetwork Config: \n\n" f"{yaml.dump(model_config, default_flow_style=False)}"
