@@ -1,12 +1,15 @@
 """
 Define the actor process for exploration of the environment in
 reinforcement learning.
+
+CHANGED for hindsight
 """
 import os
 from time import time
 from collections import namedtuple
 import logging
 import numpy as np
+import random
 
 # pylint: disable=not-callable
 import torch
@@ -20,7 +23,7 @@ from surface_rl_decoder.surface_code import SurfaceCode
 # pylint: disable=too-many-statements,too-many-locals,too-many-branches
 
 Transition = namedtuple(
-    "Transition", ["state", "action", "reward", "next_state", "terminal"]
+    "Transition", ["state", "action", "reward", "next_state", "terminal", "goal"]
 )
 
 
@@ -71,7 +74,9 @@ def actor(args):
             over time during a training run
         "min_value_factor_epsilon": minimum value that the exploration factor ε
             should be annealed to
+        "n": (int) how many extra goals for the hindsight learning
     """
+    n = args["n"]
     num_environments = args["num_environments"]
     actor_id = args["id"]
     size_action_history = args["size_action_history"]
@@ -115,12 +120,19 @@ def actor(args):
             ("reward", float),
             ("next_state", (np.uint8, (stack_depth, state_size, state_size))),
             ("terminal", bool),
+            ("goal", (np.uint8, (stack_depth, state_size, state_size)))
         ]
     )
+
+   
 
     # initialize all states
     states = environments.reset_all()
     steps_per_episode = np.zeros(num_environments)
+
+     #set true goal
+    true_goal = np.zeros(stack_depth, state_size, state_size)
+    true_goals = np.zeros(states.shape)
 
     # initialize local memory buffers
     size_local_memory_buffer = args["size_local_memory_buffer"] + 1
@@ -138,6 +150,11 @@ def actor(args):
         (num_environments, size_local_memory_buffer), dtype=float
     )
     buffer_idx = 0
+
+    #########################
+    #see if we need extra buffers for the extra fake goals, put them here, make an extra parameter for how many extra goals we should put in
+
+    #########################
 
     # load communication queues
     actor_io_queue = args["actor_io_queue"]
@@ -225,6 +242,12 @@ def actor(args):
             punish_repeating_actions=0,
         )
 
+        #sparse rewards. if one desires non-sparse rewards simply comment this away
+        rewards = np.zeros(rewards.shape)
+        for i in range(num_environments):
+            rewards[i] = reward_function(states[i], true_goal)
+
+
         if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             steps_stop = time()
             logger.info(
@@ -244,7 +267,7 @@ def actor(args):
         transitions = np.asarray(
             [
                 Transition(
-                    states[i], actions[i], rewards[i], next_states[i], terminals[i]
+                    states[i], actions[i], rewards[i], next_states[i], terminals[i], true_goal
                 )
                 for i in range(num_environments)
             ],
@@ -258,7 +281,17 @@ def actor(args):
         buffer_idx += 1
 
         # prepare to send local transitions to replay memory
-        if buffer_idx >= size_local_memory_buffer:
+        if buffer_idx >= (size_local_memory_buffer-n):
+            put_in_fake_goals(
+                local_buffer_transitions, 
+                local_buffer_actions, 
+                local_buffer_qvalues, 
+                local_buffer_rewards,
+                buffer_idx,
+                n
+            )
+            buffer_idx += n
+
             # get new weights for the policy model here
             if (learner_qsize := learner_actor_queue.qsize()) > 0:
                 # consume all the deprecated updates without effect
@@ -332,3 +365,45 @@ def actor(args):
         if time() - heart > heartbeat_interval:
             heart = time()
             logger.debug("It's alive, can you feel it?")
+
+
+def put_in_fake_goals(local_buffer_transitions, local_buffer_actions, local_buffer_qvalues, local_buffer_rewards, buffer_idx, n):
+    """
+    Puts in "n" fake goals into the given buffers randomly by sampling from the already existing samples
+    """
+    indexes = []
+    #sparse reward case
+    reward = 1
+
+    #non-sparse reward case (look into environment)
+    #reward = 200
+    transition_type = np.dtype(
+        [
+            ("state", (np.uint8, (stack_depth, state_size, state_size))),
+            ("action", (np.uint8, 3)),
+            ("reward", float),
+            ("next_state", (np.uint8, (stack_depth, state_size, state_size))),
+            ("terminal", bool),
+            ("goal", (np.uint8, (stack_depth, state_size, state_size)))
+        ]
+    )
+
+    for i in range(n):
+        random_index = random.randint(0, buffer_idx)
+        indexes.append(random_index)
+        transitions = local_buffer_transitions[:, random_index]
+        actions = local_buffer_actions[:, random_index]
+        qvalues = local_buffer_qvalues[:, random_index]
+        rewards = np.ones(local_buffer_rewards[:,random_index].shape)
+
+        #will this part work?
+        _transitions = np.asarray(transitions[0], transitions[1], reward, transitions[3], transitions[4], transitions[0], dtype = transition_type)
+        
+        local_buffer_transitions[:, buffer_idx+i] = _transitions
+        local_buffer_actions[:, buffer_idx+i] = actions
+        local_buffer_qvalues[:, buffer_idx+i] = qvalues
+        local_buffer_rewards[:, buffer_idx+i] = rewards
+
+
+def reward_function(state, goal):
+    return 1 if (state == goal).all() else -1
