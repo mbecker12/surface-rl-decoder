@@ -261,21 +261,23 @@ def learner(args: Dict):
                 policy_params = list(policy_net.parameters())
                 n_layers = len(policy_params)
                 named_policy_params = policy_net.named_parameters()
-                for i, (par_name, param) in enumerate(named_policy_params):
-                    if "transfomer.layers.0" in par_name: #sic!
-                        if "weight" in par_name:
-                            try:
-                                print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
-                            except:
-                                continue
-                    if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
-                        if "weight" in par_name:
-                            print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
                 grad_string = ""
-                print(f"{policy_net.parameters()=}")
                 for i, param in enumerate(policy_net.parameters()):
                     grad_string += f"{param.grad.data.sum().item():.5f}, "
                 print(grad_string)
+                if verbosity >= 7:
+                    for i, (par_name, param) in enumerate(named_policy_params):
+                        if "transfomer.layers.0" in par_name: #sic!
+                            if "weight" in par_name:
+                                try:
+                                    print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
+                                except:
+                                    continue
+                        if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
+                            if "weight" in par_name:
+                                print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
+                    grad_string = ""
+                    print(f"{policy_net.parameters()=}")
 
             evaluation_start = time()
             final_result_dict, all_q_values = evaluate(
