@@ -68,6 +68,9 @@ def initialize_accumulation_stats(
     q_value_certainty_aggregation = np.zeros(total_n_episodes)
     terminal_q_value_aggregation = np.zeros(total_n_episodes)
 
+    entropy_aggregation = np.zeros((total_n_episodes, 1))
+    values_aggregation = np.zeros((total_n_episodes, 1))
+
     return {
         "syndromes_annihilated": syndromes_annihilated,
         "syndromes_created": syndromes_created,
@@ -80,6 +83,8 @@ def initialize_accumulation_stats(
         "q_value_diff_aggregation": q_value_diff_aggregation,
         "q_value_certainty_aggregation": q_value_certainty_aggregation,
         "terminal_q_value_aggregation": terminal_q_value_aggregation,
+        "values_aggregation": values_aggregation,
+        "entropy_aggregation": entropy_aggregation,
     }
 
 
@@ -97,6 +102,9 @@ def initialize_empty_containers(total_n_episodes, num_of_user_episodes, code_siz
     empty_q_values = np.zeros(
         (total_n_episodes, 3 * code_size * code_size + 1), dtype=float
     )
+    # ppo
+    empty_values = np.zeros((total_n_episodes, 1), dtype=float)
+    empty_entropies = np.zeros((total_n_episodes, 1), dtype=float)
 
     theoretical_q_values = np.zeros(total_n_episodes)
     expected_actions_per_episode = {i: None for i in range(num_of_user_episodes)}
@@ -107,6 +115,8 @@ def initialize_empty_containers(total_n_episodes, num_of_user_episodes, code_siz
         "empty_actions": empty_actions,
         "terminal_actions": terminal_actions,
         "empty_q_values": empty_q_values,
+        "empty_values": empty_values,
+        "empty_entropies": empty_entropies,
         "theoretical_q_values": theoretical_q_values,
         "expected_actions_per_episode": expected_actions_per_episode,
     }
