@@ -263,7 +263,7 @@ def learner(args: Dict):
                 named_policy_params = policy_net.named_parameters()
                 grad_string = ""
                 for i, param in enumerate(policy_net.parameters()):
-                    grad_string += f"{param.grad.data.sum().item():.5f}, "
+                    grad_string += f"{param.grad.data.sum().item():.2e}, "
                 print(grad_string)
                 if verbosity >= 7:
                     for i, (par_name, param) in enumerate(named_policy_params):

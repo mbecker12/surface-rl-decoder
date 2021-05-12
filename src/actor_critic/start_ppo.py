@@ -22,6 +22,7 @@ def start_ppo():
     and its train() function is called to start the PPO
     learning process.
     """
+    logger.info("Configure PPO process")
     (
         worker_args,
         mem_args,
