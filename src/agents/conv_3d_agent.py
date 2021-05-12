@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from agents.base_agent import BaseAgent
-from agents.interface import create_convolution_sequence, interface
 from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
 NETWORK_SIZES = ["slim", "medium", "large", "extra_large"]
@@ -66,6 +65,11 @@ class Conv3dAgent(BaseAgent):
         self.stack_depth = int(config.get("stack_depth"))
         self.network_size = str(config.get("network_size"))
         assert self.network_size in NETWORK_SIZES
+        self.rl_type = str(config.get("rl_type", "q"))
+        assert self.rl_type in ("q", "ppo")
+
+        # self.activation_fn = F.relu
+        self.activation_fn = F.silu
         
         self.kernel_size = int(config.get("kernel_size"))
         self.kernel_depth = int(config.get("kernel_depth", self.kernel_size))
@@ -118,6 +122,16 @@ class Conv3dAgent(BaseAgent):
                 kernel_size=self.kernel_size,
                 padding=self.padding_size
             )
+            
+            if self.rl_type == "ppo":
+                ppo_input_channels = input_channel_list[layer_count]
+                ppo_output_channels = input_channel_list[layer_count + 1]
+                self.conv_val1 = nn.Conv3d(
+                    ppo_input_channels,
+                    ppo_output_channels,
+                    kernel_size=self.kernel_size,
+                    padding=self.padding_size
+                )
             layer_count += 1
         if self.network_size in NETWORK_SIZES[1:]:
             self.conv6 = nn.Conv3d(
@@ -140,6 +154,16 @@ class Conv3dAgent(BaseAgent):
                 kernel_size=self.kernel_size,
                 padding=self.padding_size
             )
+            
+            if self.rl_type == "ppo":
+                ppo_input_channels = ppo_output_channels
+                ppo_output_channels = input_channel_list[layer_count + 1]
+                self.conv_val2 = nn.Conv3d(
+                    ppo_input_channels,
+                    ppo_output_channels,
+                    kernel_size=self.kernel_size,
+                    padding=self.padding_size
+                )
             layer_count += 1
         if self.network_size in NETWORK_SIZES[2:]:
             self.conv9 = nn.Conv3d(
@@ -162,39 +186,77 @@ class Conv3dAgent(BaseAgent):
                 kernel_size=self.kernel_size,
                 padding=self.padding_size
             )
+            if self.rl_type == "ppo":
+                ppo_input_channels = ppo_output_channels
+                ppo_output_channels = input_channel_list[layer_count + 1]
+                self.conv_val3 = nn.Conv3d(
+                    ppo_input_channels,
+                    ppo_output_channels,
+                    kernel_size=self.kernel_size,
+                    padding=self.padding_size
+                )
             layer_count += 1
 
         self.output_channels = int(input_channel_list[-1])
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
         self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.stack_depth * self.output_channels
+        if self.rl_type == "ppo":
+            self.cnn_val_dimension = (self.size + 1) * (self.size + 1) * self.stack_depth * ppo_output_channels
 
         input_neuron_numbers = config["neuron_list"]
 
         lin_layer_count = 0
         self.lin0 = nn.Linear(self.cnn_dimension, int(input_neuron_numbers[0]))
+        
+        if self.rl_type == "ppo":
+                self.lin_val0 = nn.Linear(
+                    self.cnn_val_dimension,
+                    int(input_neuron_numbers[0])
+                )
+
         if self.network_size in NETWORK_SIZES:
             self.lin1 = nn.Linear(
                 input_neuron_numbers[lin_layer_count],
                 input_neuron_numbers[lin_layer_count + 1]
             )
+            
+            if self.rl_type == "ppo":
+                self.lin_val1 = nn.Linear(
+                    input_neuron_numbers[lin_layer_count],
+                    input_neuron_numbers[lin_layer_count + 1]
+                )
+                
             lin_layer_count += 1
+
         if self.network_size in NETWORK_SIZES[1:]:
             self.lin2 = nn.Linear(
                 input_neuron_numbers[lin_layer_count],
                 input_neuron_numbers[lin_layer_count + 1]
             )
+
+            if self.rl_type == "ppo":
+                self.lin_val2 = nn.Linear(
+                    input_neuron_numbers[lin_layer_count],
+                    input_neuron_numbers[lin_layer_count + 1]
+                )
             lin_layer_count += 1
 
         self.output_layer = nn.Linear(int(input_neuron_numbers[-1]), self.neurons_output)
+        if self.rl_type == "ppo":
+            self.output_value_layer = nn.Linear(int(input_neuron_numbers[-1]), 1)
+
+        for param_tensor in self.state_dict():
+            print(param_tensor, "\t", self.state_dict()[param_tensor].size())
+
 
     def forward(self, state: torch.Tensor):
         """
         forward pass
         """
-        # state = self._format(state, device=self.device)
+        state = self._format(state, device=self.device)
         batch_size = state.shape[0]
 
-        both = state.view(
+        both0 = state.view(
             -1,
             self.input_channels,
             self.stack_depth,
@@ -202,32 +264,92 @@ class Conv3dAgent(BaseAgent):
             (self.size + 1),
         )  # convolve both
 
+        # convolutions
         if self.network_size in NETWORK_SIZES:
-            both = F.relu(self.conv1(both))
-            both = F.relu(self.conv2(both))
-            both = F.relu(self.conv3(both))
-            both = F.relu(self.conv4(both))
-            both = F.relu(self.conv5(both))
+            both1 = self.activation_fn(self.conv1(both0))
+            both2 = self.activation_fn(self.conv2(both1))
+            both3 = self.activation_fn(self.conv3(both2))
+            both4 = self.activation_fn(self.conv4(both3))
+            if self.rl_type == "ppo":
+                values1 = self.activation_fn(self.conv_val1(both4))
+            both5 = self.activation_fn(self.conv5(both4))
 
         if self.network_size in NETWORK_SIZES[1:]:
-            both = F.relu(self.conv6(both))
-            both = F.relu(self.conv7(both))
-            both = F.relu(self.conv8(both))
+            both6 = self.activation_fn(self.conv6(both5))
+            both7 = self.activation_fn(self.conv7(both6))
+            both8 = self.activation_fn(self.conv8(both7))
+            if self.rl_type == "ppo":
+                values2 = self.activation_fn(self.conv_val2(values1))
+
         if self.network_size in NETWORK_SIZES[2:]:
-            both = F.relu(self.conv9(both))
-            both = F.relu(self.conv10(both))
-            both = F.relu(self.conv11(both))
+            both9 = self.activation_fn(self.conv9(both8))
+            both10 = self.activation_fn(self.conv10(both9))
+            both11 = self.activation_fn(self.conv11(both10))
+            if self.rl_type == "ppo":
+                values3 = self.activation_fn(self.conv_val3(values2))
 
-        complete = both.view(
-            -1,
-            (self.size + 1) * (self.size + 1) * self.stack_depth * self.output_channels,
-        )  # make sure the dimensions are in order
-        complete = F.relu(self.lin0(complete))
+        # reshape, dependent on network size
+        if self.network_size in NETWORK_SIZES[2:]:
+            complete0 = both11.view(
+                -1,
+                self.cnn_dimension
+            )
+            if self.rl_type == "ppo":
+                values_complete0 = values3.view(
+                    -1,
+                    self.cnn_val_dimension
+                )
+        elif self.network_size in NETWORK_SIZES[1]:
+            complete0 = both8.view(
+                -1,
+                self.cnn_dimension
+            )
+            if self.rl_type == "ppo":
+                values_complete0 = values2.view(
+                    -1,
+                    self.cnn_val_dimension
+                )
+        elif self.network_size in NETWORK_SIZES[0]:
+            complete0 = both5.view(
+                -1,
+                self.cnn_dimension
+            )
+            if self.rl_type == "ppo":
+                values_complete0 = values1.view(
+                    -1,
+                    self.cnn_val_dimension
+                )
+        else:
+            raise Exception(f"Network size {self.network_size} not supported.")
+
+        # first linear layer
+        if self.rl_type == "ppo":
+            values_complete1 = self.activation_fn(self.lin_val0(values_complete0))
+        complete1 = self.activation_fn(self.lin0(complete0))
+
+        # remaining linear layers
         if self.network_size in NETWORK_SIZES:
-            complete = F.relu(self.lin1(complete))
+            complete2 = self.activation_fn(self.lin1(complete1))
+            if self.rl_type == "ppo":
+                values_complete2 = self.activation_fn(self.lin_val1(values_complete1))
         if self.network_size in NETWORK_SIZES[1:]:
-            complete = F.relu(self.lin2(complete))
+            complete3 = self.activation_fn(self.lin2(complete2))
+            if self.rl_type == "ppo":
+                values_complete3 = self.activation_fn(self.lin_val2(values_complete2))
 
-        final_output = self.output_layer(complete)
-        return final_output
+        # final output
+        if self.network_size in NETWORK_SIZES[1:]:
+            final_output = self.output_layer(complete3)
+            if self.rl_type == "ppo":
+                final_values = self.output_value_layer(values_complete3) * 100.0
+                return final_output, final_values
+            return final_output
 
+        elif self.network_size in NETWORK_SIZES[0]:
+            final_output = self.output_layer(complete2)
+            if self.rl_type == "ppo":
+                final_values = self.output_value_layer(values_complete2) * 100.0
+                return final_output, final_values
+            return final_output
+        else:
+            raise Exception(f"Network size {self.network_size} not supported.")
