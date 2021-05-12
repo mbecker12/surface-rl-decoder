@@ -257,8 +257,6 @@ def learner(args: Dict):
             logger.info(f"Start Evaluation, Step {t+1}")
             count_to_eval = 0
 
-            # for param_tensor in policy_net.state_dict():
-            #     print(param_tensor, "\t", policy_net.state_dict()[param_tensor].size())
             if verbosity >= 6:
                 policy_params = list(policy_net.parameters())
                 n_layers = len(policy_params)
@@ -274,12 +272,10 @@ def learner(args: Dict):
                         if "weight" in par_name:
                             print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
                 grad_string = ""
-                for param in policy_net.parameters():
+                print(f"{policy_net.parameters()=}")
+                for i, param in enumerate(policy_net.parameters()):
                     grad_string += f"{param.grad.data.sum().item():.5f}, "
-                    # print(param.grad.data.sum().item())
                 print(grad_string)
-                # start debugger
-                import pdb; pdb.set_trace()
 
             evaluation_start = time()
             final_result_dict, all_q_values = evaluate(
