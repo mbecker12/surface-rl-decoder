@@ -14,7 +14,8 @@ import nvgpu
 # pylint: disable=not-callable
 import torch
 import numpy as np
-from torch.optim import Adam
+from torch.nn.modules.loss import MSELoss
+from torch.optim import Adam, SGD
 from torch.utils.tensorboard.writer import SummaryWriter
 from actor_critic.ppo_env import MultiprocessEnv
 from actor_critic.replay_buffer import EpisodeBuffer
@@ -137,8 +138,8 @@ class PPO:
         self.value_model_max_grad_norm = learner_args.get("value_model_max_grad_norm")
         self.value_clip_range = learner_args.get("value_clip_range")
         self.value_stopping_mse = learner_args.get("value_stopping_mse")
-        self.entropy_loss_weight = learner_args.get("entropy_loss_weight")
-        self.value_loss_weight = learner_args.get("value_loss_weight")
+        self.entropy_loss_weight = torch.tensor(float(learner_args.get("entropy_loss_weight")), dtype=float, device=self.device)
+        self.value_loss_weight = torch.tensor(float(learner_args.get("value_loss_weight")), dtype=float, device=self.device)
         self.discount_factor = learner_args["discount_factor"]
         self.optimization_epochs = learner_args["optimization_epochs"]
         self.batch_size = learner_args["batch_size"]
@@ -248,18 +249,40 @@ class PPO:
             )
             v_loss = (returns_batch - values_pred).pow(2)
             v_loss_clipped = (returns_batch - values_pred_clipped).pow(2)
-            value_loss = (
-                torch.max(v_loss, v_loss_clipped).mul(0.5).mean()
-                * self.value_loss_weight
-            )
-
-            torch.autograd.set_detect_anomaly(True)
+            value_loss = torch.max(v_loss, v_loss_clipped).mul(0.5).mean() * self.value_loss_weight
+            
             self.optimizer.zero_grad()
-            (policy_loss + entropy_loss + value_loss).backward()
+            
+            total_loss = value_loss + policy_loss + entropy_loss
+            total_loss.backward()
+
             torch.nn.utils.clip_grad_norm_(
                 self.combined_model.parameters(), self.policy_model_max_grad_norm
             )
             self.optimizer.step()
+
+            if self.verbosity >= 6:
+                grad_string = ""
+                for i, param in enumerate(self.combined_model.parameters()):
+                    grad_string += f"{param.grad.data.sum().item():.2e}, "
+                print(grad_string)
+                if self.verbosity >= 7:
+                    policy_params = list(self.combined_model.parameters())
+                    n_layers = len(policy_params)
+                    named_policy_params = self.combined_model.named_parameters()
+                    for i, (par_name, param) in enumerate(named_policy_params):
+                            if "transfomer.layers.0" in par_name: #sic!
+                                if "weight" in par_name:
+                                    try:
+                                        print(f"{par_name}, {param[0][0]}, {param[-1][-1]}")
+                                    except:
+                                        continue
+                            if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
+                                if "weight" in par_name:
+                                    print(f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}")
+
+
+            
 
         if self.verbosity >= 5:
             self.logger.debug("end optimization loop")
@@ -294,6 +317,7 @@ class PPO:
 
         for t in range(self.max_timesteps):
             current_time = time()
+            count_to_eval += 1
 
             if time() - self.start_time > self.max_time:
                 self.logger.warning("Learner: time exceeded, aborting...")
@@ -337,20 +361,48 @@ class PPO:
                 self.logger.info(f"Start Evaluation, Step {t+1}")
                 count_to_eval = 0
 
+                if self.verbosity >= 7:
+                    # grad_string = ""
+                    # for i, param in enumerate(self.combined_model.parameters()):
+                    #     grad_string += f"{param.grad.data.sum().item():.7f}, "
+                    # print(grad_string)
+                    # import pdb
+
+                    policy_params = list(self.combined_model.parameters())
+                    n_layers = len(policy_params)
+                    named_policy_params = self.combined_model.named_parameters()
+                    for i, (par_name, param) in enumerate(named_policy_params):
+                        if "transfomer.layers.0" in par_name: #sic!
+                            if "weight" in par_name:
+                                try:
+                                    print(f"{par_name}, {param[0][0]}, {param[-1][-1]}")
+                                except:
+                                    continue
+                        if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
+                            if "weight" in par_name:
+                                print(f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}")
+
+
                 evaluation_start = time()
-                final_result_dict, all_q_values = evaluate(
-                    self.combined_model,
-                    "",
-                    self.device,
-                    self.p_error_list,
-                    self.p_msmt_list,
-                    epsilon=self.learner_epsilon,
-                    discount_factor_gamma=self.discount_factor,
-                    num_of_random_episodes=120,
-                    num_of_user_episodes=8,
-                    verbosity=self.verbosity,
-                    rl_type="ppo",
-                )
+                try:
+                    final_result_dict, all_q_values = evaluate(
+                        self.combined_model,
+                        "",
+                        self.device,
+                        self.p_error_list,
+                        self.p_msmt_list,
+                        epsilon=self.learner_epsilon,
+                        discount_factor_gamma=self.discount_factor,
+                        num_of_random_episodes=120,
+                        num_of_user_episodes=8,
+                        verbosity=self.verbosity,
+                        rl_type="ppo",
+                    )
+                
+                except Exception as _:
+                    error_traceback = traceback.format_exc()
+                    self.logger.error("Caught exception in learning step")
+                    self.logger.error(error_traceback)
                 if self.benchmark:
                     evaluation_stop = time()
                     self.logger.info(
@@ -384,28 +436,21 @@ class PPO:
                 # monitor policy network parameters
                 if self.verbosity >= 5:
                     policy_params = list(self.combined_model.parameters())
+                    policy_named_params = list(self.combined_model.named_parameters())
                     n_layers = len(policy_params)
                     for i, param in enumerate(policy_params):
-                        if i == 0:
-                            first_layer_params = param.detach().cpu().numpy()
+                        if i % 2 == 0:
+                            layer_params = param.detach().cpu().numpy()
+                            param_name = policy_named_params[i][0]
                             self.tensorboard.add_histogram(
-                                "learner/first_layer",
-                                first_layer_params.reshape(-1, 1),
+                                f"learner/layer_{i}/{param_name}",
+                                layer_params.reshape(-1, 1),
                                 self.tensorboard_step,
                                 walltime=current_time,
                             )
-
-                        if i == n_layers - 2:
-                            last_layer_params = param.detach().cpu().numpy()
-                            self.tensorboard.add_histogram(
-                                "learner/last_layer",
-                                last_layer_params.reshape(-1, 1),
-                                self.tensorboard_step,
-                                walltime=current_time,
-                            )
-
+                        
             self.tensorboard_step += 1
-            count_to_eval += 1
+            
 
             if time() - self.heart > self.heartbeat_interval:
                 self.heart = time()
