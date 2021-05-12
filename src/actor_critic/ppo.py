@@ -212,7 +212,8 @@ class PPO:
             )
 
         actions = torch.tensor(
-            [action_to_q_value_index(action, self.code_size) for action in actions]
+            [action_to_q_value_index(action, self.code_size) for action in actions],
+            device=self.combined_model.device
         )
 
         gaes = (gaes - gaes.mean()) / (gaes.std() + EPS)

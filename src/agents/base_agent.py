@@ -41,8 +41,6 @@ class BaseAgent(nn.Module, ABC):
         logpas = dist.log_prob(actions)
         np_logpas = logpas.detach().cpu().numpy()
         is_exploratory = np_actions != np.argmax(np_logits, axis=1)
-        # TODO: convert action to 3-tuple
-        # TODO: define code_size
         np_action_tuples = np.array(
             [
                 q_value_index_to_action(ac, self.size)
@@ -71,6 +69,8 @@ class BaseAgent(nn.Module, ABC):
         actions = actions.squeeze()
         logits, values = self.forward(states)
         dist = torch.distributions.Categorical(logits=logits)
+        # dist.to(self.device)
+        # actions.to(self.device)
         logpas = dist.log_prob(actions)
         entropies = dist.entropy()
         return logpas, entropies, values
