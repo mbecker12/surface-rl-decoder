@@ -197,7 +197,8 @@ class Conv2dAgent(BaseAgent):
                 nheads = self.gtrxl_heads,
                 transformer_layers = self.gtrxl_layers,
                 hidden_dims = self.gtrxl_hidden_dims,
-                n_layers = self.gtrxl_rnn_layers
+                n_layers = self.gtrxl_rnn_layers,
+                activation="gelu"
             )
 
             gtrxl_total_output_size = self.gtrxl_dimension
@@ -236,26 +237,26 @@ class Conv2dAgent(BaseAgent):
         """
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
-        state = self._format(state, device=self.device)
+        state = self._format(state)
         batch_size, _, _, _ = state.size()
 
         both = state.view(
             -1, self.input_channels, (self.size + 1), (self.size + 1)
         )  # convolve both
         if self.network_size in NETWORK_SIZES:
-            both = F.relu(self.conv1(both))
-            both = F.relu(self.conv2(both))
-            both = F.relu(self.conv3(both))
-            both = F.relu(self.conv4(both))
+            both = F.silu(self.conv1(both))
+            both = F.silu(self.conv2(both))
+            both = F.silu(self.conv3(both))
+            both = F.silu(self.conv4(both))
             
         if self.network_size in NETWORK_SIZES[1:]:
-            both = F.relu(self.conv5(both))
-            both = F.relu(self.conv6(both))
-            both = F.relu(self.conv7(both))
+            both = F.silu(self.conv5(both))
+            both = F.silu(self.conv6(both))
+            both = F.silu(self.conv7(both))
             
         if self.network_size in NETWORK_SIZES[2:]:
-            both = F.relu(self.conv8(both))
-            both = F.relu(self.conv9(both))
+            both = F.silu(self.conv8(both))
+            both = F.silu(self.conv9(both))
         
         # convert the data back to <batch_size> samples of syndrome volumes
         # with <stack_depth> layers
@@ -282,11 +283,11 @@ class Conv2dAgent(BaseAgent):
             output = complete.view(batch_size, -1)
 
         output = output.view(batch_size, -1)
-        complete = F.relu(self.lin0(output))
+        complete = F.silu(self.lin0(output))
         if self.network_size in NETWORK_SIZES:
-            complete = F.relu(self.lin1(complete))
+            complete = F.silu(self.lin1(complete))
         if self.network_size in NETWORK_SIZES[2:]:
-            complete = F.relu(self.lin2(complete))
+            complete = F.silu(self.lin2(complete))
 
         final_output = self.output_layer(complete)
         return final_output

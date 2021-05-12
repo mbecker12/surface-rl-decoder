@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 import numpy as np
 
 # pylint: disable=not-callable
@@ -12,13 +12,18 @@ class BaseAgent(nn.Module, ABC):
     def __init__(self):
         super().__init__()
         self.size = None
+        self.device = None
 
-    def _format(self, states, device=None):
+    def _format(self, states):
+        assert self.device is not None
         x = states
         if not isinstance(x, torch.Tensor):
-            x = torch.tensor(x, device=device, dtype=torch.float32)
+            x = torch.tensor(x, device=self.device, dtype=torch.float32)
             if len(x.size()) == 1:
                 x = x.unsqueeze(0)
+        elif x.device != self.device:
+            x.to(self.device)
+
         return x
 
     @abstractmethod

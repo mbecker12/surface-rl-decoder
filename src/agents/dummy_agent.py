@@ -43,7 +43,7 @@ class DummyModel(BaseAgent):
         """
         Bog-standard forward method for torch neural networks
         """
-        x = self._format(x, device=self.device)
+        x = self._format(x)
         # flatten the syndrome stack as a dummy operation to make the shapes fit
         x0 = x.view((-1, self.stack_depth * self.syndrome_size * self.syndrome_size))
         x1 = F.relu(self.lin1(x0))

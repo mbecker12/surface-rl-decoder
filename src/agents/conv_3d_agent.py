@@ -253,7 +253,7 @@ class Conv3dAgent(BaseAgent):
         """
         forward pass
         """
-        state = self._format(state, device=self.device)
+        state = self._format(state)
         batch_size = state.shape[0]
 
         both0 = state.view(
