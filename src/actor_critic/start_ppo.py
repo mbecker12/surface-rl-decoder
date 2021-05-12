@@ -3,6 +3,8 @@ Start the PPO learning algorithm
 by initializing the PPO class."
 """
 import logging
+import sys
+import traceback
 from distributed.mp_util import configure_processes
 from actor_critic.ppo import PPO
 
@@ -36,8 +38,17 @@ def start_ppo():
 
     seed = worker_args.get("seed", 0)
     logger.info("Prepare training")
-    ppo_agent.train(seed)
+    try:
+        ppo_agent.train(seed)
+    except Exception as err:
+        msg = ("terminate", None)
+        for queue in ppo_agent.worker_queues:
+            queue[0].send(msg)
 
+        error_traceback = traceback.format_exc()
+        logger.error("Caught exception in learning step")
+        logger.error(error_traceback)
+        sys.exit()
 
 if __name__ == "__main__":
     start_ppo()

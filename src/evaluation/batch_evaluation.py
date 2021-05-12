@@ -205,12 +205,12 @@ def batch_evaluation(
             tmp_actions = np.array(
                 [q_value_index_to_action(action, code_size) for action in tmp_actions]
             )
-            tmp_q_values = logits.detach().numpy()
+            tmp_q_values = logits.detach().cpu().numpy()
             dist = torch.distributions.Categorical(logits=logits)
             tmp_entropies = dist.entropy().mean()
             try:
-                values[is_active] = tmp_values.detach().numpy()
-                entropies[is_active] = tmp_entropies.detach().numpy()
+                values[is_active] = tmp_values.detach().cpu().numpy()
+                entropies[is_active] = tmp_entropies.detach().cpu().qnumpy()
             except:
                 print(f"{total_n_episodes=}, {is_active.shape=}, {tmp_values.shape=}, {tmp_entropies.shape=}, {logits.shape=}")
         else:

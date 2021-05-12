@@ -355,6 +355,12 @@ class PPO:
                 error_traceback = traceback.format_exc()
                 self.logger.error("Caught exception in learning step")
                 self.logger.error(error_traceback)
+            except RuntimeError as rt_err:
+                error_traceback = traceback.format_exc()
+                self.logger.error("Caught runtime error in learning step. Terminating program...")
+                self.logger.error(error_traceback)
+                break
+
             self.episode_buffer.clear()
 
             # stats
@@ -362,26 +368,26 @@ class PPO:
                 self.logger.info(f"Start Evaluation, Step {t+1}")
                 count_to_eval = 0
 
-                if self.verbosity >= 7:
-                    # grad_string = ""
-                    # for i, param in enumerate(self.combined_model.parameters()):
-                    #     grad_string += f"{param.grad.data.sum().item():.7f}, "
-                    # print(grad_string)
+                if self.verbosity >= 6:
+                    grad_string = ""
+                    for i, param in enumerate(self.combined_model.parameters()):
+                        grad_string += f"{param.grad.data.sum().item():.2e}, "
+                    print(grad_string)
                     # import pdb
-
-                    policy_params = list(self.combined_model.parameters())
-                    n_layers = len(policy_params)
-                    named_policy_params = self.combined_model.named_parameters()
-                    for i, (par_name, param) in enumerate(named_policy_params):
-                        if "transfomer.layers.0" in par_name: #sic!
-                            if "weight" in par_name:
-                                try:
-                                    print(f"{par_name}, {param[0][0]}, {param[-1][-1]}")
-                                except:
-                                    continue
-                        if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
-                            if "weight" in par_name:
-                                print(f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}")
+                    if self.verbosity >= 7:
+                        policy_params = list(self.combined_model.parameters())
+                        n_layers = len(policy_params)
+                        named_policy_params = self.combined_model.named_parameters()
+                        for i, (par_name, param) in enumerate(named_policy_params):
+                            if "transfomer.layers.0" in par_name: #sic!
+                                if "weight" in par_name:
+                                    try:
+                                        print(f"{par_name}, {param[0][0]}, {param[-1][-1]}")
+                                    except:
+                                        continue
+                            if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
+                                if "weight" in par_name:
+                                    print(f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}")
 
 
                 evaluation_start = time()
@@ -468,3 +474,4 @@ class PPO:
         self.logger.info(f"Saved policy network to {self.save_model_path_date}")
 
         self.tensorboard.close()
+        exit()
