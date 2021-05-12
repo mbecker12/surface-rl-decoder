@@ -325,24 +325,17 @@ def learner(args: Dict):
             # monitor policy network parameters
             if verbosity >= 5:
                 policy_params = list(policy_net.parameters())
+                policy_named_params = list(policy_net.named_parameters())
                 n_layers = len(policy_params)
                 for i, param in enumerate(policy_params):
-                    if i == 0:
-                        first_layer_params = param.detach().cpu().numpy()
+                    if i % 2 == 0:
+                        layer_params = param.detach().cpu().numpy()
+                        param_name = policy_named_params[i][0]
                         tensorboard.add_histogram(
-                            "learner/first_layer",
-                            first_layer_params.reshape(-1, 1),
+                            f"learner/layer_{i}/{param_name}",
+                            layer_params.reshape(-1, 1),
                             tensorboard_step,
-                            walltime=current_time_tb,
-                        )
-
-                    if i == n_layers - 2:
-                        last_layer_params = param.detach().cpu().numpy()
-                        tensorboard.add_histogram(
-                            "learner/last_layer",
-                            last_layer_params.reshape(-1, 1),
-                            tensorboard_step,
-                            walltime=current_time_tb,
+                            walltime=current_time,
                         )
 
         if time() - heart > heartbeat_interval:
