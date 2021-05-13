@@ -4,6 +4,7 @@ on multiple episodes in parallel.
 """
 import logging
 from copy import deepcopy
+import traceback
 import numpy as np
 import torch
 from distributed.util import (
@@ -207,12 +208,15 @@ def batch_evaluation(
             )
             tmp_q_values = logits.detach().cpu().numpy()
             dist = torch.distributions.Categorical(logits=logits)
-            tmp_entropies = dist.entropy().mean()
+            tmp_entropies = dist.entropy().unsqueeze(1)
             try:
                 values[is_active] = tmp_values.detach().cpu().numpy()
-                entropies[is_active] = tmp_entropies.detach().cpu().qnumpy()
+                entropies[is_active] = tmp_entropies.detach().cpu().numpy()
             except:
-                print(f"{total_n_episodes=}, {is_active.shape=}, {tmp_values.shape=}, {tmp_entropies.shape=}, {logits.shape=}")
+                error_traceback = traceback.format_exc()
+                logger.error("Caught exception while trying to detach value and/or entropy array.")
+                logger.error(error_traceback)
+                logger.warning(f"{total_n_episodes=}, {is_active.shape=}, {tmp_values.shape=}, {tmp_entropies.shape=}, {logits.shape=}")
         else:
             logger.error(f"Error! Unknown RL type {rl_type}")
             raise Exception()
