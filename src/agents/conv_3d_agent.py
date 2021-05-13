@@ -341,14 +341,14 @@ class Conv3dAgent(BaseAgent):
         if self.network_size in NETWORK_SIZES[1:]:
             final_output = self.output_layer(complete3)
             if self.rl_type == "ppo":
-                final_values = self.output_value_layer(values_complete3) * 100.0
+                final_values = self.output_value_layer(values_complete3)
                 return final_output, final_values
             return final_output
 
         elif self.network_size in NETWORK_SIZES[0]:
             final_output = self.output_layer(complete2)
             if self.rl_type == "ppo":
-                final_values = self.output_value_layer(values_complete2) * 100.0
+                final_values = self.output_value_layer(values_complete2)
                 return final_output, final_values
             return final_output
         else:
