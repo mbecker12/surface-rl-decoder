@@ -62,9 +62,9 @@ for i in range(1, d):
             vertex_mask[i, j] = 1
 
 # pylint: disable=not-callable
-vertex_mask_torch = torch.tensor(vertex_mask, device=device)
-vertex_mask_torch_float = torch.tensor(vertex_mask, device=device, dtype=torch.float32)
-vertex_mask_torch_int = torch.tensor(vertex_mask, device=device, dtype=torch.int64)
+# vertex_mask_torch = torch.tensor(vertex_mask, device=device)
+# vertex_mask_torch_float = torch.tensor(vertex_mask, device=device, dtype=torch.float32)
+# vertex_mask_torch_int = torch.tensor(vertex_mask, device=device, dtype=torch.int64)
 
 def get_vertex_mask(d):
     vertex_mask = np.zeros((d + 1, d + 1), dtype=np.uint8)
@@ -140,10 +140,10 @@ def get_plaquette_mask(d):
         plaquette_mask[d, j] = 1
     return plaquette_mask
 
-plaquette_mask_torch = torch.tensor(plaquette_mask, device=device)
-plaquette_mask_torch_float = torch.tensor(
-    plaquette_mask, device=device, dtype=torch.float32
-)
-plaquette_mask_torch_int = torch.tensor(
-    plaquette_mask, device=device, dtype=torch.int64
-)
+# plaquette_mask_torch = torch.tensor(plaquette_mask, device=device)
+# plaquette_mask_torch_float = torch.tensor(
+#     plaquette_mask, device=device, dtype=torch.float32
+# )
+# plaquette_mask_torch_int = torch.tensor(
+#     plaquette_mask, device=device, dtype=torch.int64
+# )

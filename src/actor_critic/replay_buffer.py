@@ -143,8 +143,6 @@ class EpisodeBuffer:
             < self.max_episodes * 0.75
         ):
             with torch.no_grad():
-                # TODO parse states to torch
-                # TODO note that policy and value models are separate
                 actions, logpas, are_exploratory, values = combined_model.np_pass(
                     states
                 )
