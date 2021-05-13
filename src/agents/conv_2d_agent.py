@@ -111,6 +111,7 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size
             )
             layer_count += 1
+            self.norm1 = nn.BatchNorm2d(input_channel_list[layer_count])
             self.conv3 = nn.Conv2d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
@@ -125,6 +126,7 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size
             )
             layer_count += 1
+            self.norm2 = nn.BatchNorm2d(input_channel_list[layer_count])
             
         if self.network_size in NETWORK_SIZES[1:]:
             self.conv5 = nn.Conv2d(
@@ -148,6 +150,7 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size
             )
             layer_count += 1
+            self.norm3 = nn.BatchNorm2d(input_channel_list[layer_count])
             
         if self.network_size in NETWORK_SIZES[2:]:
             self.conv8 = nn.Conv2d(
@@ -164,6 +167,7 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size
             )
             layer_count += 1
+            self.norm4 = nn.BatchNorm2d(input_channel_list[layer_count])
 
         self.output_channels = input_channel_list[-1]
 
@@ -245,18 +249,22 @@ class Conv2dAgent(BaseAgent):
         )  # convolve both
         if self.network_size in NETWORK_SIZES:
             both = F.silu(self.conv1(both))
-            both = F.silu(self.conv2(both))
+            both = self.conv2(both)
+            both = F.silu(self.norm1(both))
             both = F.silu(self.conv3(both))
-            both = F.silu(self.conv4(both))
+            both = self.conv4(both)
+            both = F.silu(self.norm2(both))
             
         if self.network_size in NETWORK_SIZES[1:]:
             both = F.silu(self.conv5(both))
             both = F.silu(self.conv6(both))
-            both = F.silu(self.conv7(both))
+            both = self.conv7(both)
+            both = F.silu(self.norm3(both))
             
         if self.network_size in NETWORK_SIZES[2:]:
             both = F.silu(self.conv8(both))
-            both = F.silu(self.conv9(both))
+            both = self.conv9(both)
+            both = F.silu(self.norm4(both))
         
         # convert the data back to <batch_size> samples of syndrome volumes
         # with <stack_depth> layers

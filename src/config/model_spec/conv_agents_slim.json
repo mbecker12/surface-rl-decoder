@@ -12,11 +12,11 @@
         "lstm_num_layers": 2,
         "lstm_num_directions": 1,
         "lstm_output_size": 256,
-        "gtrxl_heads": 1,
+        "gtrxl_heads": 4,
         "gtrxl_layers": 1,
-        "gtrxl_hidden_dims": 256,
+        "gtrxl_hidden_dims": 512,
         "gtrxl_rnn_layers": 1,
-        "neuron_list": [256, 128]
+        "neuron_list": [512, 128]
     },
     "conv3d": {
         "split_input_toggle": 0,
