@@ -3,14 +3,22 @@ Implementation of an agent containing convolutional layers
 followed by an LSTM to account for the time dependency
 and linear layers to generate q values.
 """
+from typing import List
+from copy import deepcopy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
-from agents.interface import interface
+from gtrxl_torch.gtrxl_torch import GTrXL
+from agents.base_agent import BaseAgent
+from surface_rl_decoder.syndrome_masks import (
+    get_vertex_mask,
+    get_plaquette_mask
+)
+from agents.interface import create_convolution_sequence, interface
 
+NETWORK_SIZES = ["slim", "medium", "large", "extra_large"]
 
-class Conv2dAgent(nn.Module):
+class Conv2dAgent(BaseAgent):
 
     """
     Description:
@@ -52,8 +60,8 @@ class Conv2dAgent(nn.Module):
         assert self.device is not None
         self.size = int(config.get("code_size"))
         # pylint: disable=not-callable
-        self.plaquette_mask = torch.tensor(plaquette_mask, device=self.device)
-        self.vertex_mask = torch.tensor(vertex_mask, device=self.device)
+        self.plaquette_mask = torch.tensor(get_plaquette_mask(self.size), device=self.device)
+        self.vertex_mask = torch.tensor(get_vertex_mask(self.size), device=self.device)
 
         self.nr_actions_per_qubit = int(config.get("num_actions_per_qubit"))
         self.stack_depth = int(config.get("stack_depth"))
@@ -61,115 +69,171 @@ class Conv2dAgent(nn.Module):
 
         self.input_channels = int(config.get("input_channels"))
         self.kernel_size = int(config.get("kernel_size"))
-        self.output_channels = int(config.get("output_channels"))
-        self.output_channels2 = int(config.get("output_channels2"))
-        self.output_channels3 = int(config.get("output_channels3"))
-        self.output_channels4 = int(config.get("output_channels4", 1))
         self.padding_size = int(config.get("padding_size"))
-        self.lstm_num_layers = int(config.get("lstm_num_layers"))
-        self.lstm_num_directions = int(config.get("lstm_num_directions"))
-        assert self.lstm_num_directions in (1, 2)
-        self.lstm_is_bidirectional = bool(self.lstm_num_directions - 1)
-        self.lstm_output_size = int(config.get("lstm_output_size"))
-        self.neurons_lin_layer = int(config.get("neurons_lin_layer"))
+        self.network_size = str(config.get("network_size"))
+        assert self.network_size in NETWORK_SIZES
+
+        self.use_lstm = int(config.get("use_lstm",0))
+        self.use_rnn = int(config.get("use_rnn", 0))
+        self.use_transformer = int(config.get("use_gtrxl", 0))
+        self.use_transformer += int(config.get("use_transformer", 0))
+        self.use_gru = int(config.get("use_gru", 0))
+        self.use_all_rnn_layers = int(config.get("use_all_rnn_layers", 0))
+
+        if self.use_transformer:
+            self.gtrxl_heads =  int(config.get("gtrxl_heads"))
+            self.gtrxl_layers = int(config.get("gtrxl_layers"))
+            self.gtrxl_hidden_dims = int(config.get("gtrxl_hidden_dims", 2048))
+            self.gtrxl_rnn_layers = int(config.get("gtrxl_rnn_layers", 1))
+
+        if self.use_lstm or self.use_rnn:
+            self.lstm_num_layers = int(config.get("lstm_num_layers"))
+            self.lstm_num_directions = int(config.get("lstm_num_directions"))
+            assert self.lstm_num_directions in (1, 2)
+            self.lstm_is_bidirectional = bool(self.lstm_num_directions - 1)
+            self.lstm_output_size = int(config.get("lstm_output_size"))
+
+        input_channel_list: List = deepcopy(config.get("channel_list"))
+        input_channel_list.insert(0, self.input_channels)
+        layer_count = 0
+        if self.network_size in NETWORK_SIZES:
+            self.conv1 = nn.Conv2d(
+                in_channels=input_channel_list[layer_count],
+                out_channels=input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size,
+            )
+            layer_count += 1
+            self.conv2 = nn.Conv2d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.norm1 = nn.BatchNorm2d(input_channel_list[layer_count])
+            self.conv3 = nn.Conv2d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv4 = nn.Conv2d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.norm2 = nn.BatchNorm2d(input_channel_list[layer_count])
+            
+        if self.network_size in NETWORK_SIZES[1:]:
+            self.conv5 = nn.Conv2d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv6 = nn.Conv2d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv7 = nn.Conv2d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.norm3 = nn.BatchNorm2d(input_channel_list[layer_count])
+            
+        if self.network_size in NETWORK_SIZES[2:]:
+            self.conv8 = nn.Conv2d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv9 = nn.Conv2d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.norm4 = nn.BatchNorm2d(input_channel_list[layer_count])
+
+        self.output_channels = input_channel_list[-1]
+
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
+        self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.output_channels
 
-        self.input_conv_layer_both = nn.Conv2d(
-            self.input_channels,
-            self.output_channels,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+        linear_modules = []
+        input_neuron_numbers = config["neuron_list"]
 
-        self.nd_conv_layer_both = nn.Conv2d(
-            self.output_channels,
-            self.output_channels2,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+        if self.use_lstm:
+            print("Using LSTM")
+            self.lstm_layer = nn.LSTM(
+                self.cnn_dimension,
+                self.lstm_output_size,
+                num_layers=self.lstm_num_layers,
+                bidirectional=self.lstm_is_bidirectional,
+                batch_first=True,
+            )
+            lstm_total_output_size = self.lstm_output_size * self.lstm_num_directions
+            if self.use_all_rnn_layers:
+                lstm_total_output_size *= self.stack_depth
 
-        self.rd_conv_layer_both = nn.Conv2d(
-            self.output_channels2,
-            self.output_channels3,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+            lin_layer_count = 0
+            self.lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
+    
+        elif self.use_transformer:
+            print("Using GTRXL")
+            self.gtrxl_dimension = self.cnn_dimension
+            self.gated_transformer = GTrXL(
+                d_model = self.gtrxl_dimension,
+                nheads = self.gtrxl_heads,
+                transformer_layers = self.gtrxl_layers,
+                hidden_dims = self.gtrxl_hidden_dims,
+                n_layers = self.gtrxl_rnn_layers,
+                activation="gelu"
+            )
 
-        self.comp_conv_layer_both = nn.Conv2d(
-            self.output_channels3,
-            self.output_channels4,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+            gtrxl_total_output_size = self.gtrxl_dimension
+            if self.use_all_rnn_layers:
+                gtrxl_total_output_size *= self.stack_depth
 
-        self.input_conv_layer_x = nn.Conv2d(
-            self.input_channels,
-            self.output_channels,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+            lin_layer_count = 0
+            self.lin0 = nn.Linear(gtrxl_total_output_size, int(input_neuron_numbers[0]))
+        
+        elif self.use_gru:
+            print("GRU not supported yet")
 
-        self.nd_conv_layer_x = nn.Conv2d(
-            self.output_channels,
-            self.output_channels2,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+        else:
+            print("Not using any recurrent module")
+            lin_layer_count = 0
+            self.lin0 = nn.Linear(self.cnn_dimension*self.stack_depth, int(input_neuron_numbers[0]))
 
-        self.rd_conv_layer_x = nn.Conv2d(
-            self.output_channels2,
-            self.output_channels3,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+        if self.network_size in NETWORK_SIZES:
+            self.lin1 = nn.Linear(
+                input_neuron_numbers[lin_layer_count],
+                input_neuron_numbers[lin_layer_count + 1]
+            )
+            lin_layer_count += 1
+        if self.network_size in NETWORK_SIZES[2:]:
+            self.lin2 = nn.Linear(
+                input_neuron_numbers[lin_layer_count],
+                input_neuron_numbers[lin_layer_count + 1]
+            )
+            lin_layer_count += 1
 
-        self.comp_conv_layer_x = nn.Conv2d(
-            self.output_channels3,
-            self.output_channels4,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-
-        self.input_conv_layer_z = nn.Conv2d(
-            self.input_channels,
-            self.output_channels,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-
-        self.nd_conv_layer_z = nn.Conv2d(
-            self.output_channels,
-            self.output_channels2,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-
-        self.rd_conv_layer_z = nn.Conv2d(
-            self.output_channels2,
-            self.output_channels3,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-
-        self.comp_conv_layer_z = nn.Conv2d(
-            self.output_channels3,
-            self.output_channels4,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-
-        self.lstm_layer = nn.LSTM(
-            (self.size + 1) * (self.size + 1) * self.output_channels4,
-            self.lstm_output_size,
-            num_layers=self.lstm_num_layers,
-            bidirectional=self.lstm_is_bidirectional,
-            batch_first=True,
-        )
-
-        self.almost_final_layer = nn.Linear(
-            self.lstm_output_size * self.lstm_num_directions, self.neurons_lin_layer
-        )
-        self.final_layer = nn.Linear(self.neurons_lin_layer, self.neurons_output)
+        self.output_layer = nn.Linear(input_neuron_numbers[-1], int(self.neurons_output))
 
     def forward(self, state: torch.Tensor):
         """
@@ -177,71 +241,61 @@ class Conv2dAgent(nn.Module):
         """
         # multiple input channels for different procedures,
         # they are then concatenated as the data is processed
-        if self.split_input_toggle:
-            x, z, both = interface(state, self.plaquette_mask, self.vertex_mask)
+        state = self._format(state)
+        batch_size, _, _, _ = state.size()
 
-            x = x.view(
-                -1, self.input_channels, (self.size + 1), (self.size + 1)
-            )  # convolve x
-            x = F.relu(self.input_conv_layer_x(x))
-            x = F.relu(self.nd_conv_layer_x(x))
-            x = F.relu(self.rd_conv_layer_x(x))
-            x = F.relu(self.comp_conv_layer_x(x))
-
-            z = z.view(
-                -1, self.input_channels, (self.size + 1), (self.size + 1)
-            )  # convolve z
-            z = F.relu(self.input_conv_layer_z(z))
-            z = F.relu(self.nd_conv_layer_z(z))
-            z = F.relu(self.rd_conv_layer_z(z))
-            z = F.relu(self.comp_conv_layer_z(z))
-
-            both = both.view(
-                -1, self.input_channels, (self.size + 1), (self.size + 1)
-            )  # convolve both
-            both = F.relu(self.input_conv_layer_both(both))
-            both = F.relu(self.nd_conv_layer_both(both))
-            both = F.relu(self.rd_conv_layer_both(both))
-            both = F.relu(self.comp_conv_layer_both(both))
-
-            complete = (x + z + both) / 3  # add them together
-            # complete = complete.view(
-            #     self.stack_depth, -1, (self.size + 1) * (self.size + 1)
-            # )  # adjust the dimensions due to lstm wanting 3 dimensions with batch on the second
-            complete = complete.view(
-                -1,
-                self.stack_depth,
-                (self.size + 1) * (self.size + 1) * self.output_channels4,
-            )
-        else:
-            state = state.view(
-                -1, self.input_channels, (self.size + 1), (self.size + 1)
-            )  # convolve both
-            state = F.relu(self.input_conv_layer_both(state))
-            state = F.relu(self.nd_conv_layer_both(state))
-            state = F.relu(self.rd_conv_layer_both(state))
-            state = F.relu(self.comp_conv_layer_both(state))
-
-            complete = state.view(
-                -1,
-                self.stack_depth,
-                (self.size + 1) * (self.size + 1) * self.output_channels4,
-            )
-
-        output, (_h, _c) = self.lstm_layer(complete)
-        assert (
-            output.shape[1] == self.stack_depth
-        ), f"{output.shape=}, {self.stack_depth=}"
-        assert (
-            output.shape[2] == self.lstm_output_size * self.lstm_num_directions
-        ), f"{output.shape=}, {self.lstm_output_size=}, {self.lstm_num_directions=}"
-
-        output = F.relu(
-            self.almost_final_layer(output[:, -1, :])
-        )  # take the last output feature vector from the lstm for each sample in the batch
-        final_output = self.final_layer(output)
-        assert (
-            final_output.shape[-1]
-            == self.nr_actions_per_qubit * self.size * self.size + 1
+        both = state.view(
+            -1, self.input_channels, (self.size + 1), (self.size + 1)
+        )  # convolve both
+        if self.network_size in NETWORK_SIZES:
+            both = F.silu(self.conv1(both))
+            both = self.conv2(both)
+            both = F.silu(self.norm1(both))
+            both = F.silu(self.conv3(both))
+            both = self.conv4(both)
+            both = F.silu(self.norm2(both))
+            
+        if self.network_size in NETWORK_SIZES[1:]:
+            both = F.silu(self.conv5(both))
+            both = F.silu(self.conv6(both))
+            both = self.conv7(both)
+            both = F.silu(self.norm3(both))
+            
+        if self.network_size in NETWORK_SIZES[2:]:
+            both = F.silu(self.conv8(both))
+            both = self.conv9(both)
+            both = F.silu(self.norm4(both))
+        
+        # convert the data back to <batch_size> samples of syndrome volumes
+        # with <stack_depth> layers
+        complete = both.view(
+            batch_size, self.stack_depth, self.cnn_dimension
         )
+
+        if self.use_lstm:
+            output, (_h, _c) = self.lstm_layer(complete)
+           
+            if not self.use_all_rnn_layers:
+                output = output[:,-1,:]
+
+        elif self.use_transformer:
+            complete = complete.permute(1, 0, 2)
+            output = self.gated_transformer(complete)
+
+            if not self.use_all_rnn_layers:
+                output = output[-1, :, :]
+            else:
+                output = output.permute(1, 0, 2)
+
+        else:
+            output = complete.view(batch_size, -1)
+
+        output = output.view(batch_size, -1)
+        complete = F.silu(self.lin0(output))
+        if self.network_size in NETWORK_SIZES:
+            complete = F.silu(self.lin1(complete))
+        if self.network_size in NETWORK_SIZES[2:]:
+            complete = F.silu(self.lin2(complete))
+
+        final_output = self.output_layer(complete)
         return final_output

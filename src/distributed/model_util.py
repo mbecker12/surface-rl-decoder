@@ -12,9 +12,8 @@ from torch.nn.modules.loss import MSELoss
 from torch.optim import Adam
 from torch import nn
 import yaml
-from agents.conv_2d_agent_rework import Conv2dAgentUpdate
-from agents.conv_3d_agent import Conv3dGeneralAgent
-from agents.simple_2dconv import SimpleConv2D
+from agents.conv_2d_agent import Conv2dAgent
+from agents.conv_3d_agent import Conv3dAgent
 from agents.dummy_agent import DummyModel
 
 
@@ -36,12 +35,10 @@ def choose_model(model_name, model_config):
 
     if "dummy" in model_name:
         model = DummyModel(model_config)
-    elif model_name.lower() in "conv2d_lstm":
-        model = Conv2dAgentUpdate(model_config)
-    elif model_name.lower() in "conv3d":
-        model = Conv3dGeneralAgent(model_config)
-    elif "simple" in model_name.lower():
-        model = SimpleConv2D(model_config)
+    elif "conv2d" in model_name.lower():
+        model = Conv2dAgent(model_config)
+    elif "conv3d" in model_name.lower():
+        model = Conv3dAgent(model_config)
     else:
         raise Exception(f"Error! Model '{model_name}' not supported or not recognized.")
 

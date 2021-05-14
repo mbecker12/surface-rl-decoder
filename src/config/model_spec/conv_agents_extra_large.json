@@ -8,15 +8,15 @@
         "input_channels": 1,
         "kernel_size": 3,
         "padding_size": 1,
-        "channel_list": [16, 32, 64, 16],
-        "lstm_num_layers": 2,
-        "lstm_num_directions": 1,
-        "lstm_output_size": 256,
-        "gtrxl_heads": 4,
-        "gtrxl_layers": 1,
-        "gtrxl_hidden_dims": 512,
+        "channel_list": [16, 32, 64, 128, 256, 256, 128, 64, 64, 32, 16],
+        "lstm_num_layers": 4,
+        "lstm_num_directions": 2,
+        "lstm_output_size": 1024,
+        "gtrxl_heads": 8,
+        "gtrxl_layers": 4,
+        "gtrxl_hidden_dims": 1024,
         "gtrxl_rnn_layers": 1,
-        "neuron_list": [512, 128]
+        "neuron_list": [2048, 1024, 512]
     },
     "conv3d": {
         "split_input_toggle": 0,
@@ -24,7 +24,7 @@
         "kernel_size": 3,
         "kernel_depth": 3,
         "padding_size": 1,
-        "channel_list": [32, 64, 32, 16, 8],
-        "neuron_list": [512, 256]
+        "channel_list": [16, 32, 32, 64, 64, 128, 128, 256, 128, 64, 32, 16, 8, 4],
+        "neuron_list": [2048, 1024, 1024, 512]
     }
 }

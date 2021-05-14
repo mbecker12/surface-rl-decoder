@@ -129,7 +129,9 @@ def configure_processes(rl_type="q_learning"):
 
     # select the specification of the right model from the json
     model_config = model_config[model_name]
+    model_config = add_model_size(model_config, model_config_file)
 
+    print(model_config)
     # configure processes
     mem_args = {
         "replay_memory_size": replay_memory_size,
@@ -264,3 +266,12 @@ def configure_processes(rl_type="q_learning"):
         learner_args["learner_actor_queues"] = learner_actor_queues
 
     return actor_args, mem_args, learner_args, env_args, global_config, queues
+
+def add_model_size(config, config_file_path):
+    if "slim" in config_file_path:
+        config["network_size"] = "slim"
+    elif "large" in config_file_path:
+        config["network_size"] = "large"
+    else:
+        config["network_size"] = "medium"
+    return config

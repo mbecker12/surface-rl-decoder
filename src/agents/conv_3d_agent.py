@@ -2,14 +2,17 @@
 Implementation of an agent containing 3D convolutional layers
 followed by linear layers
 """
+from typing import List
+from copy import deepcopy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from agents.interface import interface
-from surface_rl_decoder.syndrome_masks import plaquette_mask, vertex_mask
+from agents.base_agent import BaseAgent
+from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
+NETWORK_SIZES = ["slim", "medium", "large", "extra_large"]
 
-class Conv3dGeneralAgent(nn.Module):
+class Conv3dAgent(BaseAgent):
 
     """
     Description:
@@ -53,22 +56,21 @@ class Conv3dGeneralAgent(nn.Module):
 
         self.device = config.get("device")
         # pylint: disable=not-callable
-        self.plaquette_mask = torch.tensor(plaquette_mask, device=self.device)
-        self.vertex_mask = torch.tensor(vertex_mask, device=self.device)
-        self.split_input_toggle = int(config.get("split_input_toggle", 1))
-
         self.size = int(config.get("code_size"))
+        self.plaquette_mask = torch.tensor(get_plaquette_mask(self.size), device=self.device)
+        self.vertex_mask = torch.tensor(get_vertex_mask(self.size), device=self.device)
+        self.split_input_toggle = int(config.get("split_input_toggle", 1))
+        self.input_channels = int(config.get("input_channels"))
         self.nr_actions_per_qubit = int(config.get("num_actions_per_qubit"))
         self.stack_depth = int(config.get("stack_depth"))
+        self.network_size = str(config.get("network_size"))
+        assert self.network_size in NETWORK_SIZES
+        self.rl_type = str(config.get("rl_type", "q"))
+        assert self.rl_type in ("q", "ppo")
 
-        self.input_channels = int(config.get("input_channels"))
-        self.output_channels = int(config.get("output_channels"))
-        self.output_channels2 = int(config.get("output_channels2"))
-        self.output_channels3 = int(config.get("output_channels3"))
-        self.output_channels4 = int(config.get("output_channels4"))
-
-        self.neurons_lin_layer = int(config.get("neurons_lin_layer"))
-
+        # self.activation_fn = F.relu
+        self.activation_fn = F.silu
+        
         self.kernel_size = int(config.get("kernel_size"))
         self.kernel_depth = int(config.get("kernel_depth", self.kernel_size))
 
@@ -81,186 +83,273 @@ class Conv3dGeneralAgent(nn.Module):
             )
 
         self.kernel_size = (self.kernel_depth, self.kernel_size, self.kernel_size)
+        input_channel_list: List = deepcopy(config.get("channel_list"))
+        input_channel_list.insert(0, self.input_channels)
+        layer_count = 0
 
-        self.input_conv_layer_both = nn.Conv3d(
-            self.input_channels,
-            self.output_channels,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.nd_conv_layer_both = nn.Conv3d(
-            self.output_channels,
-            self.output_channels2,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.rd_conv_layer_both = nn.Conv3d(
-            self.output_channels2,
-            self.output_channels3,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.comp_conv_layer_both = nn.Conv3d(
-            self.output_channels3,
-            self.output_channels4,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+        if self.network_size in NETWORK_SIZES:
+            self.conv1 = nn.Conv3d(
+                in_channels=input_channel_list[layer_count],
+                out_channels=input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size,
+            )
+            layer_count += 1
+            self.conv2 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv3 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv4 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv5 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            
+            if self.rl_type == "ppo":
+                ppo_input_channels = input_channel_list[layer_count]
+                ppo_output_channels = input_channel_list[layer_count + 1]
+                self.conv_val1 = nn.Conv3d(
+                    ppo_input_channels,
+                    ppo_output_channels,
+                    kernel_size=self.kernel_size,
+                    padding=self.padding_size
+                )
+            layer_count += 1
+        if self.network_size in NETWORK_SIZES[1:]:
+            self.conv6 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv7 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv8 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            
+            if self.rl_type == "ppo":
+                ppo_input_channels = ppo_output_channels
+                ppo_output_channels = input_channel_list[layer_count + 1]
+                self.conv_val2 = nn.Conv3d(
+                    ppo_input_channels,
+                    ppo_output_channels,
+                    kernel_size=self.kernel_size,
+                    padding=self.padding_size
+                )
+            layer_count += 1
+        if self.network_size in NETWORK_SIZES[2:]:
+            self.conv9 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv10 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            layer_count += 1
+            self.conv11 = nn.Conv3d(
+                input_channel_list[layer_count],
+                input_channel_list[layer_count + 1],
+                kernel_size=self.kernel_size,
+                padding=self.padding_size
+            )
+            if self.rl_type == "ppo":
+                ppo_input_channels = ppo_output_channels
+                ppo_output_channels = input_channel_list[layer_count + 1]
+                self.conv_val3 = nn.Conv3d(
+                    ppo_input_channels,
+                    ppo_output_channels,
+                    kernel_size=self.kernel_size,
+                    padding=self.padding_size
+                )
+            layer_count += 1
 
-        self.input_conv_layer_x = nn.Conv3d(
-            self.input_channels,
-            self.output_channels,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.nd_conv_layer_x = nn.Conv3d(
-            self.output_channels,
-            self.output_channels2,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.rd_conv_layer_x = nn.Conv3d(
-            self.output_channels2,
-            self.output_channels3,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.comp_conv_layer_x = nn.Conv3d(
-            self.output_channels3,
-            self.output_channels4,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+        self.output_channels = int(input_channel_list[-1])
+        self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
+        self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.stack_depth * self.output_channels
+        if self.rl_type == "ppo":
+            self.cnn_val_dimension = (self.size + 1) * (self.size + 1) * self.stack_depth * ppo_output_channels
 
-        self.input_conv_layer_z = nn.Conv3d(
-            self.input_channels,
-            self.output_channels,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.nd_conv_layer_z = nn.Conv3d(
-            self.output_channels,
-            self.output_channels2,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.rd_conv_layer_z = nn.Conv3d(
-            self.output_channels2,
-            self.output_channels3,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
-        self.comp_conv_layer_z = nn.Conv3d(
-            self.output_channels3,
-            self.output_channels4,
-            self.kernel_size,
-            padding=self.padding_size,
-        )
+        input_neuron_numbers = config["neuron_list"]
 
-        self.almost_final_layer = nn.Linear(
-            (self.size + 1) * (self.size + 1) * self.output_channels4,
-            self.neurons_lin_layer,
-        )
-        self.final_layer = nn.Linear(
-            self.stack_depth * self.neurons_lin_layer,
-            self.nr_actions_per_qubit * (self.size) * (self.size) + 1,
-        )
+        lin_layer_count = 0
+        self.lin0 = nn.Linear(self.cnn_dimension, int(input_neuron_numbers[0]))
+        
+        if self.rl_type == "ppo":
+                self.lin_val0 = nn.Linear(
+                    self.cnn_val_dimension,
+                    int(input_neuron_numbers[0])
+                )
+
+        if self.network_size in NETWORK_SIZES:
+            self.lin1 = nn.Linear(
+                input_neuron_numbers[lin_layer_count],
+                input_neuron_numbers[lin_layer_count + 1]
+            )
+            
+            if self.rl_type == "ppo":
+                self.lin_val1 = nn.Linear(
+                    input_neuron_numbers[lin_layer_count],
+                    input_neuron_numbers[lin_layer_count + 1]
+                )
+                
+            lin_layer_count += 1
+
+        if self.network_size in NETWORK_SIZES[1:]:
+            self.lin2 = nn.Linear(
+                input_neuron_numbers[lin_layer_count],
+                input_neuron_numbers[lin_layer_count + 1]
+            )
+
+            if self.rl_type == "ppo":
+                self.lin_val2 = nn.Linear(
+                    input_neuron_numbers[lin_layer_count],
+                    input_neuron_numbers[lin_layer_count + 1]
+                )
+            lin_layer_count += 1
+
+        self.output_layer = nn.Linear(int(input_neuron_numbers[-1]), self.neurons_output)
+        if self.rl_type == "ppo":
+            self.output_value_layer = nn.Linear(int(input_neuron_numbers[-1]), 1)
+
+        for param_tensor in self.state_dict():
+            print(param_tensor, "\t", self.state_dict()[param_tensor].size())
+
 
     def forward(self, state: torch.Tensor):
         """
         forward pass
         """
+        state = self._format(state)
         batch_size = state.shape[0]
 
-        if self.split_input_toggle:
-            x, z, both = interface(state, self.plaquette_mask, self.vertex_mask)
-            # multiple input channels for different procedures,
-            # they are then concatenated as the data is processed
+        both0 = state.view(
+            -1,
+            self.input_channels,
+            self.stack_depth,
+            (self.size + 1),
+            (self.size + 1),
+        )  # convolve both
 
-            x = x.view(
-                -1,
-                self.input_channels,
-                self.stack_depth,
-                (self.size + 1),
-                (self.size + 1),
-            )  # convolve x
-            x = F.relu(self.input_conv_layer_x(x))
-            x = F.relu(self.nd_conv_layer_x(x))
-            x = F.relu(self.rd_conv_layer_x(x))
-            x = F.relu(self.comp_conv_layer_x(x))
+        # convolutions
+        if self.network_size in NETWORK_SIZES:
+            both1 = self.activation_fn(self.conv1(both0))
+            both2 = self.activation_fn(self.conv2(both1))
+            both3 = self.activation_fn(self.conv3(both2))
+            both4 = self.activation_fn(self.conv4(both3))
+            if self.rl_type == "ppo":
+                values1 = self.activation_fn(self.conv_val1(both4))
+            both5 = self.activation_fn(self.conv5(both4))
 
-            z = z.view(
-                -1,
-                self.input_channels,
-                self.stack_depth,
-                (self.size + 1),
-                (self.size + 1),
-            )  # convolve z
-            z = F.relu(self.input_conv_layer_z(z))
-            z = F.relu(self.nd_conv_layer_z(z))
-            z = F.relu(self.rd_conv_layer_z(z))
-            z = F.relu(self.comp_conv_layer_z(z))
+        if self.network_size in NETWORK_SIZES[1:]:
+            both6 = self.activation_fn(self.conv6(both5))
+            both7 = self.activation_fn(self.conv7(both6))
+            both8 = self.activation_fn(self.conv8(both7))
+            if self.rl_type == "ppo":
+                values2 = self.activation_fn(self.conv_val2(values1))
 
-            both = both.view(
-                -1,
-                self.input_channels,
-                self.stack_depth,
-                (self.size + 1),
-                (self.size + 1),
-            )  # convolve both
-            both = F.relu(self.input_conv_layer_both(both))
-            both = F.relu(self.nd_conv_layer_both(both))
-            both = F.relu(self.rd_conv_layer_both(both))
-            both = F.relu(self.comp_conv_layer_both(both))
+        if self.network_size in NETWORK_SIZES[2:]:
+            both9 = self.activation_fn(self.conv9(both8))
+            both10 = self.activation_fn(self.conv10(both9))
+            both11 = self.activation_fn(self.conv11(both10))
+            if self.rl_type == "ppo":
+                values3 = self.activation_fn(self.conv_val3(values2))
 
-            complete = (x + z + both) / 3  # add them together
-            complete = complete.view(
+        # reshape, dependent on network size
+        if self.network_size in NETWORK_SIZES[2:]:
+            complete0 = both11.view(
                 -1,
-                self.stack_depth,
-                (self.size + 1) * (self.size + 1) * self.output_channels4,
-            )  # make sure the dimensions are in order
+                self.cnn_dimension
+            )
+            if self.rl_type == "ppo":
+                values_complete0 = values3.view(
+                    -1,
+                    self.cnn_val_dimension
+                )
+        elif self.network_size in NETWORK_SIZES[1]:
+            complete0 = both8.view(
+                -1,
+                self.cnn_dimension
+            )
+            if self.rl_type == "ppo":
+                values_complete0 = values2.view(
+                    -1,
+                    self.cnn_val_dimension
+                )
+        elif self.network_size in NETWORK_SIZES[0]:
+            complete0 = both5.view(
+                -1,
+                self.cnn_dimension
+            )
+            if self.rl_type == "ppo":
+                values_complete0 = values1.view(
+                    -1,
+                    self.cnn_val_dimension
+                )
         else:
-            both = state.view(
-                -1,
-                self.input_channels,
-                self.stack_depth,
-                (self.size + 1),
-                (self.size + 1),
-            )  # convolve both
-            both = F.relu(self.input_conv_layer_both(both))
-            assert both.shape[-3:] == (
-                self.stack_depth,
-                (self.size + 1),
-                (self.size + 1),
-            ), f"start {both.shape=}"
-            both = F.relu(self.nd_conv_layer_both(both))
-            both = F.relu(self.rd_conv_layer_both(both))
-            both = F.relu(self.comp_conv_layer_both(both))
-            assert both.shape[-3:] == (
-                self.stack_depth,
-                (self.size + 1),
-                (self.size + 1),
-            ), f"end {both.shape=}"
-            assert both.shape[0] == batch_size, f"end compare batch_size {both.shape=}"
+            raise Exception(f"Network size {self.network_size} not supported.")
 
-            # TODO flatten here already
-            complete = both.view(
-                -1,
-                self.stack_depth,
-                (self.size + 1) * (self.size + 1) * self.output_channels4,
-            )  # make sure the dimensions are in order
+        # first linear layer
+        if self.rl_type == "ppo":
+            values_complete1 = self.activation_fn(self.lin_val0(values_complete0))
+        complete1 = self.activation_fn(self.lin0(complete0))
 
-            # complete = both.view(
-            #     -1,
-            #     (self.size + 1) * (self.size + 1) * self.output_channels4 * self.stack_depth,
-            # )  # make sure the dimensions are in order
-            assert complete.shape[0] == batch_size, complete.shape
+        # remaining linear layers
+        if self.network_size in NETWORK_SIZES:
+            complete2 = self.activation_fn(self.lin1(complete1))
+            if self.rl_type == "ppo":
+                values_complete2 = self.activation_fn(self.lin_val1(values_complete1))
+        if self.network_size in NETWORK_SIZES[1:]:
+            complete3 = self.activation_fn(self.lin2(complete2))
+            if self.rl_type == "ppo":
+                values_complete3 = self.activation_fn(self.lin_val2(values_complete2))
 
-        complete = F.relu(self.almost_final_layer(complete))
-        # shift the dimension so that
-        # dimension -1 gives us a matrix/vector
-        # with regards to batch and actions for each of those batches
-        complete = complete.view(-1, self.stack_depth * self.neurons_lin_layer)
-        final_output = self.final_layer(complete)
+        # final output
+        if self.network_size in NETWORK_SIZES[1:]:
+            final_output = self.output_layer(complete3)
+            if self.rl_type == "ppo":
+                final_values = self.output_value_layer(values_complete3)
+                return final_output, final_values
+            return final_output
 
-        return final_output
+        elif self.network_size in NETWORK_SIZES[0]:
+            final_output = self.output_layer(complete2)
+            if self.rl_type == "ppo":
+                final_values = self.output_value_layer(values_complete2)
+                return final_output, final_values
+            return final_output
+        else:
+            raise Exception(f"Network size {self.network_size} not supported.")

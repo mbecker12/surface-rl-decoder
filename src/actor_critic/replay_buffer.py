@@ -12,6 +12,7 @@ import numpy as np
 # pylint: disable=not-callable
 import torch
 from actor_critic.ppo_env import MultiprocessEnv
+from agents.base_agent import BaseAgent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("buffer")
@@ -116,7 +117,7 @@ class EpisodeBuffer:
         self.current_ep_idxs = np.arange(self.num_workers, dtype=np.uint16)
         gc.collect()
 
-    def fill(self, env_set: MultiprocessEnv, combined_model):
+    def fill(self, env_set: MultiprocessEnv, combined_model: BaseAgent):
         logger.debug("Filling episode buffer")
         states = env_set.reset()
 
@@ -142,8 +143,6 @@ class EpisodeBuffer:
             < self.max_episodes * 0.75
         ):
             with torch.no_grad():
-                # TODO parse states to torch
-                # TODO note that policy and value models are separate
                 actions, logpas, are_exploratory, values = combined_model.np_pass(
                     states
                 )
