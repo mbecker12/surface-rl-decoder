@@ -219,7 +219,7 @@ class PPO:
         gaes = (gaes - gaes.mean()) / (gaes.std() + EPS)
         n_samples = len(actions)
 
-        if self.verbosity >= 5:
+        if self.verbosity >= 8:
             self.logger.debug("start optimization loop")
         for _ in range(self.optimization_epochs):
             batch_idxs = np.random.choice(n_samples, self.batch_size, replace=False)
@@ -282,7 +282,7 @@ class PPO:
                             if "weight" in par_name:
                                 print(f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}")
 
-        if self.verbosity >= 5:
+        if self.verbosity >= 9:
             self.logger.debug("end optimization loop")
 
     def train(self, seed):
