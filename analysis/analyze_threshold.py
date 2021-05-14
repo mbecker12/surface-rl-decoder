@@ -2,6 +2,7 @@
 # Still some uncertainties in error rate (p_{err} or p_{err}^{one_layer})
 import os
 import subprocess
+import traceback
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,38 +12,22 @@ import yaml
 from evaluation.batch_evaluation import RESULT_KEY_COUNTS, RESULT_KEY_ENERGY, RESULT_KEY_EPISODE, RESULT_KEY_Q_VALUE_STATS, RESULT_KEY_RATES, batch_evaluation
 
 from distributed.model_util import choose_model, load_model
+# 69366	3	3	0.05	0.05
+# 69312	5	5	0.01	0.01
+# 69545	7	7	0.005	0.005
+# 69308	7	7	0.01	0.01
 
 job_ids = [
-    68181,
-    68182,
-    68183,
-    68184,
-    68185,
-    68186,
-    68187,
-    68188,
-    68189,
-    68190,
-    68191,
-    68192,
-    68193,
-    68194,
-    68195,
-    68196,
-    68197,
-    68198,
-    68199,
-    68200,
-    68201,
-    68202,
-    68203,
-    68204,
+    69366,
+    69312,
+    69545,
+    69308,
 ]
 
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
 
-do_copy = False
+do_copy = True
 if do_copy:
     print("Copy Data from Cluster")
     
@@ -70,8 +55,8 @@ df_all_stats = pd.DataFrame(columns=[
     "median_steps", "median_final_energy", "median_energy_diff"
     ])
 all_results_counter = 0
-n_episodes = 2048
-model_name = "simple_conv"
+n_episodes = 256
+model_name = "conv3d"
 eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
@@ -104,7 +89,10 @@ if run_evaluation:
                 model = choose_model(model_name, model_config)
                 model, _, _ = load_model(model, old_model_path, model_device=eval_device)
             except Exception as err:
-                print(err)
+                error_traceback = traceback.format_exc()
+                print("An error occurred!")
+                print(error_traceback)
+                
                 continue
             p_error_list = np.arange(start=0.001, stop=0.016, step=0.001)
             for p_err in p_error_list:
@@ -167,7 +155,7 @@ if run_evaluation:
                     ignore_index=True
                 )
                 
-    df_all_stats.to_csv("analysis/analysis_results2.csv")
+    df_all_stats.to_csv("analysis/analysis_results.csv")
 
 if load_eval_results:
     # migt need to fix indices and so on
