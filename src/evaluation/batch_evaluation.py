@@ -2,6 +2,7 @@
 Provide a script like function to perform evaluation
 on multiple episodes in parallel.
 """
+import os
 import logging
 from copy import deepcopy
 import traceback
@@ -20,6 +21,7 @@ from evaluation.eval_util import (
     get_energy_stats,
     get_intermediate_reward_stats,
     get_two_highest_q_values,
+    initialize_states_for_eval,
     prepare_step,
     prepare_user_episodes,
     reset_local_actions_and_qvalues,
@@ -77,6 +79,9 @@ def batch_evaluation(
     p_msmt=0.0,
     verbosity=0,
     rl_type="q",
+    post_run=False,
+    code_size=None,
+    stack_depth=None,
 ):
     """
     Run evaluation on multiple episodes.
@@ -94,15 +99,42 @@ def batch_evaluation(
     model.eval()
     # initialize environments for different episodes
     total_n_episodes = num_of_random_episodes + num_of_user_episodes
+
+    if code_size is not None:
+        os.environ["CONFIG_ENV_SIZE"] = str(code_size)
+    if stack_depth is not None:
+        os.environ["CONFIG_ENV_STACK_DEPTH"] = str(stack_depth)
+
     if environment_def is None or environment_def == "":
-        environment_def = SurfaceCode()
+        environment_def = SurfaceCode(code_size=code_size, stack_depth=stack_depth)
 
     env_set = EnvironmentSet(environment_def, total_n_episodes)
     code_size = env_set.code_size
     stack_depth = env_set.stack_depth
-    states = env_set.reset_all(
-        np.repeat(p_err, total_n_episodes), np.repeat(p_msmt, total_n_episodes)
-    )
+
+    if post_run:
+        print("Run Post-run analysis")
+        num_errors = int(np.ceil(p_err * code_size * code_size))
+        all_qubits, all_states = initialize_states_for_eval(
+            n_environments=total_n_episodes,
+            code_size=code_size,
+            stack_depth=stack_depth,
+            num_errors=num_errors
+        )
+        states = env_set.post_run_eval_reset_all(all_qubits, all_states)
+
+        # print(env_set.environments[0].state)
+        # print(env_set.environments[0].qubits)
+        # print(env_set.environments[0].actions[:10])
+        # print(env_set.environments[0].actual_errors)
+    else:
+        states = env_set.reset_all(
+            np.repeat(p_err, total_n_episodes), np.repeat(p_msmt, total_n_episodes)
+        )
+        # print(env_set.environments[0].state)
+        # print(env_set.environments[0].qubits)
+        # print(env_set.environments[0].actions[:10])
+        # print(env_set.environments[0].actual_errors)
 
     # # counts up to max_num_of_steps
     global_episode_steps = 0
@@ -377,6 +409,9 @@ def batch_evaluation(
     averages["averaging_terminals"] = terminals
 
     for i in range(total_n_episodes):
+        # TODO: find a way to count number of successful episodes
+        # mix of logical errors, remaining syndromes
+        # ...is excatly what ground state measures
         unique, counts = np.unique(actions_in_one_episode[i], return_counts=True)
         terminal_action_idx = np.argwhere(unique == -1)
         counts[terminal_action_idx] = 1
@@ -412,6 +447,12 @@ def batch_evaluation(
         averages["remaining_syndromes"][i] += n_syndromes
         averages["logical_errors"][i] += n_loops
     # end for; loop over all episodes one last time
+
+    print("End of Evaluation")
+    # print(env_set.environments[0].state)
+    # print(env_set.environments[0].qubits)
+    # print(env_set.environments[0].actions[:10])
+    # print(env_set.environments[0].actual_errors)
 
     avg_number_of_steps = np.mean(essentials["steps_per_episode"])
     avg_chose_correct_action_per_episode = np.mean(
