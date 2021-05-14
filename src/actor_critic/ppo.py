@@ -129,7 +129,11 @@ class PPO:
         self.tensorboard = SummaryWriter(
             os.path.join(summary_path, str(self.code_size), summary_date, "learner")
         )
+        tensorboard_string = "global config: " + str(global_config) + "\n"
+        self.tensorboard.add_text("run_info/hyper_parameters", tensorboard_string)
+
         self.tensorboard_step = 0
+        self.tensorboard_step_returns = 0
         self.received_data = 0
 
         self.policy_model_max_grad_norm = learner_args.get("policy_model_max_grad_norm")
@@ -210,6 +214,18 @@ class PPO:
                 current_timestep,
                 current_time,
             )
+
+            if self.verbosity >= 3:
+                # np.choice(returns,
+                random_sample_indices = np.random.choice(range(len(returns)), 10)
+                for random_i in random_sample_indices:
+                    self.tensorboard.add_scalars(
+                        "episodes/returns",
+                        {"return": returns[random_i]},
+                        self.tensorboard_step_returns,
+                        walltime=current_time
+                    )
+                    self.tensorboard_step_returns += 1
 
         actions = torch.tensor(
             [action_to_q_value_index(action, self.code_size) for action in actions],
