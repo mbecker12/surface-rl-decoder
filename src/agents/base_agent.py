@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 import numpy as np
 
 # pylint: disable=not-callable
@@ -11,14 +11,19 @@ from distributed.util import q_value_index_to_action
 class BaseAgent(nn.Module, ABC):
     def __init__(self):
         super().__init__()
-        self.code_size = None
+        self.size = None
+        self.device = None
 
-    def _format(self, states, device=None):
+    def _format(self, states):
+        assert self.device is not None
         x = states
         if not isinstance(x, torch.Tensor):
-            x = torch.tensor(x, device=device, dtype=torch.float32)
+            x = torch.tensor(x, device=self.device, dtype=torch.float32)
             if len(x.size()) == 1:
                 x = x.unsqueeze(0)
+        elif x.device != self.device:
+            x.to(self.device)
+
         return x
 
     @abstractmethod
@@ -36,23 +41,26 @@ class BaseAgent(nn.Module, ABC):
         logpas = dist.log_prob(actions)
         np_logpas = logpas.detach().cpu().numpy()
         is_exploratory = np_actions != np.argmax(np_logits, axis=1)
-        # TODO: convert action to 3-tuple
-        # TODO: define code_size
         np_action_tuples = np.array(
             [
-                q_value_index_to_action(ac, self.code_size)
+                q_value_index_to_action(ac, self.size)
                 for _, ac in enumerate(np_actions)
             ]
         )
         return np_action_tuples, np_logpas, is_exploratory, np_values
 
-    def select_action_ppo(self, states, return_logits=False):
-        logits, _ = self.forward(states)
+    def select_action_ppo(self, states, return_logits=False, return_values=False):
+        logits, values = self.forward(states)
         dist = torch.distributions.Categorical(logits=logits)
         action = dist.sample()
         detached_actions = action.detach().cpu().squeeze()
         if return_logits:
+            if return_values:
+                return detached_actions, logits, values
             return detached_actions, logits
+
+        if return_values:
+            return detached_actions, None, values
         return detached_actions
 
     def get_predictions_ppo(self, states, actions):
@@ -61,13 +69,20 @@ class BaseAgent(nn.Module, ABC):
         actions = actions.squeeze()
         logits, values = self.forward(states)
         dist = torch.distributions.Categorical(logits=logits)
+        # dist.to(self.device)
+        # actions.to(self.device)
         logpas = dist.log_prob(actions)
         entropies = dist.entropy()
         return logpas, entropies, values
 
-    def select_greedy_action_ppo(self, states, return_logits=False):
-        logits, _ = self.forward(states)
+    def select_greedy_action_ppo(self, states, return_logits=False, return_values=False):
+        logits, values = self.forward(states)
         action_index = np.argmax(logits.detach().squeeze().cpu().numpy(), axis=1)
         if return_logits:
+            if return_values:
+                return action_index, logits, values
             return action_index, logits
+
+        if return_values:
+            return action_index, None, values
         return action_index

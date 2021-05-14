@@ -4,6 +4,7 @@ infromation channels
 """
 from typing import Tuple
 import torch
+from torch import nn
 
 
 def interface(
@@ -16,3 +17,20 @@ def interface(
     x = state * plaquette_mask
     z = state * vertex_mask
     return x, z, state
+
+def create_convolution_sequence(input_list, kernel_size, padding, convolution=nn.Conv2d, device="cpu"):
+    modules = []
+
+    for i in range(len(input_list) - 1):
+        modules.append(
+            convolution(
+                int(input_list[i]),
+                int(input_list[i + 1]),
+                kernel_size=kernel_size,
+                padding=padding
+            )
+        )
+        # modules.append(nn.ReLU())
+    for layer in modules:
+        layer.to(device)
+    return modules

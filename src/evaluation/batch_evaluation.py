@@ -5,7 +5,9 @@ on multiple episodes in parallel.
 import os
 import logging
 from copy import deepcopy
+import traceback
 import numpy as np
+import torch
 from distributed.util import (
     action_to_q_value_index,
     q_value_index_to_action,
@@ -212,8 +214,8 @@ def batch_evaluation(
         assert energies.shape == (total_n_episodes,), energies.shape
         accumulators["energies"][:, global_episode_steps - 1] = energies
 
-        actions, q_values = reset_local_actions_and_qvalues(
-            essentials["terminal_actions"], essentials["empty_q_values"]
+        actions, q_values, values, entropies = reset_local_actions_and_qvalues(
+            essentials["terminal_actions"], essentials["empty_q_values"], essentials["empty_values"], essentials["empty_entropies"], rl_type=rl_type
         )
 
         # evaluate active episodes
@@ -223,25 +225,37 @@ def batch_evaluation(
             )
         elif "ppo" in rl_type.lower():
             if epsilon == 1:
-                tmp_actions, logits = model.select_greedy_action_ppo(
-                    torch_states, return_logits=True
+                tmp_actions, logits, tmp_values = model.select_greedy_action_ppo(
+                    torch_states, return_logits=True, return_values=True
                 )
             else:
-                tmp_actions, logits = model.select_action_ppo(
-                    torch_states, return_logits=True
+                tmp_actions, logits, tmp_values = model.select_action_ppo(
+                    torch_states, return_logits=True, return_values=True
                 )
 
+            # if len(tmp_actions) == 0:
+            #     break
             tmp_actions = np.array(
                 [q_value_index_to_action(action, code_size) for action in tmp_actions]
             )
-            tmp_q_values = logits.detach().numpy()
+            tmp_q_values = logits.detach().cpu().numpy()
+            dist = torch.distributions.Categorical(logits=logits)
+            tmp_entropies = dist.entropy().unsqueeze(1)
+            try:
+                values[is_active] = tmp_values.detach().cpu().numpy()
+                entropies[is_active] = tmp_entropies.detach().cpu().numpy()
+            except:
+                error_traceback = traceback.format_exc()
+                logger.error("Caught exception while trying to detach value and/or entropy array.")
+                logger.error(error_traceback)
+                logger.warning(f"{total_n_episodes=}, {is_active.shape=}, {tmp_values.shape=}, {tmp_entropies.shape=}, {logits.shape=}")
         else:
             logger.error(f"Error! Unknown RL type {rl_type}")
             raise Exception()
 
         actions[is_active] = tmp_actions
         q_values[is_active] = tmp_q_values
-
+        
         if verbosity >= 4:
             all_q_values[global_episode_steps - 1, :, :] = q_values
 
@@ -264,6 +278,7 @@ def batch_evaluation(
             total_n_episodes,
             num_of_random_episodes,
             num_of_user_episodes,
+            is_active
         )
 
         first_q_value, second_q_value = get_two_highest_q_values(active_q_values)
@@ -280,12 +295,19 @@ def batch_evaluation(
 
         # get info about max q values
         actions_in_one_episode[is_active, global_episode_steps - 1] = q_value_indices
-
+        if rl_type == "ppo":
+            active_values = values[is_active]
+            active_entropies = entropies[is_active]
+        else:
+            active_values = None
+            active_entropies = None
         (
             accumulators["q_value_aggregation"][is_active],
             accumulators["q_value_diff_aggregation"][is_active],
             accumulators["q_value_certainty_aggregation"][is_active],
             accumulators["terminal_q_value_aggregation"][is_active],
+            accumulators["values_aggregation"][is_active],
+            accumulators["entropy_aggregation"][is_active]
         ) = aggregate_q_value_stats(
             accumulators["q_value_aggregation"][is_active],
             accumulators["q_value_diff_aggregation"][is_active],
@@ -295,6 +317,10 @@ def batch_evaluation(
             second_q_value,
             theoretical_q_values[is_active],
             terminal_q_value,
+            values=active_values,
+            entropies=active_entropies,
+            values_aggregation=accumulators["values_aggregation"][is_active],
+            entropy_aggregation=accumulators["entropy_aggregation"][is_active]
         )
 
         # apply the chosen action
@@ -387,6 +413,8 @@ def batch_evaluation(
         # mix of logical errors, remaining syndromes
         # ...is excatly what ground state measures
         unique, counts = np.unique(actions_in_one_episode[i], return_counts=True)
+        terminal_action_idx = np.argwhere(unique == -1)
+        counts[terminal_action_idx] = 1
         most_common_qvalue_idx = np.argmax(counts)
         most_common_qvalue = unique[most_common_qvalue_idx]
         accumulators["common_actions"][i] = most_common_qvalue
@@ -473,9 +501,17 @@ def batch_evaluation(
     mean_q_value = np.mean(
         accumulators["q_value_aggregation"] / essentials["steps_per_episode"]
     )
-    mean_q_value_diff = np.mean(
-        accumulators["q_value_diff_aggregation"] / essentials["steps_per_episode"]
-    )
+    if rl_type == "q":
+        mean_q_value_diff = np.mean(
+            accumulators["q_value_diff_aggregation"] / essentials["steps_per_episode"]
+        )
+    elif rl_type == "ppo":
+        mean_q_value_diff = np.zeros_like(mean_q_value)
+        mean_values = np.mean(accumulators["values_aggregation"] / essentials["steps_per_episode"])
+        mean_entropies = np.mean(accumulators["entropy_aggregation"] / essentials["steps_per_episode"])
+    else:
+        raise Exception(f"RL Type {rl_type} is not supported!")
+
     std_q_value = np.std(
         accumulators["q_value_aggregation"] / essentials["steps_per_episode"]
     )
@@ -494,6 +530,7 @@ def batch_evaluation(
     # Make sure that it's at least a different action for different
     # state initializations.
     unique_actions = np.unique(accumulators["common_actions"])
+
     if not len(unique_actions) > 1:
         logger.debug(
             f"{accumulators['common_actions']=}, {accumulators['common_actions'].shape=}"
@@ -505,6 +542,27 @@ def batch_evaluation(
 
     if verbosity >= 4:
         all_q_values = all_q_values.flatten()
+
+    
+    if rl_type == "q":
+        q_value_result_dict = {
+            "mean_q_value": mean_q_value,
+            "mean_q_value_difference": mean_q_value_diff,
+            "std_q_value": std_q_value,
+            "q_value_certainty": q_value_certainty,
+            "avg_terminal_q_val": avg_terminal_q_value,
+            "median_terminal_q_val": median_terminal_q_value,
+        }
+    elif rl_type == "ppo":
+        q_value_result_dict = {
+            "mean_q_value": mean_q_value,
+            "std_q_value": std_q_value,
+            "q_value_certainty": q_value_certainty,
+            "avg_terminal_q_val": avg_terminal_q_value,
+            "median_terminal_q_val": median_terminal_q_value,
+            "mean_values": mean_values,
+            "mean_entropy": mean_entropies
+        }
 
     return (
         {
@@ -543,14 +601,7 @@ def batch_evaluation(
                 "remaining_syndromes_per_episode": avg_remaining_syndromes,
                 "median remaining_syndromes_per_episode": median_remaining_syndromes,
             },
-            RESULT_KEY_Q_VALUE_STATS: {
-                "mean_q_value": mean_q_value,
-                "mean_q_value_difference": mean_q_value_diff,
-                "std_q_value": std_q_value,
-                "q_value_certainty": q_value_certainty,
-                "avg_terminal_q_val": avg_terminal_q_value,
-                "median_terminal_q_val": median_terminal_q_value,
-            },
+            RESULT_KEY_Q_VALUE_STATS: q_value_result_dict,
         },
         {RESULT_KEY_HISTOGRAM_Q_VALUES: all_q_values},
     )

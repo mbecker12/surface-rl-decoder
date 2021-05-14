@@ -381,7 +381,8 @@ def prepare_step(global_steps, terminals, steps_per_episode, states, device):
     return global_steps, torch_states, is_active, steps_per_episode
 
 
-def reset_local_actions_and_qvalues(terminal_actions, empty_q_values):
+def reset_local_actions_and_qvalues(
+    terminal_actions, empty_q_values, empty_values, empty_entropies, rl_type="q"):
     """
     Fill up all actions with terminal actions as the predetermined default
     and set up the q values with all zero q values.
@@ -391,8 +392,13 @@ def reset_local_actions_and_qvalues(terminal_actions, empty_q_values):
     """
     actions = terminal_actions
     q_values = empty_q_values
+    if rl_type == "ppo":
+        values = empty_values
+        entropies = empty_entropies
 
-    return actions, q_values
+        return actions, q_values, values, entropies
+    
+    return actions, q_values, None, None
 
 
 def get_two_highest_q_values(q_values):
@@ -418,6 +424,10 @@ def aggregate_q_value_stats(
     second_q_value,
     theoretical_q_values,
     terminal_q_value,
+    values=None,
+    entropies=None,
+    values_aggregation=None,
+    entropy_aggregation=None
 ):
     """
     Add q value statistics to the aggregation variables.
@@ -429,11 +439,18 @@ def aggregate_q_value_stats(
     q_value_certainty_aggregation += q_value - second_q_value
     terminal_q_value_aggregation += terminal_q_value
 
+    if values is not None:
+        values_aggregation += values
+    if entropies is not None:
+        entropy_aggregation += entropies
+
     return (
         q_value_aggregation,
         q_value_diff_aggregation,
         q_value_certainty_aggregation,
         terminal_q_value_aggregation,
+        values_aggregation,
+        entropy_aggregation
     )
 
 
@@ -518,6 +535,7 @@ def check_correct_actions(
     total_n_episodes,
     num_of_random_episodes,
     num_of_user_episodes,
+    is_active
 ):
     """
     Check whether the proposed actions match the expected, most optimal
@@ -525,17 +543,18 @@ def check_correct_actions(
     """
     # check user-defined / expected actions
     # in user episodes
+    is_active_user_episode = is_active[is_active < num_of_user_episodes]
     correct_actions_all = np.array(
         [
             check_repeating_action(
                 actions[i],
                 expected_actions_per_episode[i - num_of_random_episodes],
                 len(expected_actions_per_episode[i - num_of_random_episodes]),
-            )
+            ) if (i - (total_n_episodes - num_of_user_episodes) in is_active_user_episode) else -1
             for i in range(total_n_episodes - num_of_user_episodes, total_n_episodes)
         ]
     )
-    correct_actions_aggregation += correct_actions_all
+    correct_actions_aggregation[is_active_user_episode] += correct_actions_all[correct_actions_all > -1]
 
     return correct_actions_aggregation
 

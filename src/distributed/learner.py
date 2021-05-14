@@ -132,6 +132,7 @@ def learner(args: Dict):
     model_config = extend_model_config(
         model_config, syndrome_size, stack_depth, device=device
     )
+    model_config["model_name"] = model_name
 
     logger.debug(
         "\nNetwork Config: \n\n" f"{yaml.dump(model_config, default_flow_style=False)}"
@@ -256,6 +257,28 @@ def learner(args: Dict):
             logger.info(f"Start Evaluation, Step {t+1}")
             count_to_eval = 0
 
+            if verbosity >= 6:
+                policy_params = list(policy_net.parameters())
+                n_layers = len(policy_params)
+                named_policy_params = policy_net.named_parameters()
+                grad_string = ""
+                for i, param in enumerate(policy_net.parameters()):
+                    grad_string += f"{param.grad.data.sum().item():.2e}, "
+                print(grad_string)
+                if verbosity >= 7:
+                    for i, (par_name, param) in enumerate(named_policy_params):
+                        if "transfomer.layers.0" in par_name: #sic!
+                            if "weight" in par_name:
+                                try:
+                                    print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
+                                except:
+                                    continue
+                        if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
+                            if "weight" in par_name:
+                                print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
+                    grad_string = ""
+                    print(f"{policy_net.parameters()=}")
+
             evaluation_start = time()
             final_result_dict, all_q_values = evaluate(
                 policy_net,
@@ -302,24 +325,17 @@ def learner(args: Dict):
             # monitor policy network parameters
             if verbosity >= 5:
                 policy_params = list(policy_net.parameters())
+                policy_named_params = list(policy_net.named_parameters())
                 n_layers = len(policy_params)
                 for i, param in enumerate(policy_params):
-                    if i == 0:
-                        first_layer_params = param.detach().cpu().numpy()
+                    if i % 2 == 0:
+                        layer_params = param.detach().cpu().numpy()
+                        param_name = policy_named_params[i][0]
                         tensorboard.add_histogram(
-                            "learner/first_layer",
-                            first_layer_params.reshape(-1, 1),
+                            f"learner/layer_{i}/{param_name}",
+                            layer_params.reshape(-1, 1),
                             tensorboard_step,
-                            walltime=current_time_tb,
-                        )
-
-                    if i == n_layers - 2:
-                        last_layer_params = param.detach().cpu().numpy()
-                        tensorboard.add_histogram(
-                            "learner/last_layer",
-                            last_layer_params.reshape(-1, 1),
-                            tensorboard_step,
-                            walltime=current_time_tb,
+                            walltime=current_time,
                         )
 
         if time() - heart > heartbeat_interval:

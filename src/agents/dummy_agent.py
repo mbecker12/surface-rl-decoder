@@ -19,6 +19,7 @@ class DummyModel(BaseAgent):
         self.syndrome_size = config["syndrome_size"]
         self.code_size = self.syndrome_size - 1
         self.stack_depth = config["stack_depth"]
+        self.size = config["code_size"]
         # self.code_size = self.syndrome_size - 1
         num_actions_per_qubit = config["num_actions_per_qubit"]
         layer1_size = config["layer1_size"]
@@ -42,16 +43,16 @@ class DummyModel(BaseAgent):
         """
         Bog-standard forward method for torch neural networks
         """
-        x = self._format(x, device=self.device)
+        x = self._format(x)
         # flatten the syndrome stack as a dummy operation to make the shapes fit
-        x = x.view((-1, self.stack_depth * self.syndrome_size * self.syndrome_size))
-        x = F.relu(self.lin1(x))
-        x = F.relu(self.lin2(x))
+        x0 = x.view((-1, self.stack_depth * self.syndrome_size * self.syndrome_size))
+        x1 = F.relu(self.lin1(x0))
+        x2 = F.relu(self.lin2(x1))
 
         if "ppo" in self.rl_type.lower():
-            v = self.value_output(x)
-            x = self.output(x)
-            return x, v
+            v0 = self.value_output(x2) * 100
+            x_out = self.output(x2)
+            return x_out, v0
         else:
-            x = self.output(x)
-            return x
+            x_out = self.output(x2)
+            return x_out
