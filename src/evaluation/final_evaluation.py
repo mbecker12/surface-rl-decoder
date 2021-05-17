@@ -5,6 +5,7 @@ the truth value of different if statements to perform different tests.
 """
 from time import time
 import os
+import sys
 import glob
 import yaml
 import argparse
@@ -15,7 +16,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 import numpy as np
 from iniparser import Config
 import matplotlib.pyplot as plt
-from distributed.model_util import choose_model, load_model
+from distributed.model_util import choose_model, choose_old_model, load_model
 from distributed.learner_util import (
     log_evaluation_data,
     safe_append_in_dict,
@@ -25,6 +26,7 @@ from distributed.util import select_actions
 from surface_rl_decoder.surface_code_util import (
     STATE_MULTIPLIER,
     TERMINAL_ACTION,
+    check_final_state,
     compute_intermediate_reward,
     compute_layer_diff,
     create_syndrome_output_stack,
@@ -53,8 +55,13 @@ from evaluation.batch_evaluation import (
     RESULT_KEY_EPISODE,
 )
 
+import warnings
+
+warnings.filterwarnings("ignore",category=UserWarning)
+warnings.filterwarnings("ignore",category=RuntimeWarning)
+
 # pylint: disable=too-many-locals, too-many-statements
-def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None):
+def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None, block=False, verbosity=0):
     """
     The main program to be executed.
     Visualizes the surface code before and after
@@ -65,7 +72,7 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
     # pylint: disable=redefined-outer-name
     surface_code = SurfaceCode(code_size=code_size, stack_depth=stack_depth)
     code_size = surface_code.code_size
-    state, _, _ = create_user_eval_state(surface_code, 0, discount_factor_gamma=0.95)
+    # state, _, _ = create_user_eval_state(surface_code, 0, discount_factor_gamma=0.95)
 
     surface_code.reset()
     stack_depth = surface_code.stack_depth
@@ -74,16 +81,17 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
     state = surface_code.state
     p_err = surface_code.p_error
     p_msmt = surface_code.p_msmt
-    print(f"{p_err=}, {p_msmt=}")
+    if verbosity: print(f"{p_err=}, {p_msmt=}")
 
     states = state[None, :, :, :]
 
     initial_x_errors = np.argwhere(surface_code.qubits[-1, :, :] == 1)
     initial_y_errors = np.argwhere(surface_code.qubits[-1, :, :] == 2)
     initial_z_errors = np.argwhere(surface_code.qubits[-1, :, :] == 3)
-    print(f"{initial_x_errors=}")
-    print(f"{initial_y_errors=}")
-    print(f"{initial_z_errors=}")
+    if verbosity:
+        print(f"{initial_x_errors=}")
+        print(f"{initial_y_errors=}")
+        print(f"{initial_z_errors=}")
     terminal = False
     step_counter = 0
     energies = []
@@ -92,7 +100,8 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
     terminal_energies = []
     n_syndromes_created = []
     n_syndromes_annihilated = []
-    surface_code.render()
+    surface_code.render(block=block)
+    action_history = []
     while not terminal:
         step_counter += 1
         if step_counter > 10:
@@ -107,13 +116,14 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
             state == surface_code.state
         ), f"{state[-1]}, {surface_code.state[-1]}"
         action = actions[0]
+        action_history.append(action)
         (
             next_state,
             reward,
             terminal,
             _,
         ) = surface_code.step(actions[0])
-        print(f"{action}")
+        if verbosity: print(f"{action}")
 
         if action[-1] != TERMINAL_ACTION:
             assert np.all(next_state == surface_code.next_state)
@@ -132,17 +142,25 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
             n_syndromes_annihilated.append(np.sum(diffs > 0))
             n_syndromes_created.append(np.sum(diffs < 0))
             inter_rew = compute_intermediate_reward(state, next_state, stack_depth)
-            print(f"{inter_rew=}")
-            print(f"{energy=}")
+            if verbosity: print(f"{inter_rew=}")
+            if verbosity: print(f"{energy=}")
             inter_rews.append(inter_rew)
-            print(f"{np.min(state)=}, {np.max(state)=}")
+            if verbosity: print(f"{np.min(state)=}, {np.max(state)=}")
             assert inter_rew == reward, f"{inter_rew=}, {reward=}"
 
         state = next_state
         states = state[None, :, :, :]
 
-        print("")
+        if verbosity: print("")
         # surface_code.render()
+
+    final_state, is_ground_state, (n_syndromes, n_loops) = check_final_state(
+        surface_code.actual_errors,
+        action_history,
+        surface_code.vertex_mask,
+        surface_code.plaquette_mask,
+    )
+
 
     (
         next_state,
@@ -153,10 +171,11 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
     if reward != rewards[-1]:
         rewards.append(reward)
 
-    if len(terminal_energies) != 0:
-        print(f"Terminal energy: {terminal_energies[0]}")
-    else:
-        print("Episode was never terminated by the agent.")
+    if verbosity:
+        if len(terminal_energies) != 0:
+            print(f"Terminal energy: {terminal_energies[0]}")
+        else:
+            print("Episode was never terminated by the agent.")
 
     syndromes_annihilated = np.sum(n_syndromes_annihilated)
     syndromes_created = np.sum(n_syndromes_created)
@@ -164,37 +183,41 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
     syndromes_created /= syndromes_normalization
     syndromes_annihilated /= syndromes_normalization
 
-    print(f"Syndromes annihilated per step: {syndromes_annihilated}")
-    print("")
+    if verbosity:
+        print(f"Syndromes annihilated per step: {syndromes_annihilated}")
+        print("")
 
-    print(f"Final energy: {energies[-1]}")
-    print(f"Net energy difference: {energies[-1] - energies[0]}")
+        print(f"Final energy: {energies[-1]}")
+        print(f"Net energy difference: {energies[-1] - energies[0]}")
     # need to punish up and down movement in energy,
     # resulting from repeating one action all the time
     energy_spikes = count_spikes(energies)
 
     num_energy_raises = len(np.argwhere(np.diff(energies) > 0))
-    print(f"Number of energy raises: {2 * num_energy_raises / len(energies)}")
-    print("")
+    if verbosity:
+        print(f"Number of energy raises: {2 * num_energy_raises / len(energies)}")
+        print("")
 
     inter_rews = np.array(inter_rews)
     inter_rew_spikes = count_spikes(inter_rews)
-    print(f"Intermediate reward spikes: {inter_rew_spikes}")
+    if verbosity:
+        print(f"Intermediate reward spikes: {inter_rew_spikes}")
 
     num_negative_inter_rewards = len(np.argwhere(inter_rews < 0))
-    print(
-        "Number of negative intermediate rewards: "
-        f"{2 * num_negative_inter_rewards / len(inter_rews)}"
-    )
-    print(
-        f"Average positive intermediate reward: {np.mean(inter_rews[inter_rews > 0])}"
-    )
-    print(f"Min inter reward: {np.min(inter_rews)}")
+    if verbosity:
+        print(
+            "Number of negative intermediate rewards: "
+            f"{2 * num_negative_inter_rewards / len(inter_rews)}"
+        )
+        print(
+            f"Average positive intermediate reward: {np.mean(inter_rews[inter_rews > 0])}"
+        )
+        print(f"Min inter reward: {np.min(inter_rews)}")
 
     if energy_spikes < 1 or inter_rew_spikes < 1 or syndromes_annihilated != 0.5:
         plt.plot(energies)
         plt.title("Energy")
-        plt.show()
+        plt.show(block=block)
 
         plt.plot(inter_rews, label="inter. reward")
         plt.plot(
@@ -203,9 +226,11 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
         )
         plt.title("Rewards")
         plt.legend()
-        plt.show()
+        plt.show(block=block)
 
-        surface_code.render()
+        surface_code.render(block=block)
+
+    return is_ground_state, n_syndromes, n_loops
 
 
 if __name__ == "__main__":
@@ -257,7 +282,8 @@ if __name__ == "__main__":
     network_config["device"] = eval_device
     network_name = network_config["name"]
 
-    model = choose_model(network_name, network_config)
+    # model = choose_model(network_name, network_config)
+    model = choose_old_model(network_name, network_config)
     model, *_ = load_model(model, old_model_path=model_file, model_device=eval_device)
 
     # check model layers, conv filters
@@ -301,11 +327,47 @@ if __name__ == "__main__":
         # and then act with (2, 2, 2) repeatedly on the resulting state
 
     # perform the main evaluation
-    if False:
-        main_evaluation(model, eval_device, code_size=code_size, stack_depth=stack_depth)
+    if True:
+        n_episodes = 250
+        n_ground_states = 0
+        n_valid_ground_states = 0
+        n_ep_w_syndromes = 0
+        n_ep_w_loops = 0
+        n_valid_episodes = 0
+        n_valid_non_trivial_loops = 0
+        for i in range(n_episodes):
+            sys.stdout.write(f"\r{i+1:05d} / {n_episodes:05d}")
+            is_ground_state, n_syndromes, n_loops = main_evaluation(model, eval_device, code_size=code_size, stack_depth=stack_depth)
+            if n_syndromes == 0:
+                n_valid_episodes += 1
+                if is_ground_state:
+                    n_valid_ground_states += 1
+                else:
+                    n_valid_non_trivial_loops += 1
+            
+            if is_ground_state:
+                n_ground_states += 1
+            if n_syndromes > 0:
+                n_ep_w_syndromes += 1
+            if int(n_loops) > 0:
+                n_ep_w_loops += 1
+                if is_ground_state:
+                    print("Something's wrong, I can feel it.")
+        print("\n")
+
+        print(
+            f"\n{n_episodes=}, {n_ground_states=}, "
+            f"episodes with syndromes={n_ep_w_syndromes} "
+            f"episodes with non-trivial loops={n_ep_w_loops}\n"
+            f"\nValid episodes: {n_valid_episodes}, "
+            f"Valid ground state episodes: {n_valid_ground_states}, "
+            f"Fraction of valid ground states: {n_valid_ground_states / n_valid_episodes:.4f}, "
+            f"Valid Success Rate: {1.0 - n_valid_ground_states / n_valid_episodes:.4f}, "
+            f"Valid episodes w/ non-trivial loops: {n_valid_non_trivial_loops}"
+        )
 
     # test integration with evaluation routine in the real program
-    if True:
+    if False:
         for t in range(1):
             final_result_dict = {
                 RESULT_KEY_EPISODE: {},
@@ -321,7 +383,7 @@ if __name__ == "__main__":
                     model,
                     "",
                     eval_device,
-                    num_of_random_episodes=256,
+                    num_of_random_episodes=64,
                     num_of_user_episodes=0,
                     max_num_of_steps=40,
                     discount_intermediate_reward=0.3,
