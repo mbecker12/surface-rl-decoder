@@ -502,7 +502,7 @@ class SurfaceCode(gym.Env):
         self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
 
         if debug:
-            print("CAUTION! SURFACE CODE IS SET TO IN DEBUG MODE!")
+            print("CAUTION! SURFACE CODE IS SET TO DEBUG MODE!")
             self.actual_errors = np.zeros_like(self.qubits)
             self.actual_errors[-1, 1, 1] = 1
             true_syndrome = create_syndrome_output_stack(
