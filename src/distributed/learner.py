@@ -2,6 +2,7 @@
 Define the learner process in the multi-process
 reinforcement learning setup.
 """
+import json
 import os
 from time import time
 import traceback
@@ -137,8 +138,28 @@ def learner(args: Dict):
     logger.debug(
         "\nNetwork Config: \n\n" f"{yaml.dump(model_config, default_flow_style=False)}"
     )
-    policy_net = choose_model(model_name, model_config)
-    target_net = choose_model(model_name, model_config)
+
+    base_model_config_path = args["base_model_config_path"]
+    base_model_path = args["base_model_path"]
+
+    # prepare Transfer learning, if enabled
+    if len(base_model_config_path) > 1:
+        assert code_size == 5, "Unfortunately, transfer learning is only enabled for d=5 so far. :("
+        logger.info("Prepare transfer learning!")
+        with open(base_model_config_path, "r") as json_file:
+            base_model_config = json.load(json_file)["simple_conv"]
+
+        base_model_config = extend_model_config(
+            base_model_config, syndrome_size, stack_depth, device=device
+        )
+    else:
+        base_model_config = None
+
+    print("\n\n")
+    print(base_model_config)
+
+    policy_net = choose_model(model_name, model_config, model_path_base=base_model_path, model_config_base=base_model_config)
+    target_net = choose_model(model_name, model_config, model_path_base=base_model_path, model_config_base=base_model_config)
 
     criterion = nn.MSELoss(reduction="none")
 
@@ -263,7 +284,10 @@ def learner(args: Dict):
                 named_policy_params = policy_net.named_parameters()
                 grad_string = ""
                 for i, param in enumerate(policy_net.parameters()):
-                    grad_string += f"{param.grad.data.sum().item():.2e}, "
+                    if param.grad is not None:
+                        grad_string += f"{param.grad.data.sum().item():.2e}, "
+                    else:
+                        grad_string += "None, "
                 print(grad_string)
                 if verbosity >= 7:
                     for i, (par_name, param) in enumerate(named_policy_params):

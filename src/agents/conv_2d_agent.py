@@ -71,14 +71,23 @@ class Conv2dAgent(BaseAgent):
         self.kernel_size = int(config.get("kernel_size"))
         self.padding_size = int(config.get("padding_size"))
         self.network_size = str(config.get("network_size"))
-        assert self.network_size in NETWORK_SIZES
+        assert self.network_size in NETWORK_SIZES, f"{self.network_size=}"
+
+        self.use_batch_norm = int(config.get("use_batch_norm"))
 
         self.use_lstm = int(config.get("use_lstm",0))
         self.use_rnn = int(config.get("use_rnn", 0))
         self.use_transformer = int(config.get("use_gtrxl", 0))
         self.use_transformer += int(config.get("use_transformer", 0))
         self.use_gru = int(config.get("use_gru", 0))
+        self.use_gru += self.use_rnn
         self.use_all_rnn_layers = int(config.get("use_all_rnn_layers", 0))
+
+        self.activation_function_string = config.get("activation_function", "relu")
+        if self.activation_function_string == "relu":
+            self.activation_fn = F.relu
+        elif self.activation_function_string == "silu":
+            self.activation_fn = F.silu
 
         if self.use_transformer:
             self.gtrxl_heads =  int(config.get("gtrxl_heads"))
@@ -111,7 +120,9 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size
             )
             layer_count += 1
-            self.norm1 = nn.BatchNorm2d(input_channel_list[layer_count])
+            if self.use_batch_norm:
+                self.norm1 = nn.BatchNorm2d(input_channel_list[layer_count])
+
             self.conv3 = nn.Conv2d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
@@ -126,7 +137,8 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size
             )
             layer_count += 1
-            self.norm2 = nn.BatchNorm2d(input_channel_list[layer_count])
+            if self.use_batch_norm:
+                self.norm2 = nn.BatchNorm2d(input_channel_list[layer_count])
             
         if self.network_size in NETWORK_SIZES[1:]:
             self.conv5 = nn.Conv2d(
@@ -150,7 +162,8 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size
             )
             layer_count += 1
-            self.norm3 = nn.BatchNorm2d(input_channel_list[layer_count])
+            if self.use_batch_norm:
+                self.norm3 = nn.BatchNorm2d(input_channel_list[layer_count])
             
         if self.network_size in NETWORK_SIZES[2:]:
             self.conv8 = nn.Conv2d(
@@ -167,7 +180,8 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size
             )
             layer_count += 1
-            self.norm4 = nn.BatchNorm2d(input_channel_list[layer_count])
+            if self.use_batch_norm:
+                self.norm4 = nn.BatchNorm2d(input_channel_list[layer_count])
 
         self.output_channels = input_channel_list[-1]
 
@@ -184,13 +198,15 @@ class Conv2dAgent(BaseAgent):
                 self.lstm_output_size,
                 num_layers=self.lstm_num_layers,
                 bidirectional=self.lstm_is_bidirectional,
-                batch_first=True,
+                batch_first=True
             )
             lstm_total_output_size = self.lstm_output_size * self.lstm_num_directions
             if self.use_all_rnn_layers:
                 lstm_total_output_size *= self.stack_depth
 
             lin_layer_count = 0
+            if self.use_batch_norm:
+                self.norm5 = nn.BatchNorm1d(lstm_total_output_size)
             self.lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
     
         elif self.use_transformer:
@@ -210,14 +226,34 @@ class Conv2dAgent(BaseAgent):
                 gtrxl_total_output_size *= self.stack_depth
 
             lin_layer_count = 0
+            if self.use_batch_norm:
+                self.norm5 = nn.BatchNorm1d(gtrxl_total_output_size)
             self.lin0 = nn.Linear(gtrxl_total_output_size, int(input_neuron_numbers[0]))
         
         elif self.use_gru:
-            print("GRU not supported yet")
+            self.gru_layer = nn.GRU(
+                self.cnn_dimension,
+                self.lstm_output_size,
+                num_layers=self.lstm_num_layers,
+                bidirectional=self.lstm_is_bidirectional,
+                batch_first=True
+            )
+
+            lstm_total_output_size = self.lstm_output_size * self.lstm_num_directions
+            if self.use_all_rnn_layers:
+                lstm_total_output_size *= self.stack_depth
+
+            lin_layer_count = 0
+            if self.use_batch_norm:
+                self.norm5 = nn.BatchNorm1d(lstm_total_output_size)
+            self.lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
+            print("Use GRU")
 
         else:
             print("Not using any recurrent module")
             lin_layer_count = 0
+            if self.use_batch_norm:
+                self.norm5 = nn.BatchNorm1d(self.cnn_dimension*self.stack_depth)
             self.lin0 = nn.Linear(self.cnn_dimension*self.stack_depth, int(input_neuron_numbers[0]))
 
         if self.network_size in NETWORK_SIZES:
@@ -248,23 +284,38 @@ class Conv2dAgent(BaseAgent):
             -1, self.input_channels, (self.size + 1), (self.size + 1)
         )  # convolve both
         if self.network_size in NETWORK_SIZES:
-            both = F.silu(self.conv1(both))
+            both = self.activation_fn(self.conv1(both))
             both = self.conv2(both)
-            both = F.silu(self.norm1(both))
-            both = F.silu(self.conv3(both))
+
+            if self.use_batch_norm:
+                both = self.activation_fn(self.norm1(both))
+            else:
+                both = self.activation_fn(both)
+            
+
+            both = self.activation_fn(self.conv3(both))
             both = self.conv4(both)
-            both = F.silu(self.norm2(both))
+            if self.use_batch_norm:
+                both = self.activation_fn(self.norm2(both))
+            else:
+                both = self.activation_fn(both)
             
         if self.network_size in NETWORK_SIZES[1:]:
-            both = F.silu(self.conv5(both))
-            both = F.silu(self.conv6(both))
+            both = self.activation_fn(self.conv5(both))
+            both = self.activation_fn(self.conv6(both))
             both = self.conv7(both)
-            both = F.silu(self.norm3(both))
+            if self.use_batch_norm:
+                both = self.activation_fn(self.norm3(both))
+            else:
+                both = self.activation_fn(both)
             
         if self.network_size in NETWORK_SIZES[2:]:
-            both = F.silu(self.conv8(both))
+            both = self.activation_fn(self.conv8(both))
             both = self.conv9(both)
-            both = F.silu(self.norm4(both))
+            if self.use_batch_norm:
+                both = self.activation_fn(self.norm4(both))
+            else:
+                both = self.activation_fn(both)
         
         # convert the data back to <batch_size> samples of syndrome volumes
         # with <stack_depth> layers
@@ -287,15 +338,27 @@ class Conv2dAgent(BaseAgent):
             else:
                 output = output.permute(1, 0, 2)
 
+        elif self.use_gru:
+            output, _h = self.gru_layer(complete)
+
+            if not self.use_all_rnn_layers:
+                output = output[:,-1,:]
+
         else:
             output = complete.view(batch_size, -1)
 
-        output = output.view(batch_size, -1)
-        complete = F.silu(self.lin0(output))
+        # print(f"{output.shape=}, {type(output)=}")
+        output = output.reshape(batch_size, -1)
+        complete = self.lin0(output)
+        if self.use_batch_norm:
+            complete = self.activation_fn(self.norm5(complete))
+        else:
+            complete = self.activation_fn(complete)
+
         if self.network_size in NETWORK_SIZES:
-            complete = F.silu(self.lin1(complete))
+            complete = self.activation_fn(self.lin1(complete))
         if self.network_size in NETWORK_SIZES[2:]:
-            complete = F.silu(self.lin2(complete))
+            complete = self.activation_fn(self.lin2(complete))
 
         final_output = self.output_layer(complete)
         return final_output

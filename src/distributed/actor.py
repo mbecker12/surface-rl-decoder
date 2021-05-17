@@ -2,6 +2,7 @@
 Define the actor process for exploration of the environment in
 reinforcement learning.
 """
+import json
 import os
 from copy import deepcopy
 from time import time
@@ -158,7 +159,23 @@ def actor(args):
     model_config = extend_model_config(
         model_config, state_size, stack_depth, device=device
     )
-    model = choose_model(model_name, model_config)
+    base_model_config_path = args["base_model_config_path"]
+    base_model_path = args["base_model_path"]
+
+    # prepare Transfer learning, if enabled
+    if len(base_model_config_path) > 1:
+        assert code_size == 5, "Unfortunately, transfer learning is only enabled for d=5 so far. :("
+        logger.info("Prepare transfer learning!")
+        with open(base_model_config_path, "r") as json_file:
+            base_model_config = json.load(json_file)["simple_conv"]
+
+        base_model_config = extend_model_config(
+            base_model_config, state_size, stack_depth, device=device
+        )
+    else:
+        base_model_config = None
+
+    model = choose_model(model_name, model_config, model_path_base=base_model_path, model_config_base=base_model_config)
 
     if load_model_flag:
         model, _, _ = load_model(model, old_model_path)
