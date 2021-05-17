@@ -267,13 +267,20 @@ def learner(args: Dict):
                 print(grad_string)
                 if verbosity >= 7:
                     for i, (par_name, param) in enumerate(named_policy_params):
-                        if "transfomer.layers.0" in par_name: #sic!
+                        if "transfomer.layers.0" in par_name:  # sic!
                             if "weight" in par_name:
                                 try:
                                     print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
                                 except:
                                     continue
-                        if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
+                        if i in (
+                            0,
+                            int(n_layers // 2),
+                            n_layers - 4,
+                            n_layers - 3,
+                            n_layers - 2,
+                            n_layers - 1,
+                        ):
                             if "weight" in par_name:
                                 print(f"{par_name}, {param[0][0]}, {param[-1][0]}")
                     grad_string = ""

@@ -28,6 +28,7 @@ class MultiprocessEnv:
     about the suggested action and performs a step in the gym
     environment.
     """
+
     def __init__(self, env_args, worker_args, queues) -> None:
         self.num_cuda_workers = env_args["num_cuda_actors"]
         self.num_cpu_workers = env_args["num_cpu_actors"]

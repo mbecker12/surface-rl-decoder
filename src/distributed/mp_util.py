@@ -267,6 +267,7 @@ def configure_processes(rl_type="q_learning"):
 
     return actor_args, mem_args, learner_args, env_args, global_config, queues
 
+
 def add_model_size(config, config_file_path):
     if "slim" in config_file_path:
         config["network_size"] = "slim"

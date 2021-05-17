@@ -42,10 +42,7 @@ class BaseAgent(nn.Module, ABC):
         np_logpas = logpas.detach().cpu().numpy()
         is_exploratory = np_actions != np.argmax(np_logits, axis=1)
         np_action_tuples = np.array(
-            [
-                q_value_index_to_action(ac, self.size)
-                for _, ac in enumerate(np_actions)
-            ]
+            [q_value_index_to_action(ac, self.size) for _, ac in enumerate(np_actions)]
         )
         return np_action_tuples, np_logpas, is_exploratory, np_values
 
@@ -75,7 +72,9 @@ class BaseAgent(nn.Module, ABC):
         entropies = dist.entropy()
         return logpas, entropies, values
 
-    def select_greedy_action_ppo(self, states, return_logits=False, return_values=False):
+    def select_greedy_action_ppo(
+        self, states, return_logits=False, return_values=False
+    ):
         logits, values = self.forward(states)
         action_index = np.argmax(logits.detach().squeeze().cpu().numpy(), axis=1)
         if return_logits:

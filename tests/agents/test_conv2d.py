@@ -50,8 +50,9 @@ def test_conv2d_agent_w_opposite_split_toggle():
     output = model(state)
     for param_tensor in model.state_dict():
         print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-    
+
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
+
 
 def test_conv2d_agent_lstm():
     model_name = "conv2d"
@@ -74,6 +75,7 @@ def test_conv2d_agent_lstm():
     state = torch.tensor(state, dtype=torch.float32)
     output = model(state)
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
+
 
 def test_conv2d_agent_gtrxl():
     model_name = "conv2d"

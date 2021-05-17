@@ -11,7 +11,7 @@ def test_conv3d_agent():
     with open(model_conf_file_path) as model_conf_file:
         model_config = json.load(model_conf_file)[model_name]
     model_config = add_model_size(model_config, model_conf_file_path)
-    
+
     syndrome_size = 6
     code_size = syndrome_size - 1
     stack_depth = 8
@@ -27,9 +27,10 @@ def test_conv3d_agent():
 
     for param_tensor in model.state_dict():
         print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-    
+
     # assert 0
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
+
 
 def test_conv3d_agent_slim():
     model_name = "conv3d"
@@ -37,7 +38,7 @@ def test_conv3d_agent_slim():
     with open(model_conf_file_path) as model_conf_file:
         model_config = json.load(model_conf_file)[model_name]
     model_config = add_model_size(model_config, model_conf_file_path)
-    
+
     syndrome_size = 6
     code_size = syndrome_size - 1
     stack_depth = 8
@@ -53,9 +54,10 @@ def test_conv3d_agent_slim():
 
     for param_tensor in model.state_dict():
         print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-    
+
     # assert 0
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
+
 
 def test_conv3d_agent_large():
     model_name = "conv3d"
@@ -63,7 +65,7 @@ def test_conv3d_agent_large():
     with open(model_conf_file_path) as model_conf_file:
         model_config = json.load(model_conf_file)[model_name]
     model_config = add_model_size(model_config, model_conf_file_path)
-    
+
     syndrome_size = 6
     code_size = syndrome_size - 1
     stack_depth = 8
@@ -79,7 +81,7 @@ def test_conv3d_agent_large():
 
     for param_tensor in model.state_dict():
         print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-    
+
     # assert 0
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
 
@@ -113,12 +115,13 @@ def test_conv3d_agent_w_opposite_split_toggle():
 
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
 
+
 def test_conv3d_agent_ppo():
     model_name = "conv3d"
     for model_conf_file_path in (
         "src/config/model_spec/conv_agents_slim.json",
         "src/config/model_spec/conv_agents.json",
-        "src/config/model_spec/conv_agents_large.json"
+        "src/config/model_spec/conv_agents_large.json",
     ):
         with open(model_conf_file_path) as model_conf_file:
             model_config = json.load(model_conf_file)[model_name]
@@ -142,6 +145,6 @@ def test_conv3d_agent_ppo():
 
         for param_tensor in model.state_dict():
             print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-        
+
         # assert 0
         assert output.shape == (batch_size, 3 * code_size * code_size + 1)

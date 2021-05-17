@@ -445,7 +445,9 @@ class SurfaceCode(gym.Env):
         error_mask = (uniform_random_vector < self.p_msmt).astype(np.uint8)
 
         # take into account positions of vertices and plaquettes
-        error_mask = np.multiply(error_mask, np.add(self.plaquette_mask, self.vertex_mask))
+        error_mask = np.multiply(
+            error_mask, np.add(self.plaquette_mask, self.vertex_mask)
+        )
 
         # where an error occurs, flip the true syndrome measurement
         faulty_syndrome = np.where(error_mask > 0, 1 - true_syndrome, true_syndrome)
@@ -502,7 +504,9 @@ class SurfaceCode(gym.Env):
         self.qubits = copy_array_values(self.actual_errors)
         return self.state
 
-    def initialize_hidden_quantities(self, qubits, state, p_error=-1, p_msmt=-1, syndrome_errors=None):
+    def initialize_hidden_quantities(
+        self, qubits, state, p_error=-1, p_msmt=-1, syndrome_errors=None
+    ):
         self.reset(p_error=0, p_msmt=0)
         self.ground_state = True
         if p_msmt >= 0:
