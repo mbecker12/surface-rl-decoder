@@ -119,7 +119,7 @@ def batch_evaluation(
             n_environments=total_n_episodes,
             code_size=code_size,
             stack_depth=stack_depth,
-            num_errors=num_errors
+            num_errors=num_errors,
         )
         states = env_set.post_run_eval_reset_all(all_qubits, all_states)
 

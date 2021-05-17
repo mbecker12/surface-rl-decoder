@@ -213,8 +213,8 @@ if __name__ == "__main__":
     # if statements (if True/False).
     # pylint: disable=using-constant-test
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', "--code_size", metavar="d", type=str)
-    parser.add_argument('-H', "--stack_depth", metavar="H", type=str)
+    parser.add_argument("-d", "--code_size", metavar="d", type=str)
+    parser.add_argument("-H", "--stack_depth", metavar="H", type=str)
     args = parser.parse_args()
 
     cfg = Config()
@@ -302,7 +302,9 @@ if __name__ == "__main__":
 
     # perform the main evaluation
     if False:
-        main_evaluation(model, eval_device, code_size=code_size, stack_depth=stack_depth)
+        main_evaluation(
+            model, eval_device, code_size=code_size, stack_depth=stack_depth
+        )
 
     # test integration with evaluation routine in the real program
     if True:
@@ -329,7 +331,7 @@ if __name__ == "__main__":
                     p_msmt=0.0,
                     verbosity=5,
                     code_size=code_size,
-                    stack_depth=stack_depth
+                    stack_depth=stack_depth,
                 )
 
                 for category_name, category in eval_results.items():
