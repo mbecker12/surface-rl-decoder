@@ -7,6 +7,7 @@ from time import time
 import os
 import glob
 import yaml
+import argparse
 
 # pylint: disable=not-callable
 import torch
@@ -53,7 +54,7 @@ from evaluation.batch_evaluation import (
 )
 
 # pylint: disable=too-many-locals, too-many-statements
-def main_evaluation(model, device, epsilon=0.0):
+def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None):
     """
     The main program to be executed.
     Visualizes the surface code before and after
@@ -62,7 +63,7 @@ def main_evaluation(model, device, epsilon=0.0):
     intermediate rewards.
     """
     # pylint: disable=redefined-outer-name
-    surface_code = SurfaceCode()
+    surface_code = SurfaceCode(code_size=code_size, stack_depth=stack_depth)
     code_size = surface_code.code_size
     state, _, _ = create_user_eval_state(surface_code, 0, discount_factor_gamma=0.95)
 
@@ -211,6 +212,11 @@ if __name__ == "__main__":
     # Contains different tests which can be switched on or off by different
     # if statements (if True/False).
     # pylint: disable=using-constant-test
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', "--code_size", metavar="d", type=str)
+    parser.add_argument('-H', "--stack_depth", metavar="H", type=str)
+    args = parser.parse_args()
+
     cfg = Config()
     _config = cfg.scan(".", True).read()
     config = cfg.config_rendered.get("eval_config")
@@ -219,6 +225,11 @@ if __name__ == "__main__":
     env_config = _env_config.get("env")
     stack_depth = int(env_config.get("stack_depth"))
     code_size = int(env_config.get("size"))
+
+    if args.code_size is not None:
+        code_size = int(args.code_size)
+    if args.stack_depth is not None:
+        stack_depth = int(args.stack_depth)
 
     eval_device = eval_config.get("device", "cpu")
 
@@ -290,11 +301,11 @@ if __name__ == "__main__":
         # and then act with (2, 2, 2) repeatedly on the resulting state
 
     # perform the main evaluation
-    if True:
-        main_evaluation(model, eval_device)
+    if False:
+        main_evaluation(model, eval_device, code_size=code_size, stack_depth=stack_depth)
 
     # test integration with evaluation routine in the real program
-    if False:
+    if True:
         for t in range(1):
             final_result_dict = {
                 RESULT_KEY_EPISODE: {},
@@ -303,20 +314,22 @@ if __name__ == "__main__":
                 RESULT_KEY_COUNTS: {},
                 RESULT_KEY_RATES: {},
             }
-            p_error_list = [0.0000000000000000001]
+            p_error_list = [0.01, 0.012, 0.014, 0.016, 0.018, 0.02]
             for i_err_list, p_error in enumerate(p_error_list):
 
                 eval_results, all_q_values = batch_evaluation(
                     model,
                     "",
                     eval_device,
-                    num_of_random_episodes=2040,
-                    num_of_user_episodes=8,
-                    max_num_of_steps=10,
+                    num_of_random_episodes=256,
+                    num_of_user_episodes=0,
+                    max_num_of_steps=40,
                     discount_intermediate_reward=0.3,
                     p_err=p_error,
                     p_msmt=0.0,
                     verbosity=5,
+                    code_size=code_size,
+                    stack_depth=stack_depth
                 )
 
                 for category_name, category in eval_results.items():
