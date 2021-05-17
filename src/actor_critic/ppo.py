@@ -142,8 +142,16 @@ class PPO:
         self.value_model_max_grad_norm = learner_args.get("value_model_max_grad_norm")
         self.value_clip_range = learner_args.get("value_clip_range")
         self.value_stopping_mse = learner_args.get("value_stopping_mse")
-        self.entropy_loss_weight = torch.tensor(float(learner_args.get("entropy_loss_weight")), dtype=float, device=self.device)
-        self.value_loss_weight = torch.tensor(float(learner_args.get("value_loss_weight")), dtype=float, device=self.device)
+        self.entropy_loss_weight = torch.tensor(
+            float(learner_args.get("entropy_loss_weight")),
+            dtype=float,
+            device=self.device,
+        )
+        self.value_loss_weight = torch.tensor(
+            float(learner_args.get("value_loss_weight")),
+            dtype=float,
+            device=self.device,
+        )
         self.discount_factor = learner_args["discount_factor"]
         self.optimization_epochs = learner_args["optimization_epochs"]
         self.batch_size = learner_args["batch_size"]
@@ -223,13 +231,13 @@ class PPO:
                         "episodes/returns",
                         {"return": returns[random_i]},
                         self.tensorboard_step_returns,
-                        walltime=current_time
+                        walltime=current_time,
                     )
                     self.tensorboard_step_returns += 1
 
         actions = torch.tensor(
             [action_to_q_value_index(action, self.code_size) for action in actions],
-            device=self.combined_model.device
+            device=self.combined_model.device,
         )
 
         gaes = (gaes - gaes.mean()) / (gaes.std() + EPS)
@@ -266,10 +274,13 @@ class PPO:
             )
             v_loss = (returns_batch - values_pred).pow(2)
             v_loss_clipped = (returns_batch - values_pred_clipped).pow(2)
-            value_loss = torch.max(v_loss, v_loss_clipped).mul(0.5).mean() * self.value_loss_weight
-            
+            value_loss = (
+                torch.max(v_loss, v_loss_clipped).mul(0.5).mean()
+                * self.value_loss_weight
+            )
+
             self.optimizer.zero_grad()
-            
+
             total_loss = value_loss + policy_loss + entropy_loss
             total_loss.backward()
 
@@ -288,15 +299,24 @@ class PPO:
                     n_layers = len(policy_params)
                     named_policy_params = self.combined_model.named_parameters()
                     for i, (par_name, param) in enumerate(named_policy_params):
-                        if "transfomer.layers.0" in par_name: #sic!
+                        if "transfomer.layers.0" in par_name:  # sic!
                             if "weight" in par_name:
                                 try:
                                     print(f"{par_name}, {param[0][0]}, {param[-1][-1]}")
                                 except:
                                     continue
-                        if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
+                        if i in (
+                            0,
+                            int(n_layers // 2),
+                            n_layers - 4,
+                            n_layers - 3,
+                            n_layers - 2,
+                            n_layers - 1,
+                        ):
                             if "weight" in par_name:
-                                print(f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}")
+                                print(
+                                    f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}"
+                                )
 
         if self.verbosity >= 9:
             self.logger.debug("end optimization loop")
@@ -370,7 +390,9 @@ class PPO:
                 self.logger.error(error_traceback)
             except RuntimeError as rt_err:
                 error_traceback = traceback.format_exc()
-                self.logger.error("Caught runtime error in learning step. Terminating program...")
+                self.logger.error(
+                    "Caught runtime error in learning step. Terminating program..."
+                )
                 self.logger.error(error_traceback)
                 break
 
@@ -386,16 +408,24 @@ class PPO:
                     n_layers = len(policy_params)
                     named_policy_params = self.combined_model.named_parameters()
                     for i, (par_name, param) in enumerate(named_policy_params):
-                        if "transfomer.layers.0" in par_name: #sic!
+                        if "transfomer.layers.0" in par_name:  # sic!
                             if "weight" in par_name:
                                 try:
                                     print(f"{par_name}, {param[0][0]}, {param[-1][-1]}")
                                 except:
                                     continue
-                        if i in (0, int(n_layers // 2), n_layers-4, n_layers-3, n_layers-2, n_layers-1):
+                        if i in (
+                            0,
+                            int(n_layers // 2),
+                            n_layers - 4,
+                            n_layers - 3,
+                            n_layers - 2,
+                            n_layers - 1,
+                        ):
                             if "weight" in par_name:
-                                print(f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}")
-
+                                print(
+                                    f"{par_name}, {param[0][0]}, {param.grad[0][0]}, {param[-1][-1]}, {param.grad[-1][-1]}"
+                                )
 
                 evaluation_start = time()
                 try:
@@ -412,7 +442,7 @@ class PPO:
                         verbosity=self.verbosity,
                         rl_type="ppo",
                     )
-                
+
                 except Exception as _:
                     error_traceback = traceback.format_exc()
                     self.logger.error("Caught exception in learning step")
@@ -462,9 +492,8 @@ class PPO:
                                 self.tensorboard_step,
                                 walltime=current_time,
                             )
-                        
+
             self.tensorboard_step += 1
-            
 
             if time() - self.heart > self.heartbeat_interval:
                 self.heart = time()

@@ -57,11 +57,19 @@ from evaluation.batch_evaluation import (
 
 import warnings
 
-warnings.filterwarnings("ignore",category=UserWarning)
-warnings.filterwarnings("ignore",category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # pylint: disable=too-many-locals, too-many-statements
-def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None, block=False, verbosity=0):
+def main_evaluation(
+    model,
+    device,
+    epsilon=0.0,
+    code_size=None,
+    stack_depth=None,
+    block=False,
+    verbosity=0,
+):
     """
     The main program to be executed.
     Visualizes the surface code before and after
@@ -81,7 +89,8 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
     state = surface_code.state
     p_err = surface_code.p_error
     p_msmt = surface_code.p_msmt
-    if verbosity: print(f"{p_err=}, {p_msmt=}")
+    if verbosity:
+        print(f"{p_err=}, {p_msmt=}")
 
     states = state[None, :, :, :]
 
@@ -123,7 +132,8 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
             terminal,
             _,
         ) = surface_code.step(actions[0])
-        if verbosity: print(f"{action}")
+        if verbosity:
+            print(f"{action}")
 
         if action[-1] != TERMINAL_ACTION:
             assert np.all(next_state == surface_code.next_state)
@@ -142,16 +152,20 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
             n_syndromes_annihilated.append(np.sum(diffs > 0))
             n_syndromes_created.append(np.sum(diffs < 0))
             inter_rew = compute_intermediate_reward(state, next_state, stack_depth)
-            if verbosity: print(f"{inter_rew=}")
-            if verbosity: print(f"{energy=}")
+            if verbosity:
+                print(f"{inter_rew=}")
+            if verbosity:
+                print(f"{energy=}")
             inter_rews.append(inter_rew)
-            if verbosity: print(f"{np.min(state)=}, {np.max(state)=}")
+            if verbosity:
+                print(f"{np.min(state)=}, {np.max(state)=}")
             assert inter_rew == reward, f"{inter_rew=}, {reward=}"
 
         state = next_state
         states = state[None, :, :, :]
 
-        if verbosity: print("")
+        if verbosity:
+            print("")
         # surface_code.render()
 
     final_state, is_ground_state, (n_syndromes, n_loops) = check_final_state(
@@ -160,7 +174,6 @@ def main_evaluation(model, device, epsilon=0.0, code_size=None, stack_depth=None
         surface_code.vertex_mask,
         surface_code.plaquette_mask,
     )
-
 
     (
         next_state,
@@ -238,8 +251,8 @@ if __name__ == "__main__":
     # if statements (if True/False).
     # pylint: disable=using-constant-test
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', "--code_size", metavar="d", type=str)
-    parser.add_argument('-H', "--stack_depth", metavar="H", type=str)
+    parser.add_argument("-d", "--code_size", metavar="d", type=str)
+    parser.add_argument("-H", "--stack_depth", metavar="H", type=str)
     args = parser.parse_args()
 
     cfg = Config()
@@ -337,14 +350,16 @@ if __name__ == "__main__":
         n_valid_non_trivial_loops = 0
         for i in range(n_episodes):
             sys.stdout.write(f"\r{i+1:05d} / {n_episodes:05d}")
-            is_ground_state, n_syndromes, n_loops = main_evaluation(model, eval_device, code_size=code_size, stack_depth=stack_depth)
+            is_ground_state, n_syndromes, n_loops = main_evaluation(
+                model, eval_device, code_size=code_size, stack_depth=stack_depth
+            )
             if n_syndromes == 0:
                 n_valid_episodes += 1
                 if is_ground_state:
                     n_valid_ground_states += 1
                 else:
                     n_valid_non_trivial_loops += 1
-            
+
             if is_ground_state:
                 n_ground_states += 1
             if n_syndromes > 0:
@@ -391,7 +406,7 @@ if __name__ == "__main__":
                     p_msmt=0.0,
                     verbosity=5,
                     code_size=code_size,
-                    stack_depth=stack_depth
+                    stack_depth=stack_depth,
                 )
 
                 for category_name, category in eval_results.items():

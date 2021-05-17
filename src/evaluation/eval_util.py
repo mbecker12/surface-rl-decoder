@@ -382,7 +382,8 @@ def prepare_step(global_steps, terminals, steps_per_episode, states, device):
 
 
 def reset_local_actions_and_qvalues(
-    terminal_actions, empty_q_values, empty_values, empty_entropies, rl_type="q"):
+    terminal_actions, empty_q_values, empty_values, empty_entropies, rl_type="q"
+):
     """
     Fill up all actions with terminal actions as the predetermined default
     and set up the q values with all zero q values.
@@ -397,7 +398,7 @@ def reset_local_actions_and_qvalues(
         entropies = empty_entropies
 
         return actions, q_values, values, entropies
-    
+
     return actions, q_values, None, None
 
 
@@ -427,7 +428,7 @@ def aggregate_q_value_stats(
     values=None,
     entropies=None,
     values_aggregation=None,
-    entropy_aggregation=None
+    entropy_aggregation=None,
 ):
     """
     Add q value statistics to the aggregation variables.
@@ -450,7 +451,7 @@ def aggregate_q_value_stats(
         q_value_certainty_aggregation,
         terminal_q_value_aggregation,
         values_aggregation,
-        entropy_aggregation
+        entropy_aggregation,
     )
 
 
@@ -535,7 +536,7 @@ def check_correct_actions(
     total_n_episodes,
     num_of_random_episodes,
     num_of_user_episodes,
-    is_active
+    is_active,
 ):
     """
     Check whether the proposed actions match the expected, most optimal
@@ -550,11 +551,15 @@ def check_correct_actions(
                 actions[i],
                 expected_actions_per_episode[i - num_of_random_episodes],
                 len(expected_actions_per_episode[i - num_of_random_episodes]),
-            ) if (i - (total_n_episodes - num_of_user_episodes) in is_active_user_episode) else -1
+            )
+            if (i - (total_n_episodes - num_of_user_episodes) in is_active_user_episode)
+            else -1
             for i in range(total_n_episodes - num_of_user_episodes, total_n_episodes)
         ]
     )
-    correct_actions_aggregation[is_active_user_episode] += correct_actions_all[correct_actions_all > -1]
+    correct_actions_aggregation[is_active_user_episode] += correct_actions_all[
+        correct_actions_all > -1
+    ]
 
     return correct_actions_aggregation
 
@@ -608,33 +613,40 @@ def get_intermediate_reward_stats(inter_rewards):
         min_inter_rew,
     )
 
-def initialize_states_for_eval(n_environments, code_size, stack_depth, num_errors, p_msmt=0):
+
+def initialize_states_for_eval(
+    n_environments, code_size, stack_depth, num_errors, p_msmt=0
+):
     layer_depths = np.arange(0, stack_depth)
     surface_code = SurfaceCode()
     vertex_mask = surface_code.vertex_mask
     plaquette_mask = surface_code.plaquette_mask
     del surface_code
 
-    states = np.zeros((n_environments, stack_depth, code_size + 1, code_size + 1), dtype=np.uint8)
-    qubits = np.zeros((n_environments, stack_depth, code_size, code_size), dtype=np.uint8)
+    states = np.zeros(
+        (n_environments, stack_depth, code_size + 1, code_size + 1), dtype=np.uint8
+    )
+    qubits = np.zeros(
+        (n_environments, stack_depth, code_size, code_size), dtype=np.uint8
+    )
 
     for n_env in range(n_environments):
         error_start_indices = np.random.choice(layer_depths, num_errors)
         error_start_indices = np.sort(error_start_indices)
         for h_idx in error_start_indices:
             x, y = np.random.randint(0, code_size, size=2)
-            new_operator = np.random.randint(1, 3+1, size=1)[0]
+            new_operator = np.random.randint(1, 3 + 1, size=1)[0]
 
             qubits[n_env, h_idx:, x, y] = [
-                RULE_TABLE[
-                    qubits[n_env, h, x, y], new_operator
-                ] for h in range(h_idx, stack_depth)
+                RULE_TABLE[qubits[n_env, h, x, y], new_operator]
+                for h in range(h_idx, stack_depth)
             ]
         states[n_env] = create_syndrome_output_stack(
             qubits[n_env], vertex_mask, plaquette_mask
         )
 
     return qubits, states
+
 
 if __name__ == "__main__":
     initialize_states_for_eval(1, 3, 8, 3)

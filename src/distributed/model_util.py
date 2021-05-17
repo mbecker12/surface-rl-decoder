@@ -21,6 +21,7 @@ from agents.old_conv_3d_agent import Conv3dAgent as OldConv3dAgent
 from agents.old_conv_2d_agent import SimpleConv2D as OldConv2dAgent
 from agents.dummy_agent import DummyModel
 
+
 def choose_old_model(model_name, model_config):
     if "dummy" in model_name:
         model = DummyModel(model_config)
@@ -33,7 +34,10 @@ def choose_old_model(model_name, model_config):
 
     return model
 
-def choose_model(model_name, model_config, model_config_base=None, model_path_base=None):
+
+def choose_model(
+    model_name, model_config, model_config_base=None, model_path_base=None
+):
     """
     Given a model name, choose the corresponding neural network agent/model
     from a custom mapping
@@ -52,14 +56,18 @@ def choose_model(model_name, model_config, model_config_base=None, model_path_ba
     if "dummy" in model_name:
         model = DummyModel(model_config)
     elif "conv2d" in model_name.lower():
-        assert model_path_base is not None, "Need to specify the path of the pretrained base model!"
-        assert model_config_base is not None, "Need to specify a configuration file for the base model!"
+        assert (
+            model_path_base is not None
+        ), "Need to specify the path of the pretrained base model!"
+        assert (
+            model_config_base is not None
+        ), "Need to specify a configuration file for the base model!"
         model = configure_pretrained_model(
             model_config_base,
             model_config,
             model_path_base,
             model_class_base=OldConv2dAgent,
-            model_class_top=Conv2dAgent
+            model_class_top=Conv2dAgent,
         )
     elif "conv3d" in model_name.lower():
         model = Conv3dAgent(model_config)
@@ -211,6 +219,7 @@ def optimizer_to(optim, device):
 
     return optim
 
+
 def configure_pretrained_model(
     model_config_base,
     model_config_top,
@@ -241,9 +250,13 @@ def configure_pretrained_model(
             # do other stuff here
             pass
         else:
-            raise Exception(f"Error! Model name {model_name_base} is not supported for the network base.")
+            raise Exception(
+                f"Error! Model name {model_name_base} is not supported for the network base."
+            )
     else:
-        raise Exception(f"Error! You need to provide either a class or an identifier string for the model base.")
+        raise Exception(
+            f"Error! You need to provide either a class or an identifier string for the model base."
+        )
 
     # reconfigure channels
     # assume + hardcode that old model has 4 conv layers
@@ -263,13 +276,19 @@ def configure_pretrained_model(
         if model_name_top == "conv_2d":
             model_top = Conv2dAgent(model_config_top)
         else:
-            raise Exception(f"Error! Model name {model_name_top} is not supported for the network head.")
+            raise Exception(
+                f"Error! Model name {model_name_top} is not supported for the network head."
+            )
     else:
-        raise Exception(f"Error! You need to provide either a class or an identifier string for the model top.")
+        raise Exception(
+            f"Error! You need to provide either a class or an identifier string for the model top."
+        )
 
     device = model_config_top["device"]
 
-    model_base.load_state_dict(torch.load(model_path_base, map_location=torch.device(device)))
+    model_base.load_state_dict(
+        torch.load(model_path_base, map_location=torch.device(device))
+    )
 
     # need to hardcode the number of available layers for now
     # since it was default in the old 2D Conv model configuration
@@ -294,8 +313,9 @@ def configure_pretrained_model(
     model_top.conv4.requires_grad = False
     for param in model_top.conv4.parameters():
         param.requires_grad = False
-    
+
     return model_top
+
 
 if __name__ == "__main__":
     model_name_base = "old_conv_2d"
@@ -322,9 +342,7 @@ if __name__ == "__main__":
     syndrome_size = code_size + 1
     stack_depth = 4
     model_config_base = extend_model_config(
-        model_config_base,
-        syndrome_size,
-        stack_depth
+        model_config_base, syndrome_size, stack_depth
     )
     model_config_base["device"] = "cpu"
 
@@ -335,11 +353,7 @@ if __name__ == "__main__":
 
     stack_depth = 5
     syndrome_size = code_size + 1
-    model_config_top = extend_model_config(
-        model_config_top,
-        syndrome_size,
-        stack_depth
-    )
+    model_config_top = extend_model_config(model_config_top, syndrome_size, stack_depth)
     model_config_top["device"] = "cpu"
 
     model_config_top = add_model_size(model_config_top, model_config_path_top)
@@ -359,23 +373,28 @@ if __name__ == "__main__":
         print(f"{name=}: grad? {param.requires_grad}! Shape: {param.shape}")
 
     import numpy as np
+
     batch_size = 8
     states = np.zeros((batch_size, stack_depth, code_size + 1, code_size + 1))
-    torch_states = torch.tensor(states, device=torch.device(model_config_top["device"]), dtype=torch.float32)
+    torch_states = torch.tensor(
+        states, device=torch.device(model_config_top["device"]), dtype=torch.float32
+    )
 
     output = frankensteins_model(torch_states)
     assert output.shape == (batch_size, 3 * code_size * code_size + 1)
     print(f"{output.shape=}")
 
-
     import matplotlib.pyplot as plt
+
     if True:
         layer_one = frankensteins_model.conv1.weight.detach().cpu().numpy()
         channels, _, x, y = layer_one.shape
 
         stacked_weights = np.hstack(
             [
-                np.pad(layer_one[i, 0], ((0, 0), (0, 1)), "constant", constant_values=-2)
+                np.pad(
+                    layer_one[i, 0], ((0, 0), (0, 1)), "constant", constant_values=-2
+                )
                 for i in range(channels)
             ]
         )
@@ -391,7 +410,12 @@ if __name__ == "__main__":
 
         random_stacked_weights = np.hstack(
             [
-                np.pad(random_layer_one[i, 0], ((0, 0), (0, 1)), "constant", constant_values=-1)
+                np.pad(
+                    random_layer_one[i, 0],
+                    ((0, 0), (0, 1)),
+                    "constant",
+                    constant_values=-1,
+                )
                 for i in range(random_channels)
             ]
         )
@@ -401,7 +425,9 @@ if __name__ == "__main__":
         stacked_weights_dist = stacked_weights[stacked_weights > -1].flatten()
         weights_hist = np.histogram(stacked_weights_dist, bins=10)
 
-        random_stacked_weights_dist = random_stacked_weights[random_stacked_weights > -1].flatten()
+        random_stacked_weights_dist = random_stacked_weights[
+            random_stacked_weights > -1
+        ].flatten()
         random_weights_hist = np.histogram(random_stacked_weights_dist, bins=10)
 
         ax[2].plot(weights_hist[1][:-1], weights_hist[0], label="pretrained")
@@ -415,7 +441,9 @@ if __name__ == "__main__":
 
         stacked_weights = np.hstack(
             [
-                np.pad(layer_two[i, 0], ((0, 0), (0, 1)), "constant", constant_values=-2)
+                np.pad(
+                    layer_two[i, 0], ((0, 0), (0, 1)), "constant", constant_values=-2
+                )
                 for i in range(channels)
             ]
         )
@@ -431,7 +459,12 @@ if __name__ == "__main__":
 
         random_stacked_weights = np.hstack(
             [
-                np.pad(random_layer_two[i, 0], ((0, 0), (0, 1)), "constant", constant_values=-1)
+                np.pad(
+                    random_layer_two[i, 0],
+                    ((0, 0), (0, 1)),
+                    "constant",
+                    constant_values=-1,
+                )
                 for i in range(random_channels)
             ]
         )
@@ -441,7 +474,9 @@ if __name__ == "__main__":
         stacked_weights_dist = stacked_weights[stacked_weights > -1].flatten()
         weights_hist = np.histogram(stacked_weights_dist, bins=10)
 
-        random_stacked_weights_dist = random_stacked_weights[random_stacked_weights > -1].flatten()
+        random_stacked_weights_dist = random_stacked_weights[
+            random_stacked_weights > -1
+        ].flatten()
         random_weights_hist = np.histogram(random_stacked_weights_dist, bins=10)
 
         ax[2].plot(weights_hist[1][:-1], weights_hist[0], label="pretrained")
@@ -449,5 +484,3 @@ if __name__ == "__main__":
         ax[2].set(title="Weights Distribution")
         plt.legend()
         plt.show()
-        
-

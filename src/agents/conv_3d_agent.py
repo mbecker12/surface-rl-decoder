@@ -12,6 +12,7 @@ from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mas
 
 NETWORK_SIZES = ["slim", "medium", "large", "extra_large"]
 
+
 class Conv3dAgent(BaseAgent):
 
     """
@@ -57,7 +58,9 @@ class Conv3dAgent(BaseAgent):
         self.device = config.get("device")
         # pylint: disable=not-callable
         self.size = int(config.get("code_size"))
-        self.plaquette_mask = torch.tensor(get_plaquette_mask(self.size), device=self.device)
+        self.plaquette_mask = torch.tensor(
+            get_plaquette_mask(self.size), device=self.device
+        )
         self.vertex_mask = torch.tensor(get_vertex_mask(self.size), device=self.device)
         self.split_input_toggle = int(config.get("split_input_toggle", 1))
         self.input_channels = int(config.get("input_channels"))
@@ -70,7 +73,7 @@ class Conv3dAgent(BaseAgent):
 
         # self.activation_fn = F.relu
         self.activation_fn = F.silu
-        
+
         self.kernel_size = int(config.get("kernel_size"))
         self.kernel_depth = int(config.get("kernel_depth", self.kernel_size))
 
@@ -99,30 +102,30 @@ class Conv3dAgent(BaseAgent):
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv3 = nn.Conv3d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv4 = nn.Conv3d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv5 = nn.Conv3d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
-            
+
             if self.rl_type == "ppo":
                 ppo_input_channels = input_channel_list[layer_count]
                 ppo_output_channels = input_channel_list[layer_count + 1]
@@ -130,7 +133,7 @@ class Conv3dAgent(BaseAgent):
                     ppo_input_channels,
                     ppo_output_channels,
                     kernel_size=self.kernel_size,
-                    padding=self.padding_size
+                    padding=self.padding_size,
                 )
             layer_count += 1
         if self.network_size in NETWORK_SIZES[1:]:
@@ -138,23 +141,23 @@ class Conv3dAgent(BaseAgent):
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv7 = nn.Conv3d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv8 = nn.Conv3d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
-            
+
             if self.rl_type == "ppo":
                 ppo_input_channels = ppo_output_channels
                 ppo_output_channels = input_channel_list[layer_count + 1]
@@ -162,7 +165,7 @@ class Conv3dAgent(BaseAgent):
                     ppo_input_channels,
                     ppo_output_channels,
                     kernel_size=self.kernel_size,
-                    padding=self.padding_size
+                    padding=self.padding_size,
                 )
             layer_count += 1
         if self.network_size in NETWORK_SIZES[2:]:
@@ -170,21 +173,21 @@ class Conv3dAgent(BaseAgent):
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv10 = nn.Conv3d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv11 = nn.Conv3d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             if self.rl_type == "ppo":
                 ppo_input_channels = ppo_output_channels
@@ -193,61 +196,68 @@ class Conv3dAgent(BaseAgent):
                     ppo_input_channels,
                     ppo_output_channels,
                     kernel_size=self.kernel_size,
-                    padding=self.padding_size
+                    padding=self.padding_size,
                 )
             layer_count += 1
 
         self.output_channels = int(input_channel_list[-1])
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
-        self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.stack_depth * self.output_channels
+        self.cnn_dimension = (
+            (self.size + 1) * (self.size + 1) * self.stack_depth * self.output_channels
+        )
         if self.rl_type == "ppo":
-            self.cnn_val_dimension = (self.size + 1) * (self.size + 1) * self.stack_depth * ppo_output_channels
+            self.cnn_val_dimension = (
+                (self.size + 1)
+                * (self.size + 1)
+                * self.stack_depth
+                * ppo_output_channels
+            )
 
         input_neuron_numbers = config["neuron_list"]
 
         lin_layer_count = 0
         self.lin0 = nn.Linear(self.cnn_dimension, int(input_neuron_numbers[0]))
-        
+
         if self.rl_type == "ppo":
-                self.lin_val0 = nn.Linear(
-                    self.cnn_val_dimension,
-                    int(input_neuron_numbers[0])
-                )
+            self.lin_val0 = nn.Linear(
+                self.cnn_val_dimension, int(input_neuron_numbers[0])
+            )
 
         if self.network_size in NETWORK_SIZES:
             self.lin1 = nn.Linear(
                 input_neuron_numbers[lin_layer_count],
-                input_neuron_numbers[lin_layer_count + 1]
+                input_neuron_numbers[lin_layer_count + 1],
             )
-            
+
             if self.rl_type == "ppo":
                 self.lin_val1 = nn.Linear(
                     input_neuron_numbers[lin_layer_count],
-                    input_neuron_numbers[lin_layer_count + 1]
+                    input_neuron_numbers[lin_layer_count + 1],
                 )
-                
+
             lin_layer_count += 1
 
         if self.network_size in NETWORK_SIZES[1:]:
             self.lin2 = nn.Linear(
                 input_neuron_numbers[lin_layer_count],
-                input_neuron_numbers[lin_layer_count + 1]
+                input_neuron_numbers[lin_layer_count + 1],
             )
 
             if self.rl_type == "ppo":
                 self.lin_val2 = nn.Linear(
                     input_neuron_numbers[lin_layer_count],
-                    input_neuron_numbers[lin_layer_count + 1]
+                    input_neuron_numbers[lin_layer_count + 1],
                 )
             lin_layer_count += 1
 
-        self.output_layer = nn.Linear(int(input_neuron_numbers[-1]), self.neurons_output)
+        self.output_layer = nn.Linear(
+            int(input_neuron_numbers[-1]), self.neurons_output
+        )
         if self.rl_type == "ppo":
             self.output_value_layer = nn.Linear(int(input_neuron_numbers[-1]), 1)
 
         for param_tensor in self.state_dict():
             print(param_tensor, "\t", self.state_dict()[param_tensor].size())
-
 
     def forward(self, state: torch.Tensor):
         """
@@ -290,35 +300,17 @@ class Conv3dAgent(BaseAgent):
 
         # reshape, dependent on network size
         if self.network_size in NETWORK_SIZES[2:]:
-            complete0 = both11.view(
-                -1,
-                self.cnn_dimension
-            )
+            complete0 = both11.view(-1, self.cnn_dimension)
             if self.rl_type == "ppo":
-                values_complete0 = values3.view(
-                    -1,
-                    self.cnn_val_dimension
-                )
+                values_complete0 = values3.view(-1, self.cnn_val_dimension)
         elif self.network_size in NETWORK_SIZES[1]:
-            complete0 = both8.view(
-                -1,
-                self.cnn_dimension
-            )
+            complete0 = both8.view(-1, self.cnn_dimension)
             if self.rl_type == "ppo":
-                values_complete0 = values2.view(
-                    -1,
-                    self.cnn_val_dimension
-                )
+                values_complete0 = values2.view(-1, self.cnn_val_dimension)
         elif self.network_size in NETWORK_SIZES[0]:
-            complete0 = both5.view(
-                -1,
-                self.cnn_dimension
-            )
+            complete0 = both5.view(-1, self.cnn_dimension)
             if self.rl_type == "ppo":
-                values_complete0 = values1.view(
-                    -1,
-                    self.cnn_val_dimension
-                )
+                values_complete0 = values1.view(-1, self.cnn_val_dimension)
         else:
             raise Exception(f"Network size {self.network_size} not supported.")
 

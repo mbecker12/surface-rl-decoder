@@ -445,14 +445,16 @@ class SurfaceCode(gym.Env):
         error_mask = (uniform_random_vector < self.p_msmt).astype(np.uint8)
 
         # take into account positions of vertices and plaquettes
-        error_mask = np.multiply(error_mask, np.add(self.plaquette_mask, self.vertex_mask))
+        error_mask = np.multiply(
+            error_mask, np.add(self.plaquette_mask, self.vertex_mask)
+        )
 
         # where an error occurs, flip the true syndrome measurement
         faulty_syndrome = np.where(error_mask > 0, 1 - true_syndrome, true_syndrome)
 
         return faulty_syndrome
 
-    def reset(self, error_channel="dp", p_error=-1, p_msmt=-1):
+    def reset(self, error_channel="dp", p_error=-1, p_msmt=-1, debug=False):
         """
         Reset the environment and generate new qubit and syndrome stacks with errors.
 
@@ -499,10 +501,23 @@ class SurfaceCode(gym.Env):
         # and the updated syndrome with measurement errors
         self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
 
+        if debug:
+            print("CAUTION! SURFACE CODE IS SET TO IN DEBUG MODE!")
+            self.actual_errors = np.zeros_like(self.qubits)
+            self.actual_errors[-1, 1, 1] = 1
+            true_syndrome = create_syndrome_output_stack(
+                self.actual_errors, self.vertex_mask, self.plaquette_mask
+            )
+            self.state = true_syndrome
+            self.state *= STATE_MULTIPLIER
+            self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
+
         self.qubits = copy_array_values(self.actual_errors)
         return self.state
 
-    def initialize_hidden_quantities(self, qubits, state, p_error=-1, p_msmt=-1, syndrome_errors=None):
+    def initialize_hidden_quantities(
+        self, qubits, state, p_error=-1, p_msmt=-1, syndrome_errors=None
+    ):
         self.reset(p_error=0, p_msmt=0)
         self.ground_state = True
         if p_msmt >= 0:
@@ -599,7 +614,7 @@ class SurfaceCode(gym.Env):
                 self.syndrome_errors, self.plaquette_mask
             )
 
-            self.setup_qubit_grid(
+            ax = self.setup_qubit_grid(
                 markersize_qubit=markersize_qubit,
                 linewidth=linewidth,
             )

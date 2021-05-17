@@ -119,7 +119,7 @@ def batch_evaluation(
             n_environments=total_n_episodes,
             code_size=code_size,
             stack_depth=stack_depth,
-            num_errors=num_errors
+            num_errors=num_errors,
         )
         states = env_set.post_run_eval_reset_all(all_qubits, all_states)
 
@@ -215,7 +215,11 @@ def batch_evaluation(
         accumulators["energies"][:, global_episode_steps - 1] = energies
 
         actions, q_values, values, entropies = reset_local_actions_and_qvalues(
-            essentials["terminal_actions"], essentials["empty_q_values"], essentials["empty_values"], essentials["empty_entropies"], rl_type=rl_type
+            essentials["terminal_actions"],
+            essentials["empty_q_values"],
+            essentials["empty_values"],
+            essentials["empty_entropies"],
+            rl_type=rl_type,
         )
 
         # evaluate active episodes
@@ -246,16 +250,20 @@ def batch_evaluation(
                 entropies[is_active] = tmp_entropies.detach().cpu().numpy()
             except:
                 error_traceback = traceback.format_exc()
-                logger.error("Caught exception while trying to detach value and/or entropy array.")
+                logger.error(
+                    "Caught exception while trying to detach value and/or entropy array."
+                )
                 logger.error(error_traceback)
-                logger.warning(f"{total_n_episodes=}, {is_active.shape=}, {tmp_values.shape=}, {tmp_entropies.shape=}, {logits.shape=}")
+                logger.warning(
+                    f"{total_n_episodes=}, {is_active.shape=}, {tmp_values.shape=}, {tmp_entropies.shape=}, {logits.shape=}"
+                )
         else:
             logger.error(f"Error! Unknown RL type {rl_type}")
             raise Exception()
 
         actions[is_active] = tmp_actions
         q_values[is_active] = tmp_q_values
-        
+
         if verbosity >= 4:
             all_q_values[global_episode_steps - 1, :, :] = q_values
 
@@ -278,7 +286,7 @@ def batch_evaluation(
             total_n_episodes,
             num_of_random_episodes,
             num_of_user_episodes,
-            is_active
+            is_active,
         )
 
         first_q_value, second_q_value = get_two_highest_q_values(active_q_values)
@@ -307,7 +315,7 @@ def batch_evaluation(
             accumulators["q_value_certainty_aggregation"][is_active],
             accumulators["terminal_q_value_aggregation"][is_active],
             accumulators["values_aggregation"][is_active],
-            accumulators["entropy_aggregation"][is_active]
+            accumulators["entropy_aggregation"][is_active],
         ) = aggregate_q_value_stats(
             accumulators["q_value_aggregation"][is_active],
             accumulators["q_value_diff_aggregation"][is_active],
@@ -320,7 +328,7 @@ def batch_evaluation(
             values=active_values,
             entropies=active_entropies,
             values_aggregation=accumulators["values_aggregation"][is_active],
-            entropy_aggregation=accumulators["entropy_aggregation"][is_active]
+            entropy_aggregation=accumulators["entropy_aggregation"][is_active],
         )
 
         # apply the chosen action
@@ -507,8 +515,12 @@ def batch_evaluation(
         )
     elif rl_type == "ppo":
         mean_q_value_diff = np.zeros_like(mean_q_value)
-        mean_values = np.mean(accumulators["values_aggregation"] / essentials["steps_per_episode"])
-        mean_entropies = np.mean(accumulators["entropy_aggregation"] / essentials["steps_per_episode"])
+        mean_values = np.mean(
+            accumulators["values_aggregation"] / essentials["steps_per_episode"]
+        )
+        mean_entropies = np.mean(
+            accumulators["entropy_aggregation"] / essentials["steps_per_episode"]
+        )
     else:
         raise Exception(f"RL Type {rl_type} is not supported!")
 
@@ -543,7 +555,6 @@ def batch_evaluation(
     if verbosity >= 4:
         all_q_values = all_q_values.flatten()
 
-    
     if rl_type == "q":
         q_value_result_dict = {
             "mean_q_value": mean_q_value,
@@ -561,7 +572,7 @@ def batch_evaluation(
             "avg_terminal_q_val": avg_terminal_q_value,
             "median_terminal_q_val": median_terminal_q_value,
             "mean_values": mean_values,
-            "mean_entropy": mean_entropies
+            "mean_entropy": mean_entropies,
         }
 
     return (

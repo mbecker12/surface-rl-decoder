@@ -82,6 +82,7 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
 
     return final_state, is_ground_state, (0, n_loops)
 
+
 def perform_all_actions(qubits, actions):
     """
     Perform all actions in the action history

@@ -109,7 +109,7 @@ def perform_q_learning_step(
     code_size,
     batch_size,
     discount_factor,
-    policy_model_max_grad_norm=100
+    policy_model_max_grad_norm=100,
 ):
     """
     Perform the actual stochastic gradient descent step.

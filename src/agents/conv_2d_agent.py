@@ -10,13 +10,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from gtrxl_torch.gtrxl_torch import GTrXL
 from agents.base_agent import BaseAgent
-from surface_rl_decoder.syndrome_masks import (
-    get_vertex_mask,
-    get_plaquette_mask
-)
+from surface_rl_decoder.syndrome_masks import get_vertex_mask, get_plaquette_mask
 from agents.interface import create_convolution_sequence, interface
 
 NETWORK_SIZES = ["slim", "medium", "large", "extra_large"]
+
 
 class Conv2dAgent(BaseAgent):
 
@@ -60,7 +58,9 @@ class Conv2dAgent(BaseAgent):
         assert self.device is not None
         self.size = int(config.get("code_size"))
         # pylint: disable=not-callable
-        self.plaquette_mask = torch.tensor(get_plaquette_mask(self.size), device=self.device)
+        self.plaquette_mask = torch.tensor(
+            get_plaquette_mask(self.size), device=self.device
+        )
         self.vertex_mask = torch.tensor(get_vertex_mask(self.size), device=self.device)
 
         self.nr_actions_per_qubit = int(config.get("num_actions_per_qubit"))
@@ -75,7 +75,7 @@ class Conv2dAgent(BaseAgent):
 
         self.use_batch_norm = int(config.get("use_batch_norm"))
 
-        self.use_lstm = int(config.get("use_lstm",0))
+        self.use_lstm = int(config.get("use_lstm", 0))
         self.use_rnn = int(config.get("use_rnn", 0))
         self.use_transformer = int(config.get("use_gtrxl", 0))
         self.use_transformer += int(config.get("use_transformer", 0))
@@ -90,7 +90,7 @@ class Conv2dAgent(BaseAgent):
             self.activation_fn = F.silu
 
         if self.use_transformer:
-            self.gtrxl_heads =  int(config.get("gtrxl_heads"))
+            self.gtrxl_heads = int(config.get("gtrxl_heads"))
             self.gtrxl_layers = int(config.get("gtrxl_layers"))
             self.gtrxl_hidden_dims = int(config.get("gtrxl_hidden_dims", 2048))
             self.gtrxl_rnn_layers = int(config.get("gtrxl_rnn_layers", 1))
@@ -117,7 +117,7 @@ class Conv2dAgent(BaseAgent):
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             if self.use_batch_norm:
@@ -127,57 +127,57 @@ class Conv2dAgent(BaseAgent):
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv4 = nn.Conv2d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             if self.use_batch_norm:
                 self.norm2 = nn.BatchNorm2d(input_channel_list[layer_count])
-            
+
         if self.network_size in NETWORK_SIZES[1:]:
             self.conv5 = nn.Conv2d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv6 = nn.Conv2d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv7 = nn.Conv2d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             if self.use_batch_norm:
                 self.norm3 = nn.BatchNorm2d(input_channel_list[layer_count])
-            
+
         if self.network_size in NETWORK_SIZES[2:]:
             self.conv8 = nn.Conv2d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             self.conv9 = nn.Conv2d(
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
-                padding=self.padding_size
+                padding=self.padding_size,
             )
             layer_count += 1
             if self.use_batch_norm:
@@ -198,7 +198,7 @@ class Conv2dAgent(BaseAgent):
                 self.lstm_output_size,
                 num_layers=self.lstm_num_layers,
                 bidirectional=self.lstm_is_bidirectional,
-                batch_first=True
+                batch_first=True,
             )
             lstm_total_output_size = self.lstm_output_size * self.lstm_num_directions
             if self.use_all_rnn_layers:
@@ -208,17 +208,17 @@ class Conv2dAgent(BaseAgent):
             if self.use_batch_norm:
                 self.norm5 = nn.BatchNorm1d(lstm_total_output_size)
             self.lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
-    
+
         elif self.use_transformer:
             print("Using GTRXL")
             self.gtrxl_dimension = self.cnn_dimension
             self.gated_transformer = GTrXL(
-                d_model = self.gtrxl_dimension,
-                nheads = self.gtrxl_heads,
-                transformer_layers = self.gtrxl_layers,
-                hidden_dims = self.gtrxl_hidden_dims,
-                n_layers = self.gtrxl_rnn_layers,
-                activation="gelu"
+                d_model=self.gtrxl_dimension,
+                nheads=self.gtrxl_heads,
+                transformer_layers=self.gtrxl_layers,
+                hidden_dims=self.gtrxl_hidden_dims,
+                n_layers=self.gtrxl_rnn_layers,
+                activation="gelu",
             )
 
             gtrxl_total_output_size = self.gtrxl_dimension
@@ -229,14 +229,14 @@ class Conv2dAgent(BaseAgent):
             if self.use_batch_norm:
                 self.norm5 = nn.BatchNorm1d(gtrxl_total_output_size)
             self.lin0 = nn.Linear(gtrxl_total_output_size, int(input_neuron_numbers[0]))
-        
+
         elif self.use_gru:
             self.gru_layer = nn.GRU(
                 self.cnn_dimension,
                 self.lstm_output_size,
                 num_layers=self.lstm_num_layers,
                 bidirectional=self.lstm_is_bidirectional,
-                batch_first=True
+                batch_first=True,
             )
 
             lstm_total_output_size = self.lstm_output_size * self.lstm_num_directions
@@ -253,23 +253,27 @@ class Conv2dAgent(BaseAgent):
             print("Not using any recurrent module")
             lin_layer_count = 0
             if self.use_batch_norm:
-                self.norm5 = nn.BatchNorm1d(self.cnn_dimension*self.stack_depth)
-            self.lin0 = nn.Linear(self.cnn_dimension*self.stack_depth, int(input_neuron_numbers[0]))
+                self.norm5 = nn.BatchNorm1d(self.cnn_dimension * self.stack_depth)
+            self.lin0 = nn.Linear(
+                self.cnn_dimension * self.stack_depth, int(input_neuron_numbers[0])
+            )
 
         if self.network_size in NETWORK_SIZES:
             self.lin1 = nn.Linear(
                 input_neuron_numbers[lin_layer_count],
-                input_neuron_numbers[lin_layer_count + 1]
+                input_neuron_numbers[lin_layer_count + 1],
             )
             lin_layer_count += 1
         if self.network_size in NETWORK_SIZES[2:]:
             self.lin2 = nn.Linear(
                 input_neuron_numbers[lin_layer_count],
-                input_neuron_numbers[lin_layer_count + 1]
+                input_neuron_numbers[lin_layer_count + 1],
             )
             lin_layer_count += 1
 
-        self.output_layer = nn.Linear(input_neuron_numbers[-1], int(self.neurons_output))
+        self.output_layer = nn.Linear(
+            input_neuron_numbers[-1], int(self.neurons_output)
+        )
 
     def forward(self, state: torch.Tensor):
         """
@@ -291,7 +295,6 @@ class Conv2dAgent(BaseAgent):
                 both = self.activation_fn(self.norm1(both))
             else:
                 both = self.activation_fn(both)
-            
 
             both = self.activation_fn(self.conv3(both))
             both = self.conv4(both)
@@ -299,7 +302,7 @@ class Conv2dAgent(BaseAgent):
                 both = self.activation_fn(self.norm2(both))
             else:
                 both = self.activation_fn(both)
-            
+
         if self.network_size in NETWORK_SIZES[1:]:
             both = self.activation_fn(self.conv5(both))
             both = self.activation_fn(self.conv6(both))
@@ -308,7 +311,7 @@ class Conv2dAgent(BaseAgent):
                 both = self.activation_fn(self.norm3(both))
             else:
                 both = self.activation_fn(both)
-            
+
         if self.network_size in NETWORK_SIZES[2:]:
             both = self.activation_fn(self.conv8(both))
             both = self.conv9(both)
@@ -316,18 +319,16 @@ class Conv2dAgent(BaseAgent):
                 both = self.activation_fn(self.norm4(both))
             else:
                 both = self.activation_fn(both)
-        
+
         # convert the data back to <batch_size> samples of syndrome volumes
         # with <stack_depth> layers
-        complete = both.view(
-            batch_size, self.stack_depth, self.cnn_dimension
-        )
+        complete = both.view(batch_size, self.stack_depth, self.cnn_dimension)
 
         if self.use_lstm:
             output, (_h, _c) = self.lstm_layer(complete)
-           
+
             if not self.use_all_rnn_layers:
-                output = output[:,-1,:]
+                output = output[:, -1, :]
 
         elif self.use_transformer:
             complete = complete.permute(1, 0, 2)
@@ -342,7 +343,7 @@ class Conv2dAgent(BaseAgent):
             output, _h = self.gru_layer(complete)
 
             if not self.use_all_rnn_layers:
-                output = output[:,-1,:]
+                output = output[:, -1, :]
 
         else:
             output = complete.view(batch_size, -1)
