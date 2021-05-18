@@ -109,6 +109,7 @@ def perform_q_learning_step(
     code_size,
     batch_size,
     discount_factor,
+    policy_model_max_grad_norm=100,
 ):
     """
     Perform the actual stochastic gradient descent step.
@@ -191,6 +192,9 @@ def perform_q_learning_step(
 
     # backpropagate
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(
+        policy_network.parameters(), policy_model_max_grad_norm
+    )
     optimizer.step()
 
     return indices, priorities

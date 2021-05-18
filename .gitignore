@@ -61,3 +61,8 @@ plots/*
 
 # ipython notebooks
 **/*.ipynb
+
+# results and data
+**/*.csv
+**/*.npy
+**/*.pt

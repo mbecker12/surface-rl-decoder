@@ -1,9 +1,10 @@
 {
     "conv2d": {
         "use_lstm": 0,
-        "use_rnn": 0,
-        "use_transformer": 1,
-        "use_all_rnn_layers": 0,
+        "use_rnn": 1,
+        "use_transformer": 0,
+        "use_all_rnn_layers": 1,
+        "use_batch_norm": 0,
         "split_input_toggle": 0,
         "input_channels": 1,
         "kernel_size": 3,

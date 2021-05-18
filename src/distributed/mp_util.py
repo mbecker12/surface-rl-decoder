@@ -94,6 +94,8 @@ def configure_processes(rl_type="q_learning"):
     learner_load_model = int(learner_config["load_model"])
     old_model_path = learner_config["load_model_path"]
     save_model_path = learner_config["save_model_path"]
+    base_model_config_path = learner_config["base_model_config_path"]
+    base_model_path = learner_config["base_model_path"]
 
     # initialize communication queues
     logger.info("Initialize queues")
@@ -171,6 +173,8 @@ def configure_processes(rl_type="q_learning"):
         "decay_factor_epsilon": decay_factor_epsilon,
         "min_value_factor_epsilon": min_value_factor_epsilon,
         "seed": seed,
+        "base_model_config_path": base_model_config_path,
+        "base_model_path": base_model_path,
     }
 
     learner_args = {
@@ -197,6 +201,8 @@ def configure_processes(rl_type="q_learning"):
         "load_model": learner_load_model,
         "old_model_path": old_model_path,
         "save_model_path": save_model_path,
+        "base_model_config_path": base_model_config_path,
+        "base_model_path": base_model_path,
     }
 
     env_args = {

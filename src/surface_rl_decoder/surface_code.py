@@ -454,7 +454,7 @@ class SurfaceCode(gym.Env):
 
         return faulty_syndrome
 
-    def reset(self, error_channel="dp", p_error=-1, p_msmt=-1):
+    def reset(self, error_channel="dp", p_error=-1, p_msmt=-1, debug=False):
         """
         Reset the environment and generate new qubit and syndrome stacks with errors.
 
@@ -500,6 +500,17 @@ class SurfaceCode(gym.Env):
         # between the true syndrome from qubit errors
         # and the updated syndrome with measurement errors
         self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
+
+        if debug:
+            print("CAUTION! SURFACE CODE IS SET TO DEBUG MODE!")
+            self.actual_errors = np.zeros_like(self.qubits)
+            self.actual_errors[-1, 1, 1] = 1
+            true_syndrome = create_syndrome_output_stack(
+                self.actual_errors, self.vertex_mask, self.plaquette_mask
+            )
+            self.state = true_syndrome
+            self.state *= STATE_MULTIPLIER
+            self.syndrome_errors = np.logical_xor(self.state, true_syndrome)
 
         self.qubits = copy_array_values(self.actual_errors)
         return self.state
@@ -603,7 +614,7 @@ class SurfaceCode(gym.Env):
                 self.syndrome_errors, self.plaquette_mask
             )
 
-            self.setup_qubit_grid(
+            ax = self.setup_qubit_grid(
                 markersize_qubit=markersize_qubit,
                 linewidth=linewidth,
             )
