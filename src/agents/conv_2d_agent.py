@@ -120,6 +120,7 @@ class Conv2dAgent(BaseAgent):
                 padding=self.padding_size,
             )
             layer_count += 1
+
             if self.use_batch_norm:
                 self.norm1 = nn.BatchNorm2d(input_channel_list[layer_count])
 
