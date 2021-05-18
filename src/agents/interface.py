@@ -18,7 +18,10 @@ def interface(
     z = state * vertex_mask
     return x, z, state
 
-def create_convolution_sequence(input_list, kernel_size, padding, convolution=nn.Conv2d, device="cpu"):
+
+def create_convolution_sequence(
+    input_list, kernel_size, padding, convolution=nn.Conv2d, device="cpu"
+):
     modules = []
 
     for i in range(len(input_list) - 1):
@@ -27,7 +30,7 @@ def create_convolution_sequence(input_list, kernel_size, padding, convolution=nn
                 int(input_list[i]),
                 int(input_list[i + 1]),
                 kernel_size=kernel_size,
-                padding=padding
+                padding=padding,
             )
         )
         # modules.append(nn.ReLU())
