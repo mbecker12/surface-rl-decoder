@@ -23,7 +23,7 @@ jobs:
         branch_name: ci
       run: |
         echo "GITHUB_SHA: $GITHUB_SHA ..."
-        docker build -t --no-cache xero32/qec-mp:$GITHUB_SHA .
+        docker build --no-cache -t xero32/qec-mp:$GITHUB_SHA .
         docker push xero32/qec-mp:$GITHUB_SHA
     - name: Prepare Singularity Environment
       uses: eWaterCycle/setup-singularity@v6
