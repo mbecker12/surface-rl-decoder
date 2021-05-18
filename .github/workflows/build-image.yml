@@ -9,6 +9,8 @@ jobs:
     steps:
     - name: Check out the repo
       uses: actions/checkout@v2
+      with:
+        ref: ${{ github.ref }}
     - name: Login to DockerHub
       id: logintodocker
       uses: docker/login-action@v1
@@ -23,6 +25,7 @@ jobs:
         branch_name: ci
       run: |
         echo "GITHUB_SHA: $GITHUB_SHA ..."
+        echo "Branch: ${{ github.ref }}"
         docker build --no-cache -t xero32/qec-mp:$GITHUB_SHA .
         docker push xero32/qec-mp:$GITHUB_SHA
     - name: Prepare Singularity Environment
