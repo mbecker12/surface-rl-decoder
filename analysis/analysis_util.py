@@ -1,5 +1,6 @@
 from copy import deepcopy
 import os
+from typing import Dict
 import numpy as np
 import torch
 from agents.base_agent import BaseAgent
@@ -25,7 +26,7 @@ def analyze_succesful_episodes(
     code_size=None,
     stack_depth=None,
     device="cpu"
-):
+) -> Dict:
 
     model.eval()
 
@@ -45,12 +46,16 @@ def analyze_succesful_episodes(
         )
 
     global_episode_steps = 0
-
-    counter_logical_errors = 0
-    counter_syndrome_left = 0
-    counter_successful_episodes = 0
-    counter_ground_state = 0
-    counter_solved_w_syndrome_left = 0
+    
+    n_ground_states = 0
+    n_valid_episodes = 0
+    n_valid_ground_states = 0
+    n_valid_non_trivial_loops = 0
+    n_ep_w_syndromes = 0
+    n_ep_w_loops = 0
+    n_too_long = 0
+    n_too_long_w_loops = 0
+    n_too_long_w_syndromes = 0
 
     ignore_episodes = set()
     n_steps = np.zeros(total_n_episodes)
@@ -102,20 +107,29 @@ def analyze_succesful_episodes(
                     env_set.environments[i].plaquette_mask,
                 )
 
-                if n_syndromes > 0:
-                    counter_syndrome_left += 1
-                if n_loops > 0:
-                    counter_logical_errors += 1
-                # assume that a few syndromes left don't cause much harm
-                # and are in fact okay for our purposes
-                if _ground_state and n_loops == 0:
-                    counter_successful_episodes += 1
-
+                if env_set.environments[i].current_action_index == max_num_of_steps:
+                    print("line 110: failed episode; too many steps")
+                    n_too_long += 1
                     if n_syndromes > 0:
-                        counter_solved_w_syndrome_left += 1
+                        n_too_long_w_syndromes += 1
+                    if n_loops > 0:
+                        n_too_long_w_loops += 1
+
+                if n_syndromes == 0:
+                    n_valid_episodes += 1
+                    if _ground_state:
+                        n_valid_ground_states += 1
+                    else:
+                        n_valid_non_trivial_loops += 1
 
                 if _ground_state:
-                    counter_ground_state += 1
+                    n_ground_states += 1
+                if n_syndromes > 0:
+                    n_ep_w_syndromes += 1
+                if int(n_loops) > 0:
+                    n_ep_w_loops += 1
+                    if _ground_state:
+                        print("Something's wrong, I can feel it.")
 
         if np.all(terminals):
             break
@@ -134,27 +148,41 @@ def analyze_succesful_episodes(
             env_set.environments[i].plaquette_mask,
         )
 
-        if n_syndromes > 0:
-            counter_syndrome_left += 1
-        if n_loops > 0:
-            counter_logical_errors += 1
-        # assume that a few syndromes left don't cause much harm
-        # and are in fact okay for our purposes
-        if _ground_state and n_loops == 0:
-            counter_successful_episodes += 1
-
+        if env_set.environments[i].current_action_index >= max_num_of_steps - 1:
+            print("line 110: failed episode; too many steps")
+            n_too_long += 1
             if n_syndromes > 0:
-                counter_solved_w_syndrome_left += 1
+                n_too_long_w_syndromes += 1
+            if n_loops > 0:
+                n_too_long_w_loops += 1
+
+        if n_syndromes == 0:
+            n_valid_episodes += 1
+            if _ground_state:
+                n_valid_ground_states += 1
+            else:
+                n_valid_non_trivial_loops += 1
 
         if _ground_state:
-            counter_ground_state += 1
+            n_ground_states += 1
+        if n_syndromes > 0:
+            n_ep_w_syndromes += 1
+        if int(n_loops) > 0:
+            n_ep_w_loops += 1
+            if _ground_state:
+                print("Something's wrong, I can feel it.")
 
-    return (
-        total_n_episodes,
-        counter_successful_episodes,
-        counter_logical_errors,
-        counter_syndrome_left,
-        counter_ground_state,
-        counter_solved_w_syndrome_left,
-        n_steps
-    )
+    result_dict = {
+        "total_n_episodes": total_n_episodes,
+        "n_ground_states": n_ground_states,
+        "n_valid_episodes": n_valid_episodes,
+        "n_valid_ground_states": n_valid_ground_states,
+        "n_valid_non_trivial_loops": n_valid_non_trivial_loops,
+        "n_ep_w_syndromes": n_ep_w_syndromes,
+        "n_ep_w_loops": n_ep_w_loops,
+        "n_too_long": n_too_long,
+        "n_too_long_w_loops": n_too_long_w_loops,
+        "n_too_long_w_syndromes": n_too_long_w_syndromes,
+        "n_steps_arr": n_steps
+    }
+    return result_dict
