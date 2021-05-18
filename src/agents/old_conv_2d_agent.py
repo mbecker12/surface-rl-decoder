@@ -245,3 +245,4 @@ class SimpleConv2D(nn.Module):
             == self.nr_actions_per_qubit * self.size * self.size + 1
         ), final_output.shape
         return final_output
+

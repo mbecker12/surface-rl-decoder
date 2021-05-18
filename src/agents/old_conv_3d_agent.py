@@ -240,4 +240,6 @@ class Conv3dAgent(BaseAgent):
             complete = F.relu(self.lin2(complete))
 
         final_output = self.output_layer(complete)
+
         return final_output
+

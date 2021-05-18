@@ -36,4 +36,5 @@ def create_convolution_sequence(
         # modules.append(nn.ReLU())
     for layer in modules:
         layer.to(device)
+        
     return modules

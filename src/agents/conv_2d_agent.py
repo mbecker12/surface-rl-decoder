@@ -10,11 +10,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from gtrxl_torch.gtrxl_torch import GTrXL
 from agents.base_agent import BaseAgent
+
 from surface_rl_decoder.syndrome_masks import get_vertex_mask, get_plaquette_mask
+
 from agents.interface import create_convolution_sequence, interface
 
 NETWORK_SIZES = ["slim", "medium", "large", "extra_large"]
-
 
 class Conv2dAgent(BaseAgent):
 
@@ -27,7 +28,6 @@ class Conv2dAgent(BaseAgent):
         from which only the final (with regards to time) output is used.
         For the instantiation it requires a dictionary containing the several
         parameters that the network will need to build itself.
-
     Parameters
     ==========
     config: dictionary containing configuration for the network. Expected keys:
@@ -46,7 +46,6 @@ class Conv2dAgent(BaseAgent):
         lstm_output_size: number of features in the hidden state of the LSTM;
             used synonymously as the size of the LSTM output vector
         neurons_lin_layer: number of neurons in the second-to-last linear layer
-
         kernel_size: the size of the convolution kernel
         padding_size: the amount of padding, should be a number
             such that the shortening in dimension length due to the kernel is negated
@@ -135,12 +134,12 @@ class Conv2dAgent(BaseAgent):
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
+
                 padding=self.padding_size,
             )
             layer_count += 1
             if self.use_batch_norm:
                 self.norm2 = nn.BatchNorm2d(input_channel_list[layer_count])
-
         if self.network_size in NETWORK_SIZES[1:]:
             self.conv5 = nn.Conv2d(
                 input_channel_list[layer_count],
@@ -154,6 +153,7 @@ class Conv2dAgent(BaseAgent):
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
                 padding=self.padding_size,
+
             )
             layer_count += 1
             self.conv7 = nn.Conv2d(
@@ -184,6 +184,7 @@ class Conv2dAgent(BaseAgent):
             if self.use_batch_norm:
                 self.norm4 = nn.BatchNorm2d(input_channel_list[layer_count])
 
+
         self.output_channels = input_channel_list[-1]
 
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
@@ -206,6 +207,7 @@ class Conv2dAgent(BaseAgent):
                 lstm_total_output_size *= self.stack_depth
 
             lin_layer_count = 0
+
             if self.use_batch_norm:
                 self.norm5 = nn.BatchNorm1d(lstm_total_output_size)
             self.lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
@@ -364,3 +366,4 @@ class Conv2dAgent(BaseAgent):
 
         final_output = self.output_layer(complete)
         return final_output
+

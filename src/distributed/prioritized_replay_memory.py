@@ -8,11 +8,13 @@ can exncounter more events which it can learn a lot from.
 from time import time
 import random
 from collections import namedtuple
+#import traceback
 import numpy as np
 from distributed.sum_tree import SumTree
 
+
 Transition = namedtuple(
-    "Transition", ["state", "action", "reward", "next_state", "terminal"]
+    "Transition", ["state", "action", "reward", "next_state", "terminal", "goal"]
 )
 
 EPSILON = 1e-16

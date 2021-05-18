@@ -41,13 +41,11 @@ def choose_model(
     """
     Given a model name, choose the corresponding neural network agent/model
     from a custom mapping
-
     Parameters
     ==========
     model_name: (str) valid name of the model/agent to be chosen
     model_config: (dict) dictionary containing expected model configuration.
         This may vary for different models
-
     Returns
     =======
     model: The desired neural network object, subclass of torch.nn.Module
@@ -83,7 +81,6 @@ def extend_model_config(
     """
     Extend an existing model or agent configuration dictionary
     with information about the environment.
-
     Parameters
     ==========
     model_config: (dict) dictionary contiaining information about
@@ -92,7 +89,6 @@ def extend_model_config(
     stack_depth: (int) number of layers in a state stack
     num_actions_per_qubit: (optional) (int), number of possible actions on one
         qubit. Defaults to 3 for Pauli-X, -Y, -Z.
-
     Returns
     =======
     model_config: (dict) updated dictionary with configuration information
@@ -119,7 +115,6 @@ def load_model(
 ) -> Tuple[nn.Module, Union[Adam, None], Union[MSELoss, None]]:
     """
     Utility function to load a pytorch model's state dict from a specified path.
-
     Parameters
     ==========
     model: child class of torch.nn.Module, instance of neural network model
@@ -129,7 +124,6 @@ def load_model(
     load_optimizer: (optional)(bool) whether to load the saved optimizer
     optimizer_device: (optional, required if load_optimizer) device for the loaded optimizer
     learning_rate: (optional, required if load_optimizer) learning rate for gradient descent
-
     Returns
     =======
     model: model instance, overwritten with saved state in state_dict
@@ -164,7 +158,6 @@ def load_model(
 def save_model(model, optimizer, criterion, save_model_path):
     """
     Utility function to save a pytorch model's state dict.
-
     Parameters
     ==========
     model: child class of torch.nn.Module, instance of neural network model
@@ -185,7 +178,6 @@ def save_metadata(config, path):
     Save the metadata corresponding to a successful training run
     into a yaml file.
     Provides information for later analysis of training runs.
-
     Parameters
     ==========
     config: dictionary containing the configuration data of the training run

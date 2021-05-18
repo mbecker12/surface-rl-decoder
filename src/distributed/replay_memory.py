@@ -13,7 +13,7 @@ class ReplayMemory:
     """
 
     def __init__(self, memory_size):
-        self.memory = [Transition(None, None, None, None, None)] * memory_size
+        self.memory = [Transition(None, None, None, None, None, None)] * memory_size
         self.memory_size = memory_size
         self.current_num_objects = 0
         self.is_full_memory = False

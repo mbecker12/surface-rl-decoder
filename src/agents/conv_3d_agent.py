@@ -58,9 +58,11 @@ class Conv3dAgent(BaseAgent):
         self.device = config.get("device")
         # pylint: disable=not-callable
         self.size = int(config.get("code_size"))
+
         self.plaquette_mask = torch.tensor(
             get_plaquette_mask(self.size), device=self.device
         )
+
         self.vertex_mask = torch.tensor(get_vertex_mask(self.size), device=self.device)
         self.split_input_toggle = int(config.get("split_input_toggle", 1))
         self.input_channels = int(config.get("input_channels"))
@@ -102,7 +104,9 @@ class Conv3dAgent(BaseAgent):
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
+
                 padding=self.padding_size,
+
             )
             layer_count += 1
             self.conv3 = nn.Conv3d(
@@ -180,6 +184,7 @@ class Conv3dAgent(BaseAgent):
                 input_channel_list[layer_count],
                 input_channel_list[layer_count + 1],
                 kernel_size=self.kernel_size,
+
                 padding=self.padding_size,
             )
             layer_count += 1
@@ -197,11 +202,13 @@ class Conv3dAgent(BaseAgent):
                     ppo_output_channels,
                     kernel_size=self.kernel_size,
                     padding=self.padding_size,
+
                 )
             layer_count += 1
 
         self.output_channels = int(input_channel_list[-1])
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
+
         self.cnn_dimension = (
             (self.size + 1) * (self.size + 1) * self.stack_depth * self.output_channels
         )
@@ -222,7 +229,6 @@ class Conv3dAgent(BaseAgent):
             self.lin_val0 = nn.Linear(
                 self.cnn_val_dimension, int(input_neuron_numbers[0])
             )
-
         if self.network_size in NETWORK_SIZES:
             self.lin1 = nn.Linear(
                 input_neuron_numbers[lin_layer_count],
@@ -311,6 +317,7 @@ class Conv3dAgent(BaseAgent):
             complete0 = both5.view(-1, self.cnn_dimension)
             if self.rl_type == "ppo":
                 values_complete0 = values1.view(-1, self.cnn_val_dimension)
+
         else:
             raise Exception(f"Network size {self.network_size} not supported.")
 
