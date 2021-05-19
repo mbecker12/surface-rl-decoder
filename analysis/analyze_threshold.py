@@ -28,13 +28,14 @@ job_ids = [
     69366,
     69312,
     69545,
-    70425
+    70425,
+    71571
 ]
 
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
 
-do_copy = False
+do_copy = True
 if do_copy:
     print("Copy Data from Cluster")
     
@@ -60,18 +61,18 @@ df_all_stats = pd.DataFrame(columns=[
     ])
 
 all_results_counter = 0
-n_episodes = 32
+n_episodes = 256
 model_name = "conv3d"
 eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
-run_evaluation = False
-load_eval_results = True
-produce_plots = True
+run_evaluation = True
+load_eval_results = False
+produce_plots = False
 csv_file_path = "analysis/threshold_analysis_results.csv"
 
-max_num_of_steps = 36
+max_num_of_steps = 40
 if run_evaluation:
     print("Proceed to Evaluation")
     # TODO: Need to make changes to evaluation
@@ -86,6 +87,8 @@ if run_evaluation:
         for load_path in network_list:
             print(f"{load_path}")
             jid = load_path.split("/")[-1]
+            if int(jid) not in job_ids:
+                continue
             model_config_path = load_path + f"/{model_name}_{code_size}_meta.yaml"
             old_model_path = load_path + f"/{model_name}_{code_size}_{jid}.pt"
             with open(model_config_path, "r") as yaml_file:
@@ -161,7 +164,7 @@ if not produce_plots:
 print(f"{df_all_stats=}")
 # split df into sensible groups
 
-dfs: List[pd.DataFrame] = [df_all_stats.loc[(df_all_stats["jobid"] == jid) | (df_all_stats["jobid"] == str(jid))] for jid in job_ids]
+dfs: List[pd.DataFrame] = [df_all_stats.loc[(df_all_stats["jobid"] == jid) | (df_all_stats["jobid"] == str(jid))].copy(deep=True) for jid in job_ids]
 new_dfs = []
 # TODO aggregate stats from different analysis runs
 eval_key_list = [
@@ -184,7 +187,7 @@ for df in dfs:
     print(f"{df=}")
     if int(df["jobid"].iloc[0]) == 69308:
         continue
-    df = df.sort_values(by="success_rate", ascending=True)
+    df = df.sort_values(by="n_ground_states", ascending=True)
 
     #TODO: aggregate / sum values first
     df["expected_n_err"] = df["p_err"] * df["code_size"] * df["code_size"] * df["stack_depth"]
@@ -200,7 +203,7 @@ for df in dfs:
     
     groups = df.groupby(by="p_err")
     agg_groups = groups.agg(aggregation_dict)
-    print(f"{type(agg_groups)=}")
+
     new_df = pd.DataFrame()
 
     agg_groups["weighted_avg_steps"] = agg_groups["avg_steps"] / agg_groups["total_n_episodes"]
@@ -270,7 +273,7 @@ ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_scaled_fail_rate)
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/test/threshold_overall_fail_rate_p_err.pdf")
+plt.savefig("plots/threshold_overall_fail_rate_p_err.pdf")
 plt.show()
 
 
@@ -297,7 +300,7 @@ ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_fail_rate)
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/test/threshold_valid_fail_rate_p_err.pdf")
+plt.savefig("plots/threshold_valid_fail_rate_p_err.pdf")
 plt.show()
 
 ################## Plot Valid Average Lifetime ##################
@@ -323,7 +326,7 @@ ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_avg_life)
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/test/threshold_valid_lifetime_p_err.pdf")
+plt.savefig("plots/threshold_valid_lifetime_p_err.pdf")
 plt.show()
 
 ################## Plot Overall Average Lifetime ##################
@@ -349,7 +352,7 @@ ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life)
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/test/threshold_overall_lifetime_p_err.pdf")
+plt.savefig("plots/threshold_overall_lifetime_p_err.pdf")
 plt.show()
 
 sys.exit()
