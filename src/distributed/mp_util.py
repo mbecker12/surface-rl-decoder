@@ -64,6 +64,7 @@ def configure_processes(rl_type="q_learning"):
     decay_factor_epsilon = float(actor_config.get("decay_factor_epsilon", 1.0))
     min_value_factor_epsilon = float(actor_config.get("min_value_factor_epsilon", 0.0))
     seed = int(actor_config.get("seed", 0))
+    n_goals = int(actor_config.get("n_goals", 10))
 
     # set up replay memory configuration
     replay_memory_size = int(memory_config["size"])
@@ -177,6 +178,7 @@ def configure_processes(rl_type="q_learning"):
         "base_model_config_path": base_model_config_path,
         "base_model_path": base_model_path,
         "use_transfer_learning": use_transfer_learning,
+        "n_goals": n_goals,
     }
 
     learner_args = {
