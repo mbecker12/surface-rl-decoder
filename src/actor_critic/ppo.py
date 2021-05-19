@@ -5,6 +5,7 @@ the replay buffer and different workers.
 Furthermore, this class implements the communication with the
 replay buffer to request episode samples and performs the actual learner step.
 """
+import json
 import os
 from time import time
 import logging
@@ -81,6 +82,10 @@ class PPO:
         save_model_path = learner_args["save_model_path"]
         model_name = learner_args["model_name"]
         model_config = learner_args["model_config"]
+        base_model_config_path = learner_args["base_model_config_path"]
+        base_model_path = learner_args["base_model_path"]
+        use_transfer_learning = learner_args["use_transfer_learning"]
+        rl_type = learner_args["rl_type"]
 
         self.save_model_path_date = os.path.join(
             save_model_path,
@@ -101,11 +106,32 @@ class PPO:
         if self.max_timesteps == -1:
             self.max_timesteps = np.Infinity
 
+        # initialize models and other learning gadgets
         model_config = extend_model_config(
             model_config, self.syndrome_size, self.stack_depth, device=self.device
         )
+
+        # prepare Transfer learning, if enabled
+        if use_transfer_learning:
+            self.logger.info(f"Prepare transfer learning for d={self.code_size}.")
+            with open(base_model_config_path, "r") as json_file:
+                base_model_config = json.load(json_file)["simple_conv"]
+
+            base_model_config = extend_model_config(
+                base_model_config, self.syndrome_size, self.stack_depth, device=self.device
+            )
+        else:
+            base_model_config = None
+
         model_config["rl_type"] = "ppo"
-        self.combined_model = choose_model(model_name, model_config)
+        self.combined_model = choose_model(
+            model_name,
+            model_config,
+            model_path_base=base_model_path,
+            model_config_base=base_model_config,
+            transfer_learning=use_transfer_learning,
+            rl_type=rl_type,
+        )
 
         if load_model_flag:
             self.combined_model, self.optimizer, _ = load_model(
