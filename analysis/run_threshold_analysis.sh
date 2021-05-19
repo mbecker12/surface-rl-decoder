@@ -1,7 +1,7 @@
 #!/bin/bash
 
 counter=1
-max_counter=50
+max_counter=20
 
 until [ $counter -gt $max_counter ]
 do

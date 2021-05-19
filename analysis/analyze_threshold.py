@@ -1,8 +1,6 @@
 # theoretically, we have all the runs for d=3,5,7
 # Still some uncertainties in error rate (p_{err} or p_{err}^{one_layer})
 from typing import Dict, List
-
-from torch._C import AggregationType
 from analysis_util import analyze_succesful_episodes
 import sys
 import os
@@ -32,6 +30,9 @@ job_ids = [
     71571
 ]
 
+omit_job_ids = [
+    71571
+]
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
 
@@ -78,7 +79,7 @@ if run_evaluation:
     # TODO: Need to make changes to evaluation
     # keep track of absolute numbers in df, rather than averages/fractions
     # also maybe need to keep track of disregarded episodes
-    for code_size in (3, 5, 7, 9, ):
+    for code_size in (9, ):
         stack_depth = code_size
         os.environ["CONFIG_ENV_SIZE"] = str(code_size)
         os.environ["CONFIG_ENV_STACK_DEPTH"] = str(stack_depth)
@@ -187,6 +188,9 @@ for df in dfs:
     print(f"{df=}")
     if int(df["jobid"].iloc[0]) == 69308:
         continue
+    if int(df["jobid"].iloc[0]) == 71571:
+        continue
+
     df = df.sort_values(by="n_ground_states", ascending=True)
 
     #TODO: aggregate / sum values first
@@ -250,10 +254,16 @@ key_overall_avg_life = "overall_avg_lifetime"
 title_overall_avg_life = "Overall Average Lifetime"
 
 
+for o_jid in omit_job_ids:
+    job_ids.remove(o_jid)
+
 ################## Plot Overall Fail Rate per Cycle ##################
 fig, ax = plt.subplots(1, 1, sharex=True)
 
 for i, jid in enumerate(job_ids):
+    if jid in omit_job_ids:
+        continue
+
     code_size = new_dfs[i]["code_size"].iloc[0]
     stack_depth = new_dfs[i]["stack_depth"].iloc[0]
     # print(new_dfs[i])
@@ -294,7 +304,7 @@ ax.plot(
     'k',
     label="One Qubit"
 )
-ax.set(title=title_scaled_fail_rate)
+ax.set(title=title_valid_fail_rate)
 ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_fail_rate)
 
 
@@ -321,12 +331,40 @@ ax.plot(
     label="One Qubit"
 )
 ax.set(title=title_valid_avg_life)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_avg_life)
+ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_avg_life, ylim=(0, 10000))
 
 
 plt.legend()
 plt.tight_layout()
 plt.savefig("plots/threshold_valid_lifetime_p_err.pdf")
+plt.show()
+
+fig, ax = plt.subplots(1, 1, sharex=True)
+
+for i, jid in enumerate(job_ids):
+    code_size = new_dfs[i]["code_size"].iloc[0]
+    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+    # print(new_dfs[i])
+    ax.scatter(
+        x=new_dfs[i]["p_err"],
+        y=new_dfs[i][key_valid_avg_life],
+        label=f"d={code_size}, h={stack_depth}")
+ax.plot(
+    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+    1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+    'k',
+    label="One Qubit"
+)
+ax.set(title=title_valid_avg_life)
+ax.set(
+    xlabel=r"$p_\mathrm{err}$",
+    ylabel=title_valid_avg_life,
+    xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
+)
+
+plt.legend()
+plt.tight_layout()
+plt.savefig("plots/threshold_valid_lifetime_p_err_log.pdf")
 plt.show()
 
 ################## Plot Overall Average Lifetime ##################
@@ -346,13 +384,41 @@ ax.plot(
     'k',
     label="One Qubit"
 )
-ax.set(title=title_valid_avg_life)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life)
+ax.set(title=title_overall_avg_life)
+ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life, ylim=(0, 10000))
 
 
 plt.legend()
 plt.tight_layout()
 plt.savefig("plots/threshold_overall_lifetime_p_err.pdf")
+plt.show()
+
+fig, ax = plt.subplots(1, 1, sharex=True)
+
+for i, jid in enumerate(job_ids):
+    code_size = new_dfs[i]["code_size"].iloc[0]
+    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+    # print(new_dfs[i])
+    ax.scatter(
+        x=new_dfs[i]["p_err"],
+        y=new_dfs[i][key_overall_avg_life],
+        label=f"d={code_size}, h={stack_depth}")
+ax.plot(
+    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+    1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+    'k',
+    label="One Qubit"
+)
+ax.set(title=title_overall_avg_life)
+ax.set(
+    xlabel=r"$p_\mathrm{err}$",
+    ylabel=title_overall_avg_life,
+    xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
+)
+
+plt.legend()
+plt.tight_layout()
+plt.savefig("plots/threshold_overall_lifetime_p_err_log.pdf")
 plt.show()
 
 sys.exit()
