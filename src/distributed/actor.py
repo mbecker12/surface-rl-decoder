@@ -165,10 +165,7 @@ def actor(args):
 
     # prepare Transfer learning, if enabled
     if len(base_model_config_path) > 1:
-        assert (
-            code_size == 5
-        ), "Unfortunately, transfer learning is only enabled for d=5 so far. :("
-        logger.info("Prepare transfer learning!")
+        logger.info(f"Prepare transfer learning for d={code_size}.")
         with open(base_model_config_path, "r") as json_file:
             base_model_config = json.load(json_file)["simple_conv"]
 

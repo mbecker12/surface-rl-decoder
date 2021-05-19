@@ -255,6 +255,7 @@ def configure_pretrained_model(
 
     elif model_name_base is not None:
         if model_name_base == "old_conv_2d":
+            # sorry for hard-coding this but loading the old model only works on this parameter
             model_config_base["stack_depth"] = 4
             model_config_base["code_size"] = 5
             model_base = OldConv2dAgent(model_config_base)
@@ -293,7 +294,7 @@ def configure_pretrained_model(
             )
     else:
         raise Exception(
-            f"Error! You need to provide either a class or an identifier string for the model top."
+            "Error! You need to provide either a class or an identifier string for the model top."
         )
 
     device = model_config_top["device"]
