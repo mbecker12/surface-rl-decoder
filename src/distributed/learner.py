@@ -166,14 +166,14 @@ def learner(args: Dict):
         model_config,
         model_path_base=base_model_path,
         model_config_base=base_model_config,
-        transfer_learning=use_transfer_learning
+        transfer_learning=use_transfer_learning,
     )
     target_net = choose_model(
         model_name,
         model_config,
         model_path_base=base_model_path,
         model_config_base=base_model_config,
-        transfer_learning=use_transfer_learning
+        transfer_learning=use_transfer_learning,
     )
 
     criterion = nn.MSELoss(reduction="none")

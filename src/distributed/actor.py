@@ -183,7 +183,7 @@ def actor(args):
         model_config,
         model_path_base=base_model_path,
         model_config_base=base_model_config,
-        transfer_learning=use_transfer_learning
+        transfer_learning=use_transfer_learning,
     )
 
     if load_model_flag:

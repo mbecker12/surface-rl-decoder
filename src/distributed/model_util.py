@@ -36,7 +36,11 @@ def choose_old_model(model_name, model_config):
 
 
 def choose_model(
-    model_name, model_config, model_config_base=None, model_path_base=None, transfer_learning=1
+    model_name,
+    model_config,
+    model_config_base=None,
+    model_path_base=None,
+    transfer_learning=1,
 ):
     """
     Given a model name, choose the corresponding neural network agent/model
