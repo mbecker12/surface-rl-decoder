@@ -145,7 +145,7 @@ def learner(args: Dict):
 
     # prepare Transfer learning, if enabled
     if len(base_model_config_path) > 1:
-        logger.info("Prepare transfer learning for d={code_size}.")
+        logger.info(f"Prepare transfer learning for d={code_size}.")
         with open(base_model_config_path, "r") as json_file:
             base_model_config = json.load(json_file)["simple_conv"]
 
