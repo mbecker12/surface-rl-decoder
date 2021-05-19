@@ -9,7 +9,7 @@
         "input_channels": 1,
         "kernel_size": 3,
         "padding_size": 1,
-        "channel_list": [16, 32, 64, 64, 16],
+        "channel_list": [16, 32, 64, 16],
         "lstm_num_layers": 2,
         "lstm_num_directions": 1,
         "lstm_output_size": 256,

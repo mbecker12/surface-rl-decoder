@@ -4,6 +4,7 @@ reinforcement learning.
 """
 import json
 import os
+import random
 from copy import deepcopy
 from time import time
 from collections import namedtuple
@@ -74,6 +75,7 @@ def actor(args):
         "min_value_factor_epsilon": minimum value that the exploration factor ε
             should be annealed to
     """
+    n_goals = args["n_goals"]
     num_environments = args["num_environments"]
     actor_id = args["id"]
     size_action_history = args["size_action_history"]
@@ -292,7 +294,19 @@ def actor(args):
         buffer_idx += 1
 
         # prepare to send local transitions to replay memory
-        if buffer_idx >= size_local_memory_buffer:
+        if buffer_idx >= (size_local_memory_buffer-n_goals):
+            put_in_fake_goals(
+                local_buffer_transitions,
+                local_buffer_actions,
+                local_buffer_qvalues,
+                local_buffer_rewards,
+                buffer_idx,
+                n_goals,
+                stack_depth,
+                state_size
+            )
+            buffer_idx += n_goals
+
             # get new weights for the policy model here
             if (learner_qsize := learner_actor_queue.qsize()) > 0:
                 # consume all the deprecated updates without effect
@@ -368,3 +382,54 @@ def actor(args):
         if time() - heart > heartbeat_interval:
             heart = time()
             logger.debug("It's alive, can you feel it?")
+
+
+
+def put_in_fake_goals(
+    local_buffer_transitions,
+    local_buffer_actions,
+    local_buffer_qvalues,
+    local_buffer_rewards,
+    buffer_idx,
+    n_goals,
+    stack_depth,
+    state_size
+):
+    """
+    Puts in "n_goals" number of fake goals 
+    into the given buffers randomly by sampling from
+    the already existing  samples
+    """
+
+    reward = 100
+
+    transition_type = np.dtype(
+        [
+            ("state", (np.uint8, (stack_depth, state_size, state_size))),
+            ("action", (np.uint8,3),
+            ("reward", float),
+            ("next_state", (np.uint8, (stack_depth, state_size, state_size))),
+            ("terminal", bool)
+            )
+        ]
+    )
+
+    for i in range(n_goals):
+        random_index = random.randint(0, buffer_idx)
+        transitions = local_buffer_transitions[:, random_index]
+        actions = local_buffer_actions[:, random_index]
+        qvalues = local_buffer_qvalues[:, random_index]
+        rewards = np.ones(local_buffer_rewards[:, random_index].shape)*reward
+
+        _transitions = np.asarray(
+            transitions[0],
+            transitions[1],
+            transitions[2],
+            transitions[3],
+            transitions[4],
+            dtype = transition_type
+        )
+        local_buffer_transitions[:, buffer_idx+i] = _transitions
+        local_buffer_actions[:, buffer_idx+i] = actions
+        local_buffer_qvalues[:, buffer_idx+i] = qvalues
+        local_buffer_rewards[:, buffer_idx+i] = rewards
