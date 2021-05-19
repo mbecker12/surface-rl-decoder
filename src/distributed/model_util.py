@@ -36,7 +36,7 @@ def choose_old_model(model_name, model_config):
 
 
 def choose_model(
-    model_name, model_config, model_config_base=None, model_path_base=None
+    model_name, model_config, model_config_base=None, model_path_base=None, transfer_learning=1
 ):
     """
     Given a model name, choose the corresponding neural network agent/model
@@ -55,20 +55,25 @@ def choose_model(
 
     if "dummy" in model_name:
         model = DummyModel(model_config)
-    elif "conv2d" in model_name.lower():
-        assert (
-            model_path_base is not None
-        ), "Need to specify the path of the pretrained base model!"
-        assert (
-            model_config_base is not None
-        ), "Need to specify a configuration file for the base model!"
-        model = configure_pretrained_model(
-            model_config_base,
-            model_config,
-            model_path_base,
-            model_class_base=OldConv2dAgent,
-            model_class_top=Conv2dAgent,
-        )
+    elif model_name.lower() == "conv2d":
+        if transfer_learning:
+            assert (
+                model_path_base is not None
+            ), "Need to specify the path of the pretrained base model!"
+            assert (
+                model_config_base is not None
+            ), "Need to specify a configuration file for the base model!"
+            model = configure_pretrained_model(
+                model_config_base,
+                model_config,
+                model_path_base,
+                model_class_base=OldConv2dAgent,
+                model_class_top=Conv2dAgent,
+            )
+            print("Prepare Conv2dAgent and OldConv2dAgent using transfer learning.")
+        else:
+            model = Conv2dAgent(model_config)
+            print("Prepare Conv2dAgent w/o transfer learning")
     elif "conv3d" in model_name.lower():
         model = Conv3dAgent(model_config)
     else:
@@ -241,10 +246,13 @@ def configure_pretrained_model(
     if model_class_base is not None:
         # sorry for hard-coding this but loading the old model only works on this parameter
         model_config_base["stack_depth"] = 4
+        model_config_base["code_size"] = 5
         model_base = model_class_base(model_config_base)
 
     elif model_name_base is not None:
         if model_name_base == "old_conv_2d":
+            model_config_base["stack_depth"] = 4
+            model_config_base["code_size"] = 5
             model_base = OldConv2dAgent(model_config_base)
         elif model_name_base == "conv_2d":
             # do other stuff here

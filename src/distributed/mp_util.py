@@ -96,6 +96,7 @@ def configure_processes(rl_type="q_learning"):
     save_model_path = learner_config["save_model_path"]
     base_model_config_path = learner_config["base_model_config_path"]
     base_model_path = learner_config["base_model_path"]
+    use_transfer_learning = int(learner_config["transfer_learning"])
 
     # initialize communication queues
     logger.info("Initialize queues")
@@ -175,6 +176,7 @@ def configure_processes(rl_type="q_learning"):
         "seed": seed,
         "base_model_config_path": base_model_config_path,
         "base_model_path": base_model_path,
+        "use_transfer_learning": use_transfer_learning,
     }
 
     learner_args = {
@@ -203,6 +205,7 @@ def configure_processes(rl_type="q_learning"):
         "save_model_path": save_model_path,
         "base_model_config_path": base_model_config_path,
         "base_model_path": base_model_path,
+        "use_transfer_learning": use_transfer_learning,
     }
 
     env_args = {

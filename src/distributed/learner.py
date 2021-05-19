@@ -141,6 +141,7 @@ def learner(args: Dict):
 
     base_model_config_path = args["base_model_config_path"]
     base_model_path = args["base_model_path"]
+    use_transfer_learning = args["use_transfer_learning"]
 
     # prepare Transfer learning, if enabled
     if len(base_model_config_path) > 1:
@@ -165,12 +166,14 @@ def learner(args: Dict):
         model_config,
         model_path_base=base_model_path,
         model_config_base=base_model_config,
+        transfer_learning=use_transfer_learning
     )
     target_net = choose_model(
         model_name,
         model_config,
         model_path_base=base_model_path,
         model_config_base=base_model_config,
+        transfer_learning=use_transfer_learning
     )
 
     criterion = nn.MSELoss(reduction="none")
