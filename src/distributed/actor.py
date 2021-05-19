@@ -406,11 +406,10 @@ def put_in_fake_goals(
     transition_type = np.dtype(
         [
             ("state", (np.uint8, (stack_depth, state_size, state_size))),
-            ("action", (np.uint8,3),
+            ("action", (np.uint8, 3)),
             ("reward", float),
             ("next_state", (np.uint8, (stack_depth, state_size, state_size))),
-            ("terminal", bool)
-            )
+            ("terminal", bool),
         ]
     )
 
