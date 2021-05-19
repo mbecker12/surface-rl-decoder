@@ -170,6 +170,7 @@ class SurfaceCode(gym.Env):
         discount_intermediate_reward=0.3,
         annealing_intermediate_reward=1.0,
         punish_repeating_actions=0,
+        punish_early_termination=True,
     ):
         """
         Apply a pauli operator to a qubit on the surface code with code distance d.
@@ -201,7 +202,9 @@ class SurfaceCode(gym.Env):
         terminal = action[-1] == TERMINAL_ACTION
 
         if terminal:
-            reward = self.get_reward(action)
+            reward = self.get_reward(
+                action, punish_early_termination=punish_early_termination
+            )
             return self.state, reward, terminal, {}
 
         reward = (
@@ -542,7 +545,7 @@ class SurfaceCode(gym.Env):
         self.state *= STATE_MULTIPLIER
         return self.state
 
-    def get_reward(self, action):
+    def get_reward(self, action, punish_early_termination=True):
         """
         Calculate reward for each action.
 
@@ -581,7 +584,7 @@ class SurfaceCode(gym.Env):
         if self.ground_state:
             return SOLVED_EPISODE_REWARD
 
-        if self.current_action_index <= 1:
+        if self.current_action_index <= 1 and punish_early_termination:
             # this means that the agent ended the episode immediately withou a good reason
             return PREMATURE_ENDING_REWARD
 

@@ -115,6 +115,7 @@ class EnvironmentSet:
         discount_intermediate_reward=0.3,
         annealing_intermediate_reward=1.0,
         punish_repeating_actions=1,
+        punish_early_termination=False,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
         """
         Take a step in each environment instance.
@@ -160,6 +161,7 @@ class EnvironmentSet:
                 discount_intermediate_reward=discount_intermediate_reward,
                 annealing_intermediate_reward=annealing_intermediate_reward,
                 punish_repeating_actions=punish_repeating_actions,
+                punish_early_termination=punish_early_termination,
             )
             _states[i] = next_state
             rewards[i] = reward
