@@ -583,7 +583,6 @@ class SurfaceCode(gym.Env):
 
         if self.current_action_index <= 1:
             # this means that the agent ended the episode immediately withou a good reason
-            print(f"Finished prematurely! Earned reward {PREMATURE_ENDING_REWARD=}")
             return PREMATURE_ENDING_REWARD
 
         # not in the ground state; meaning the agent
