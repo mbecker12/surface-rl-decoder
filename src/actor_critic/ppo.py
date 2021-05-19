@@ -239,6 +239,8 @@ class PPO:
             values,
         ) = self.episode_buffer.get_stacks()
 
+        self.combined_model.train()
+
         self.total_learner_recv_samples += states.shape[0]
         current_time = time()
         if self.io_verbosity:
