@@ -12,6 +12,7 @@ from iniparser import Config
 from .syndrome_masks import get_plaquette_mask, get_vertex_mask
 from .surface_code_util import (
     NON_TRIVIAL_LOOP_REWARD,
+    PREMATURE_ENDING_REWARD,
     REPEATING_ACTION_REWARD,
     SOLVED_EPISODE_REWARD,
     STATE_MULTIPLIER,
@@ -579,6 +580,11 @@ class SurfaceCode(gym.Env):
 
         if self.ground_state:
             return SOLVED_EPISODE_REWARD
+
+        if self.current_action_index <= 1:
+            # this means that the agent ended the episode immediately withou a good reason
+            print(f"Finished prematurely! Earned reward {PREMATURE_ENDING_REWARD=}")
+            return PREMATURE_ENDING_REWARD
 
         # not in the ground state; meaning the agent
         # performed a logical operation by accident

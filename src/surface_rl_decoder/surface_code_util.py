@@ -24,6 +24,7 @@ SYNDROME_LEFT_REWARD = float(reward_config.get("syndrome_left", "-5"))
 SOLVED_EPISODE_REWARD = float(reward_config.get("solved_episode", "150"))
 SYNDROME_DIFF_REWARD = float(reward_config.get("syndrome_difference", "0.2"))
 REPEATING_ACTION_REWARD = float(reward_config.get("repeating_action", "-2"))
+PREMATURE_ENDING_REWARD = float(reward_config.get("premature_ending", "-200"))
 
 # alter state
 STATE_MULTIPLIER = int(env_config.get("state_multiplier", "20"))

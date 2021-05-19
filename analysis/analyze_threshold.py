@@ -35,7 +35,7 @@ job_ids = [
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
 
-do_copy = True
+do_copy = False
 if do_copy:
     print("Copy Data from Cluster")
     
