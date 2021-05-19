@@ -16,6 +16,7 @@ import yaml
 import json
 from agents.base_agent import BaseAgent
 from agents.conv_2d_agent import Conv2dAgent
+from agents.conv_2d_agent_ppo import Conv2dAgentPPO
 from agents.conv_3d_agent import Conv3dAgent
 from agents.old_conv_3d_agent import Conv3dAgent as OldConv3dAgent
 from agents.old_conv_2d_agent import SimpleConv2D as OldConv2dAgent
@@ -41,6 +42,7 @@ def choose_model(
     model_config_base=None,
     model_path_base=None,
     transfer_learning=1,
+    rl_type="q"
 ):
     """
     Given a model name, choose the corresponding neural network agent/model
@@ -60,24 +62,38 @@ def choose_model(
     if "dummy" in model_name:
         model = DummyModel(model_config)
     elif model_name.lower() == "conv2d":
+
         if transfer_learning:
+            if rl_type == "q":
+                model_class_top = Conv2dAgent
+            elif rl_type == "ppo":
+                model_class_top = Conv2dAgentPPO
+            else:
+                raise Exception(f"Error! RL type {rl_type} is not supported.")
             assert (
                 model_path_base is not None
             ), "Need to specify the path of the pretrained base model!"
             assert (
                 model_config_base is not None
             ), "Need to specify a configuration file for the base model!"
+
             model = configure_pretrained_model(
                 model_config_base,
                 model_config,
                 model_path_base,
                 model_class_base=OldConv2dAgent,
-                model_class_top=Conv2dAgent,
+                model_class_top=model_class_top,
             )
             print("Prepare Conv2dAgent and OldConv2dAgent using transfer learning.")
         else:
-            model = Conv2dAgent(model_config)
-            print("Prepare Conv2dAgent w/o transfer learning")
+            if rl_type == "q":
+                model = Conv2dAgent(model_config)
+                print("Prepare Q Learning Conv2dAgent w/o transfer learning")
+            elif rl_type == "ppo":
+                model = Conv2dAgentPPO(model_config)
+                print("Prepare PPO Conv2dAgent w/o transfer learning")
+            else:
+                raise Exception(f"Error! RL type {rl_type} is not supported.")
     elif "conv3d" in model_name.lower():
         model = Conv3dAgent(model_config)
     else:

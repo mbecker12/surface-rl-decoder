@@ -162,9 +162,10 @@ def actor(args):
     base_model_config_path = args["base_model_config_path"]
     base_model_path = args["base_model_path"]
     use_transfer_learning = args["use_transfer_learning"]
+    rl_type = args["rl_type"]
 
     # prepare Transfer learning, if enabled
-    if len(base_model_config_path) > 1:
+    if use_transfer_learning:
         logger.info(f"Prepare transfer learning for d={code_size}.")
         with open(base_model_config_path, "r") as json_file:
             base_model_config = json.load(json_file)["simple_conv"]
@@ -181,6 +182,7 @@ def actor(args):
         model_path_base=base_model_path,
         model_config_base=base_model_config,
         transfer_learning=use_transfer_learning,
+        rl_type=rl_type,
     )
 
     if load_model_flag:

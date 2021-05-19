@@ -177,6 +177,7 @@ def configure_processes(rl_type="q_learning"):
         "base_model_config_path": base_model_config_path,
         "base_model_path": base_model_path,
         "use_transfer_learning": use_transfer_learning,
+        "rl_type": rl_type,
     }
 
     learner_args = {
@@ -206,6 +207,7 @@ def configure_processes(rl_type="q_learning"):
         "base_model_config_path": base_model_config_path,
         "base_model_path": base_model_path,
         "use_transfer_learning": use_transfer_learning,
+        "rl_type": rl_type,
     }
 
     env_args = {
