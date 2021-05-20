@@ -1,7 +1,7 @@
 """
 Utility functions for the learner process
 """
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 import numpy as np
 import torch
 
@@ -276,3 +276,176 @@ def log_evaluation_data(
                 evaluation_step,
                 walltime=current_time_tb,
             )
+
+# Value Network Functions
+def prepare_successor_states(qubits):
+    pass
+
+LOCAL_X_DELTA = np.array([[0, 1],[1, 0]])
+LOCAL_Y_DELTA = np.array([[1, 1],[1, 1]])
+LOCAL_Z_DELTA = np.array([[1, 0],[0, 1]])
+
+LOCAL_DELTAS = np.array(
+    [LOCAL_X_DELTA, LOCAL_Y_DELTA, LOCAL_Z_DELTA]
+)
+
+COORDINATE_SHIFT_1 = [-1, -1]
+COORDINATE_SHIFT_2 = [-1, 0]
+COORDINATE_SHIFT_3 = [0, -1]
+COORDINATE_SHIFT_4 = [0, 0]
+COORDINATE_SHIFTS = np.array(
+    [COORDINATE_SHIFT_1, COORDINATE_SHIFT_2, COORDINATE_SHIFT_3, COORDINATE_SHIFT_4]
+)
+
+def create_possible_operators(
+    possible_action_list: List[Tuple],
+    max_l: int,
+    state_size: int,
+    stack_depth: int,
+    combined_mask: np.ndarray
+):
+    """
+    stacked_sample: shape (L, h, d+1, d+1), or maybe hstacked (h, {d+1}*L, d+1)
+    possible_action_list: maximal L-dimensional list with 3-tuples
+    max_l: maximum number of possible actions across one batch
+        might be larger that {len(possible_action_list) + 1}
+    
+    assumes pauli_delta_x = [[0, 1],[1, 0]]
+    assumes pauli_delta_y = [[1, 1],[1, 1]]
+    assumes pauli_delta_z = [[1, 0],[0, 1]]
+
+    Example: 
+    possible_action_list = [
+        (1,1,1),(1,1,2),(1,1,3),(1,2,1),(1,2,2),(1,2,3),
+        (2,1,1),(2,1,2),(2,1,3),(2,2,1),(2,2,2),(2,2,3)
+    ]
+    """
+
+    # reshape stacked_sample to (h, {d+1}*L, d+1)
+
+    n_possible_actions = len(possible_action_list)
+
+    stacked_combined_mask = np.tile(
+        combined_mask[None, None, :, :],
+        (max_l, stack_depth, 1, 1)
+    )
+
+    # TODO: stack operators properly
+
+    # collect local syndrome delta matrices
+    operators = np.array([
+        np.roll(
+            np.pad(
+                LOCAL_DELTAS[operator-1], ((0, state_size-2), (0, state_size-2)), "constant", constant_values=0
+            ), #shift=(x_coord, y_coord)
+            shift=(x_coord, y_coord),
+            axis=(0, 1)
+        ) for (x_coord, y_coord, operator) in possible_action_list
+    ])
+
+    # repeat operators depth-wise
+    operators = np.tile(
+        operators[:, None, :, :],
+        (1, stack_depth, 1, 1)
+    )
+
+    # pad with zero-actions along action-dimension,
+    # so that all samples in a batch have the same action-dimensionality
+    operators = np.pad(
+        operators,
+        (
+            (0, max_l - n_possible_actions),
+            (0,0),
+            (0,0),
+            (0,0)
+        ),
+        "constant",
+        constant_values=0
+    )
+
+    operators = np.logical_and(operators, stacked_combined_mask).astype(np.uint8)
+    # print(f"{operators}")
+
+    return operators
+
+def determine_possible_actions(
+    state: np.ndarray,
+    code_size: int
+):
+    """
+    Find the action which change the qubits adjacent to active syndromes.
+    """
+
+    syndrome_coordinates = np.argwhere(state)
+    syndrome_coordinates = syndrome_coordinates[:, 1:]
+    syndrome_coordinates = np.unique(syndrome_coordinates, axis=0)
+
+    possible_qb_coordinates = np.array(
+        [
+            syndrome_coord + shift
+            for shift in COORDINATE_SHIFTS
+            for syndrome_coord in syndrome_coordinates
+        ]
+    )
+
+    possible_qb_coordinates = np.clip(possible_qb_coordinates, a_min=0, a_max=code_size-1)
+    possible_qb_coordinates = np.unique(possible_qb_coordinates, axis=0)
+
+    possible_actions = np.array(
+        [
+            (x_coord, y_coord, operator)
+            for (x_coord, y_coord) in possible_qb_coordinates
+            for operator in (1, 2, 3)
+        ]
+    )
+
+    print(f"{possible_actions=}")
+    return possible_actions
+
+
+if __name__ == "__main__":
+    from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
+    stack_depth = 4
+    state_size = 6
+    code_size = state_size - 1
+    plaquette_mask = get_plaquette_mask(code_size)
+    vertex_mask = get_vertex_mask(code_size)
+    combined_mask = np.logical_or(plaquette_mask, vertex_mask)
+    
+    possible_actions = np.array([
+        (1,1,1),(1,1,2),(1,1,3),(1,2,1),(1,2,2),(1,2,3),
+        (2,1,1),(2,1,2),(2,1,3),(2,2,1),(2,2,2),(2,2,3),
+        (0,0,1),(0,0,2),(0,0,3)
+    ])
+    l_actions = len(possible_actions) + 1
+    # print(f"{l_actions=}")
+    
+    sample = np.zeros((stack_depth, state_size, state_size), dtype=int)
+    sample[:, 2, 2] = 1
+    sample[:, 3, 3] = 1
+
+    possible_actions = determine_possible_actions(sample, code_size)
+    l_actions = len(possible_actions) + 1
+
+    sample = sample[None, :, :, :]
+
+    stacked_sample = np.tile(
+        sample,
+        reps=(l_actions, 1, 1, 1)
+    )
+    
+    operators = create_possible_operators(
+        possible_actions,
+        l_actions,
+        state_size,
+        stack_depth,
+        combined_mask
+    )
+
+    new_states = np.logical_xor(stacked_sample, operators).astype(np.uint8)
+    
+    print(f"{new_states.shape=}")
+
+    # Now new_states is already in a shape where the 0th dimension
+    # can be interpreted as the batch size.
+    # This whole stack can now be fed to a neural network.
