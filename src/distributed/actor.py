@@ -428,6 +428,9 @@ def put_in_fake_goals(
             transitions[4],
             dtype = transition_type
         )
+
+
+
         local_buffer_transitions[:, buffer_idx+i] = _transitions
         local_buffer_actions[:, buffer_idx+i] = actions
         local_buffer_qvalues[:, buffer_idx+i] = qvalues
