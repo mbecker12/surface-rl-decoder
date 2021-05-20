@@ -150,7 +150,7 @@ def actor(args):
         (num_environments, size_local_memory_buffer), dtype=float
     )
     buffer_idx = 0
-    reward = 100
+    max_reward = 100
 
 
     # load communication queues
@@ -297,27 +297,22 @@ def actor(args):
 
         # prepare to send local transitions to replay memory
         if buffer_idx >= (size_local_memory_buffer-n_goals):
+            indices = []
             for i in range(n_goals):
                 random_index = random.randint(0, buffer_idx)
-                transitions = local_buffer_transitions[:, random_index]
-                actions = local_buffer_actions[:, random_index]
-                qvalues = local_buffer_qvalues[:, random_index]
-                rewards = np.ones(local_buffer_rewards[:, random_index].shape)*reward
-
-                _transitions = np.asarray(
-                    [
-                        Transition(
-                        transitions[0], transitions[1], transitions[2], transitions[3], transitions[4]
-                        )
-                    ],
-                    dtype = transition_type,
-                )
+                indices.append(random_index)
+            
+            transitions_extra = [local_buffer_transitions[:,index] for index in indices]
+            actions_extra = [local_buffer_actions[:,index] for index in indices]
+            qvalues_extra = [local_buffer_qvalues[:,index] for index in indices]
+            rewards_extra = np.ones(num_environments, n_goals)*max_reward
 
 
-                local_buffer_transitions[:, buffer_idx+i] = _transitions
-                local_buffer_actions[:, buffer_idx+i] = actions
-                local_buffer_qvalues[:, buffer_idx+i] = qvalues
-                local_buffer_rewards[:, buffer_idx+i] = rewards
+            local_buffer_transitions[:, buffer_idx:(buffer_idx+n_goals)] = transitions_extra
+            local_buffer_actions[:, buffer_idx:(buffer_idx+n_goals)] = actions_extra
+            local_buffer_qvalues[:, buffer_idx:(buffer_idx+n_goals)] = qvalues_extra
+            local_buffer_rewards[:, buffer_idx:(buffer_idx+n_goals)] = rewards_extra
+
 
 
             buffer_idx += n_goals
