@@ -297,15 +297,12 @@ def actor(args):
 
         # prepare to send local transitions to replay memory
         if buffer_idx >= (size_local_memory_buffer-n_goals):
-            indices = []
-            for i in range(n_goals):
-                random_index = random.randint(0, buffer_idx)
-                indices.append(random_index)
+            indices = [random.randint(0,buffer_idx) for i in range(n_goals)]
             
-            transitions_extra = [local_buffer_transitions[:,index] for index in indices]
-            actions_extra = [local_buffer_actions[:,index] for index in indices]
-            qvalues_extra = [local_buffer_qvalues[:,index] for index in indices]
-            rewards_extra = np.ones(num_environments, n_goals)*max_reward
+            transitions_extra = np.transpose([local_buffer_transitions[:,index] for index in indices])
+            actions_extra = np.reshape([local_buffer_actions[:,index] for index in indices],(num_environments, n_goals, 3))
+            qvalues_extra = np.reshape(([local_buffer_qvalues[:,index] for index in indices]), (num_environments, n_goals, num_actions_per_qubit * code_size * code_size + 1))
+            rewards_extra = np.ones((num_environments, n_goals))*max_reward
 
 
             local_buffer_transitions[:, buffer_idx:(buffer_idx+n_goals)] = transitions_extra
