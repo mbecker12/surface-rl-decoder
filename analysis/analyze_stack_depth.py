@@ -77,9 +77,9 @@ eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.devic
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
-run_evaluation = True
-load_eval_results = False
-produce_plots = False
+run_evaluation = False
+load_eval_results = True
+produce_plots = True
 csv_file_path = "analysis/depth2_analysis_results_p_err.csv"
 
 max_num_of_steps = 32
@@ -318,6 +318,31 @@ plt.tight_layout()
 plt.savefig("plots/depth_valid_fail_rate_p_err.pdf")
 plt.show()
 
+################## Plot Valid Fail Rate per Cycle over Scaled Error Rate ##################
+fig, ax = plt.subplots(1, 1, sharex=True)
+
+for i, jid in enumerate(job_ids):
+    code_size = new_dfs[i]["code_size"].iloc[0]
+    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+    # print(new_dfs[i])
+    ax.scatter(
+        x=new_dfs[i]["p_err_one_layer"],
+        y=new_dfs[i][key_valid_fail_rate],
+        label=f"h={stack_depth}")
+ax.plot(
+    np.linspace(new_dfs[0]["p_err_one_layer"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+    np.linspace(new_dfs[0]["p_err_one_layer"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+    'k'
+)
+ax.set(title=title_valid_fail_rate)
+ax.set(xlabel=r"$p_\mathrm{err}^\mathrm{one layer}$", ylabel=title_valid_fail_rate)
+
+
+plt.legend()
+plt.tight_layout()
+plt.savefig("plots/depth_valid_fail_rate_p_err_one_layer.pdf")
+plt.show()
+
 ################## Plot Valid Average Lifetime ##################
 fig, ax = plt.subplots(1, 1, sharex=True)
 
@@ -353,12 +378,11 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err"],
         y=new_dfs[i][key_valid_avg_life],
-        label=f"d={code_size}, h={stack_depth}")
+        label=f"h={stack_depth}")
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    'k',
-    label="One Qubit"
+    'k'
 )
 ax.set(title=title_valid_avg_life)
 ax.set(
@@ -407,12 +431,11 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err"],
         y=new_dfs[i][key_overall_avg_life],
-        label=f"d={code_size}, h={stack_depth}")
+        label=f"h={stack_depth}")
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    'k',
-    label="One Qubit"
+    'k'
 )
 ax.set(title=title_overall_avg_life)
 ax.set(
