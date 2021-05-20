@@ -13,11 +13,6 @@ reward_config = config.get("reward")
 
 TERMINAL_ACTION = int(env_config.get("terminal_action", "4"))
 
-# Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
-RULE_TABLE = np.array(
-    ([0, 1, 2, 3], [1, 0, 3, 2], [2, 3, 0, 1], [3, 2, 1, 0]), dtype=np.uint8
-)
-
 # reward scores
 NON_TRIVIAL_LOOP_REWARD = float(reward_config.get("non_trivial_loop", "-17"))
 SYNDROME_LEFT_REWARD = float(reward_config.get("syndrome_left", "-5"))
@@ -131,7 +126,8 @@ def perform_action(qubits, action):
     if add_operator == TERMINAL_ACTION:
         raise Exception("Error! Attempting to execute terminal operation.")
     old_operator = qubits[:, row, col]
-    new_operator = [RULE_TABLE[old_op, add_operator] for old_op in old_operator]
+    # bitwise xor to get the new operator
+    new_operator = old_operator ^ add_operator
     qubits[:, row, col] = new_operator
     return qubits
 

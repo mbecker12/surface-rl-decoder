@@ -23,7 +23,6 @@ from .surface_code_util import (
     create_syndrome_output_stack,
     perform_action,
     copy_array_values,
-    RULE_TABLE,
     TERMINAL_ACTION,
 )
 
@@ -154,9 +153,6 @@ class SurfaceCode(gym.Env):
             ),
             dtype=np.uint8,
         )
-
-        # Identity = 0, pauli_x = 1, pauli_y = 2, pauli_z = 3
-        self.rule_table = RULE_TABLE
 
         # container to save action history
         self.actions = np.zeros((self.max_actions, 3), dtype=np.uint8)
@@ -421,7 +417,8 @@ class SurfaceCode(gym.Env):
 
             for row, col in zip(*nonzero_idx):
                 old_operator = base_error[row, col]
-                new_error[row, col] = self.rule_table[old_operator, new_error[row, col]]
+                # bitwise xor to get the new operator
+                new_error[row, col] = old_operator ^ new_error[row, col]
 
             error_stack[height, :, :] = new_error
             base_error = new_error

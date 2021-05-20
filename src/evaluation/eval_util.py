@@ -13,7 +13,6 @@ from distributed.environment_set import EnvironmentSet
 from evaluation.eval_init_utils import OUT_OF_RANGE
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import (
-    RULE_TABLE,
     SOLVED_EPISODE_REWARD,
     STATE_MULTIPLIER,
     STATE_MULTIPLIER_INVERSE,
@@ -638,7 +637,7 @@ def initialize_states_for_eval(
             new_operator = np.random.randint(1, 3 + 1, size=1)[0]
 
             qubits[n_env, h_idx:, x, y] = [
-                RULE_TABLE[qubits[n_env, h, x, y], new_operator]
+                qubits[n_env, h, x, y] ^ new_operator
                 for h in range(h_idx, stack_depth)
             ]
         states[n_env] = create_syndrome_output_stack(
