@@ -455,7 +455,6 @@ if True:
         # calculate the log y error, according to this:
         # https://faculty.washington.edu/stuve/log_error.pdf
         log_y_error = 0.434 * y_error# / new_dfs[i][key_valid_avg_life]
-        print(np.max(log_y_error))
         ax.errorbar(
             x=new_dfs[i]["p_err"] + np.random.normal(
                 loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])
@@ -489,39 +488,7 @@ if True:
     plt.tight_layout()
     plt.savefig("plots/threshold_valid_lifetime_p_err_log.pdf")
     plt.show()
-    # plt.legend()
-    # plt.tight_layout()
-    # plt.savefig("plots/threshold_valid_lifetime_p_err.pdf")
-    # plt.show()
-
-    # fig, ax = plt.subplots(1, 1, sharex=True)
-
-    # for i, jid in enumerate(job_ids):
-    #     code_size = new_dfs[i]["code_size"].iloc[0]
-    #     stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    #     # print(new_dfs[i])
-    #     ax.scatter(
-    #         x=new_dfs[i]["p_err"],
-    #         y=new_dfs[i][key_valid_avg_life],
-    #         label=f"d={code_size}, h={stack_depth}")
-    # ax.plot(
-    #     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    #     1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    #     'k',
-    #     label="One Qubit"
-    # )
-    # ax.set(title=title_valid_avg_life)
-    # ax.set(
-    #     xlabel=r"$p_\mathrm{err}$",
-    #     ylabel=title_valid_avg_life,
-    #     xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
-    # )
-
-    # plt.legend()
-    # plt.tight_layout()
-    # plt.savefig("plots/threshold_valid_lifetime_p_err_log.pdf")
-    # plt.show()
-
+    
 if False:
     ################## Plot Overall Average Lifetime ##################
     fig, ax = plt.subplots(1, 1, sharex=True)
