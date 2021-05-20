@@ -68,9 +68,9 @@ eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.devic
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
-run_evaluation = True
-load_eval_results = False
-produce_plots = False
+run_evaluation = False
+load_eval_results = True
+produce_plots = True
 csv_file_path = "analysis/threshold_analysis_results.csv"
 
 max_num_of_steps = 40
@@ -216,6 +216,8 @@ for df in dfs:
     
     print(agg_groups)
 
+    agg_groups["logical_err_rate"] = agg_groups["n_ep_w_loops"] / agg_groups["n_valid_episodes"]
+
     agg_groups["valid_success_rate"] = agg_groups["n_valid_ground_states"] / agg_groups["n_valid_episodes"]
     agg_groups["overall_success_rate"] = (agg_groups["n_ground_states"] + agg_groups["n_ep_w_syndromes"]) / agg_groups["total_n_episodes"]
 
@@ -224,11 +226,13 @@ for df in dfs:
 
     agg_groups["valid_fail_rate_per_cycle"] = agg_groups["valid_fail_rate"] / agg_groups["stack_depth"]
     agg_groups["overall_fail_rate_per_cycle"] = agg_groups["overall_fail_rate"] / agg_groups["stack_depth"]
+    agg_groups["logical_err_rate_per_cycle"] = agg_groups["logical_err_rate"] / agg_groups["stack_depth"]
 
     agg_groups["validity_rate"] = agg_groups["n_valid_episodes"] / agg_groups["total_n_episodes"]
 
     agg_groups["valid_avg_lifetime"] = 1.0 / agg_groups["valid_fail_rate_per_cycle"]
     agg_groups["overall_avg_lifetime"] = 1.0 / agg_groups["overall_fail_rate_per_cycle"]
+    agg_groups["logical_avg_lifetime"] = 2.0 / agg_groups["logical_err_rate_per_cycle"]
 
     # agg_groups["fail_rate"] = 1 - agg_groups["weighted_success_rate"]
     # agg_groups["scaled_fail_rate"] = agg_groups["fail_rate"] / agg_groups["stack_depth"]
@@ -253,173 +257,325 @@ title_valid_avg_life = "Valid Average Lifetime"
 key_overall_avg_life = "overall_avg_lifetime"
 title_overall_avg_life = "Overall Average Lifetime"
 
+key_logical_err_rate = "logical_err_rate_per_cycle"
+title_logical_err_rate = "Logical Error Rate"
+
+key_logical_lifetime = "logical_avg_lifetime"
+title_logical_lifetime = "Logical Average Lifetime"
+
 
 for o_jid in omit_job_ids:
     job_ids.remove(o_jid)
 
-################## Plot Overall Fail Rate per Cycle ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
+if False:
+    ################## Plot Logical Error Rate per Cycle ##################
+    fig, ax = plt.subplots(1, 1, sharex=True)
 
-for i, jid in enumerate(job_ids):
-    if jid in omit_job_ids:
-        continue
+    for i, jid in enumerate(job_ids):
+        if jid in omit_job_ids:
+            continue
 
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_scaled_fail_rate],
-        label=f"d={code_size}, h={stack_depth}")
-ax.plot(
-    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    'k',
-    label="One Qubit"
-)
-ax.set(title=title_scaled_fail_rate)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_scaled_fail_rate)
-
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_overall_fail_rate_p_err.pdf")
-plt.show()
-
-
-################## Plot Valid Fail Rate per Cycle ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_valid_fail_rate],
-        label=f"d={code_size}, h={stack_depth}")
-ax.plot(
-    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    'k',
-    label="One Qubit"
-)
-ax.set(title=title_valid_fail_rate)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_fail_rate)
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        y_error = np.sqrt(
+            new_dfs[i][key_logical_err_rate] * (1.0 - new_dfs[i][key_logical_err_rate]) / new_dfs[i]["total_n_episodes"]
+        )
+        ax.errorbar(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_logical_err_rate],
+            yerr=y_error,
+            fmt='o',
+            label=f"d={code_size}, h={stack_depth}")
+    ax.plot(
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        'k',
+        label="One Qubit"
+    )
+    ax.set(title=title_logical_err_rate)
+    ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_logical_err_rate)
 
 
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_valid_fail_rate_p_err.pdf")
-plt.show()
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("plots/threshold_logical_err_rate_p_err.pdf")
+    plt.show()
 
-################## Plot Valid Average Lifetime ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
+if False:
+    ################## Plot Logical Error Rate Lifetime ##################
+    fig, ax = plt.subplots(1, 1, sharex=True)
 
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_valid_avg_life],
-        label=f"d={code_size}, h={stack_depth}")
-ax.plot(
-    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    'k',
-    label="One Qubit"
-)
-ax.set(title=title_valid_avg_life)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_avg_life, ylim=(0, 10000))
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        y_error = 1.0 / (new_dfs[i][key_logical_err_rate] * new_dfs[i][key_logical_err_rate])
+        # propagate the error from the valid fail rate
+        y_error *= np.sqrt(
+                new_dfs[i][key_logical_err_rate] * (1.0 - new_dfs[i][key_logical_err_rate]) / new_dfs[i]["total_n_episodes"]
+            )
+        # calculate the log y error, according to this:
+        # https://faculty.washington.edu/stuve/log_error.pdf
+        log_y_error = 0.434 * y_error / new_dfs[i][key_logical_lifetime]
+        
+        ax.errorbar(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_logical_lifetime],
+            yerr=log_y_error,
+            label=f"d={code_size}, h={stack_depth}",
+            fmt='o'
+        )
+    ax.plot(
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        'k',
+        label="One Qubit"
+    )
+    ax.set(title=title_logical_lifetime)
+    ax.set(
+        xlabel=r"$p_\mathrm{err}$",
+        ylabel=title_logical_lifetime,
+        xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
+    )
 
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("plots/threshold_logical_lifetime_p_err_log.pdf")
+    plt.show()
 
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_valid_lifetime_p_err.pdf")
-plt.show()
+if False:
+    ################## Plot Overall Fail Rate per Cycle ##################
+    fig, ax = plt.subplots(1, 1, sharex=True)
 
-fig, ax = plt.subplots(1, 1, sharex=True)
+    for i, jid in enumerate(job_ids):
+        if jid in omit_job_ids:
+            continue
 
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_valid_avg_life],
-        label=f"d={code_size}, h={stack_depth}")
-ax.plot(
-    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    'k',
-    label="One Qubit"
-)
-ax.set(title=title_valid_avg_life)
-ax.set(
-    xlabel=r"$p_\mathrm{err}$",
-    ylabel=title_valid_avg_life,
-    xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
-)
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_valid_lifetime_p_err_log.pdf")
-plt.show()
-
-################## Plot Overall Average Lifetime ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_overall_avg_life],
-        label=f"d={code_size}, h={stack_depth}")
-ax.plot(
-    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    'k',
-    label="One Qubit"
-)
-ax.set(title=title_overall_avg_life)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life, ylim=(0, 10000))
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_scaled_fail_rate],
+            label=f"d={code_size}, h={stack_depth}")
+    ax.plot(
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        'k',
+        label="One Qubit"
+    )
+    ax.set(title=title_scaled_fail_rate)
+    ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_scaled_fail_rate)
 
 
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_overall_lifetime_p_err.pdf")
-plt.show()
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("plots/threshold_overall_fail_rate_p_err.pdf")
+    plt.show()
 
-fig, ax = plt.subplots(1, 1, sharex=True)
+if True:
+    ################## Plot Valid Fail Rate per Cycle ##################
+    fig, axes = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios': [1, 4]})
+    ax = axes[1]
+    ax1 = axes[0]
 
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_overall_avg_life],
-        label=f"d={code_size}, h={stack_depth}")
-ax.plot(
-    np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
-    'k',
-    label="One Qubit"
-)
-ax.set(title=title_overall_avg_life)
-ax.set(
-    xlabel=r"$p_\mathrm{err}$",
-    ylabel=title_overall_avg_life,
-    xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
-)
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_fail_rate],
+            label=f"d={code_size}, h={stack_depth}",
+            s=100 * (
+                    new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]
+                )**1.2
+            )
+        y_error = np.sqrt(
+            new_dfs[i][key_valid_fail_rate] * (1.0 - new_dfs[i][key_valid_fail_rate]) / new_dfs[i]["n_valid_episodes"]
+        )
+        ax.errorbar(
+            x=new_dfs[i]["p_err"] + np.random.normal(
+                loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])
+                ),
+            y=new_dfs[i][key_valid_fail_rate],
+            yerr=y_error,
+            fmt='.',
+            linewidth=2,
+            markersize=0
+        )
 
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_overall_lifetime_p_err_log.pdf")
-plt.show()
+        # plot disregard-fraction
+        ax1.scatter(
+            x=new_dfs[i]["p_err"],
+            y=1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]),
+        )
+    ax.plot(
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        'k',
+        label="One Qubit"
+    )
+    ax.set(title=title_valid_fail_rate)
+    ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_fail_rate)
+    ax1.set(title="# Episodes w/ Syndromes")
+
+
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("errplots/threshold_valid_fail_rate_p_err.pdf")
+    plt.show()
+
+if True:
+    ################## Plot Valid Average Lifetime ##################
+    fig, axes = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios': [1, 4]})
+    ax = axes[1]
+    ax1 = axes[0]
+
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_avg_life],
+            label=f"d={code_size}, h={stack_depth}",
+            s=100 * (
+                    new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]
+                )**1.2
+            )
+
+        y_error = 1.0 / (new_dfs[i][key_valid_fail_rate] * new_dfs[i][key_valid_fail_rate])
+        # propagate the error from the valid fail rate
+        y_error *= np.sqrt(
+                new_dfs[i][key_valid_fail_rate] * (1.0 - new_dfs[i][key_valid_fail_rate]) / new_dfs[i]["n_valid_episodes"]
+            )
+        # calculate the log y error, according to this:
+        # https://faculty.washington.edu/stuve/log_error.pdf
+        log_y_error = 0.434 * y_error# / new_dfs[i][key_valid_avg_life]
+        print(np.max(log_y_error))
+        ax.errorbar(
+            x=new_dfs[i]["p_err"] + np.random.normal(
+                loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])
+                ),
+            y=new_dfs[i][key_valid_avg_life],
+            yerr=log_y_error,
+            fmt='.',
+            linewidth=2,
+            markersize=0
+        )
+        # plot disregard-fraction
+        ax1.scatter(
+            x=new_dfs[i]["p_err"],
+            y=1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]),
+        )
+    ax.plot(
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        'k',
+        label="One Qubit"
+    )
+    ax.set(title=title_valid_avg_life)
+    ax.set(
+        xlabel=r"$p_\mathrm{err}$",
+        ylabel=title_valid_avg_life,
+        xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
+    )
+    ax1.set(title="Fraction of Episodes with Remaining Syndromes")
+
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("plots/threshold_valid_lifetime_p_err_log.pdf")
+    plt.show()
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.savefig("plots/threshold_valid_lifetime_p_err.pdf")
+    # plt.show()
+
+    # fig, ax = plt.subplots(1, 1, sharex=True)
+
+    # for i, jid in enumerate(job_ids):
+    #     code_size = new_dfs[i]["code_size"].iloc[0]
+    #     stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+    #     # print(new_dfs[i])
+    #     ax.scatter(
+    #         x=new_dfs[i]["p_err"],
+    #         y=new_dfs[i][key_valid_avg_life],
+    #         label=f"d={code_size}, h={stack_depth}")
+    # ax.plot(
+    #     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+    #     1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+    #     'k',
+    #     label="One Qubit"
+    # )
+    # ax.set(title=title_valid_avg_life)
+    # ax.set(
+    #     xlabel=r"$p_\mathrm{err}$",
+    #     ylabel=title_valid_avg_life,
+    #     xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
+    # )
+
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.savefig("plots/threshold_valid_lifetime_p_err_log.pdf")
+    # plt.show()
+
+if False:
+    ################## Plot Overall Average Lifetime ##################
+    fig, ax = plt.subplots(1, 1, sharex=True)
+
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_overall_avg_life],
+            label=f"d={code_size}, h={stack_depth}")
+    ax.plot(
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        'k',
+        label="One Qubit"
+    )
+    ax.set(title=title_overall_avg_life)
+    ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life, ylim=(0, 10000))
+
+
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("plots/threshold_overall_lifetime_p_err.pdf")
+    plt.show()
+
+    fig, ax = plt.subplots(1, 1, sharex=True)
+
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_overall_avg_life],
+            label=f"d={code_size}, h={stack_depth}")
+    ax.plot(
+        np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
+        'k',
+        label="One Qubit"
+    )
+    ax.set(title=title_overall_avg_life)
+    ax.set(
+        xlabel=r"$p_\mathrm{err}$",
+        ylabel=title_overall_avg_life,
+        xlim=(1e-3, new_dfs[0]["p_err"].max()), yscale="log"
+    )
+
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("plots/threshold_overall_lifetime_p_err_log.pdf")
+    plt.show()
 
 sys.exit()
 
