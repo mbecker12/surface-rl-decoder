@@ -637,8 +637,7 @@ def initialize_states_for_eval(
             new_operator = np.random.randint(1, 3 + 1, size=1)[0]
 
             qubits[n_env, h_idx:, x, y] = [
-                qubits[n_env, h, x, y] ^ new_operator
-                for h in range(h_idx, stack_depth)
+                qubits[n_env, h, x, y] ^ new_operator for h in range(h_idx, stack_depth)
             ]
         states[n_env] = create_syndrome_output_stack(
             qubits[n_env], vertex_mask, plaquette_mask

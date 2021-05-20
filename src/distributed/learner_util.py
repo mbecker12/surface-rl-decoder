@@ -277,6 +277,7 @@ def log_evaluation_data(
                 walltime=current_time_tb,
             )
 
+
 # Value Network Functions
 def prepare_successor_states(qubits):
 
@@ -284,6 +285,7 @@ def prepare_successor_states(qubits):
 
 
 from iniparser import Config
+
 c = Config()
 _config = c.scan(".", True).read()
 config = c.config_rendered
@@ -294,13 +296,11 @@ device = learner_config.get("device")
 d = int(env_config.get("size"))
 
 # pylint: disable=not-callable
-LOCAL_X_DELTA = torch.tensor([[0, 1],[1, 0]], dtype=torch.int8, device=device)
-LOCAL_Y_DELTA = torch.tensor([[1, 1],[1, 1]], dtype=torch.int8, device=device)
-LOCAL_Z_DELTA = torch.tensor([[1, 0],[0, 1]], dtype=torch.int8, device=device)
+LOCAL_X_DELTA = torch.tensor([[0, 1], [1, 0]], dtype=torch.int8, device=device)
+LOCAL_Y_DELTA = torch.tensor([[1, 1], [1, 1]], dtype=torch.int8, device=device)
+LOCAL_Z_DELTA = torch.tensor([[1, 0], [0, 1]], dtype=torch.int8, device=device)
 
-LOCAL_DELTAS = torch.stack(
-    [LOCAL_X_DELTA, LOCAL_Y_DELTA, LOCAL_Z_DELTA]
-)
+LOCAL_DELTAS = torch.stack([LOCAL_X_DELTA, LOCAL_Y_DELTA, LOCAL_Z_DELTA])
 
 COORDINATE_SHIFT_1 = [-1, -1]
 COORDINATE_SHIFT_2 = [-1, 0]
@@ -308,28 +308,31 @@ COORDINATE_SHIFT_3 = [0, -1]
 COORDINATE_SHIFT_4 = [0, 0]
 COORDINATE_SHIFTS = torch.tensor(
     [COORDINATE_SHIFT_1, COORDINATE_SHIFT_2, COORDINATE_SHIFT_3, COORDINATE_SHIFT_4],
-    dtype=torch.int8, device=device
+    dtype=torch.int8,
+    device=device,
 )
 
 from torch.nn.functional import pad as torch_pad
+
+
 def create_possible_operators(
     possible_action_list: List[Tuple],
     max_l: int,
     state_size: int,
     stack_depth: int,
-    combined_mask: torch.Tensor
+    combined_mask: torch.Tensor,
 ):
     """
     stacked_sample: shape (L, h, d+1, d+1), or maybe hstacked (h, {d+1}*L, d+1)
     possible_action_list: maximal L-dimensional list with 3-tuples
     max_l: maximum number of possible actions across one batch
         might be larger that {len(possible_action_list) + 1}
-    
+
     assumes pauli_delta_x = [[0, 1],[1, 0]]
     assumes pauli_delta_y = [[1, 1],[1, 1]]
     assumes pauli_delta_z = [[1, 0],[0, 1]]
 
-    Example: 
+    Example:
     possible_action_list = [
         (1,1,1),(1,1,2),(1,1,3),(1,2,1),(1,2,2),(1,2,3),
         (2,1,1),(2,1,2),(2,1,3),(2,2,1),(2,2,2),(2,2,3)
@@ -341,8 +344,7 @@ def create_possible_operators(
     n_possible_actions = len(possible_action_list)
 
     stacked_combined_mask = torch.tile(
-        combined_mask[None, None, :, :],
-        (max_l, stack_depth, 1, 1)
+        combined_mask[None, None, :, :], (max_l, stack_depth, 1, 1)
     )
 
     # TODO: stack operators properly
@@ -352,33 +354,32 @@ def create_possible_operators(
         [
             torch.roll(
                 torch_pad(
-                    LOCAL_DELTAS[operator-1], (0, state_size-2, 0, state_size-2), "constant", 0
-                ), #shift=(x_coord, y_coord)
+                    LOCAL_DELTAS[operator - 1],
+                    (0, state_size - 2, 0, state_size - 2),
+                    "constant",
+                    0,
+                ),  # shift=(x_coord, y_coord)
                 shifts=(x_coord, y_coord),
-                dims=(0, 1)
-            ) for (x_coord, y_coord, operator) in possible_action_list
+                dims=(0, 1),
+            )
+            for (x_coord, y_coord, operator) in possible_action_list
         ]
     )
 
     # repeat operators depth-wise
-    operators = torch.tile(
-        operators[:, None, :, :],
-        (1, stack_depth, 1, 1)
-    )
+    operators = torch.tile(operators[:, None, :, :], (1, stack_depth, 1, 1))
 
     # pad with zero-actions along action-dimension,
     # so that all samples in a batch have the same action-dimensionality
     operators = torch_pad(
-        operators,
-        (0, 0, 0, 0, 0, 0, 0, max_l - n_possible_actions),
-        "constant",
-        0
+        operators, (0, 0, 0, 0, 0, 0, 0, max_l - n_possible_actions), "constant", 0
     )
 
     operators = torch.logical_and(operators, stacked_combined_mask)
     # print(f"{operators}")
 
     return operators
+
 
 def format_torch(states, device="cpu", dtype=torch.float32):
     x = states
@@ -391,10 +392,8 @@ def format_torch(states, device="cpu", dtype=torch.float32):
 
     return x
 
-def determine_possible_actions(
-    state: torch.Tensor,
-    code_size: int
-):
+
+def determine_possible_actions(state: torch.Tensor, code_size: int):
     """
     Find the action which change the qubits adjacent to active syndromes.
     """
@@ -416,7 +415,9 @@ def determine_possible_actions(
     print(f"{possible_qb_coordinates.dtype=}")
     print(f"{possible_qb_coordinates.device=}")
 
-    possible_qb_coordinates = torch.clip(possible_qb_coordinates, min=0, max=code_size-1)
+    possible_qb_coordinates = torch.clip(
+        possible_qb_coordinates, min=0, max=code_size - 1
+    )
     possible_qb_coordinates = torch.unique(possible_qb_coordinates, dim=0)
 
     possible_actions = torch.stack(
@@ -433,21 +434,36 @@ def determine_possible_actions(
 
 if __name__ == "__main__":
     from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
+
     stack_depth = 4
     state_size = 6
     code_size = state_size - 1
     plaquette_mask = format_torch(get_plaquette_mask(code_size))
     vertex_mask = format_torch(get_vertex_mask(code_size))
     combined_mask = torch.logical_or(plaquette_mask, vertex_mask)
-    
-    possible_actions = np.array([
-        (1,1,1),(1,1,2),(1,1,3),(1,2,1),(1,2,2),(1,2,3),
-        (2,1,1),(2,1,2),(2,1,3),(2,2,1),(2,2,2),(2,2,3),
-        (0,0,1),(0,0,2),(0,0,3)
-    ])
+
+    possible_actions = np.array(
+        [
+            (1, 1, 1),
+            (1, 1, 2),
+            (1, 1, 3),
+            (1, 2, 1),
+            (1, 2, 2),
+            (1, 2, 3),
+            (2, 1, 1),
+            (2, 1, 2),
+            (2, 1, 3),
+            (2, 2, 1),
+            (2, 2, 2),
+            (2, 2, 3),
+            (0, 0, 1),
+            (0, 0, 2),
+            (0, 0, 3),
+        ]
+    )
     l_actions = len(possible_actions) + 1
     # print(f"{l_actions=}")
-    
+
     sample = np.zeros((stack_depth, state_size, state_size), dtype=int)
     sample[:, 2, 2] = 1
     sample[:, 3, 3] = 1
@@ -462,20 +478,15 @@ if __name__ == "__main__":
         sample,
         (l_actions, 1, 1, 1),
     )
-    
+
     operators = create_possible_operators(
-        possible_actions,
-        l_actions,
-        state_size,
-        stack_depth,
-        combined_mask
+        possible_actions, l_actions, state_size, stack_depth, combined_mask
     )
 
     new_states = torch.tensor(
-        torch.logical_xor(stacked_sample, operators),
-        dtype=torch.int8, device="cpu"
+        torch.logical_xor(stacked_sample, operators), dtype=torch.int8, device="cpu"
     )
-    
+
     print(f"{new_states.shape=}")
     print(f"{new_states.dtype=}")
 

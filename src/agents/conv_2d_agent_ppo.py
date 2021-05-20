@@ -210,7 +210,9 @@ class Conv2dAgentPPO(BaseAgent):
             if self.use_batch_norm:
                 self.norm5 = nn.BatchNorm1d(lstm_total_output_size)
             self.lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
-            self.val_lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
+            self.val_lin0 = nn.Linear(
+                lstm_total_output_size, int(input_neuron_numbers[0])
+            )
 
         elif self.use_transformer:
             print("Using GTRXL")
@@ -232,7 +234,9 @@ class Conv2dAgentPPO(BaseAgent):
             if self.use_batch_norm:
                 self.norm5 = nn.BatchNorm1d(gtrxl_total_output_size)
             self.lin0 = nn.Linear(gtrxl_total_output_size, int(input_neuron_numbers[0]))
-            self.val_lin0 = nn.Linear(gtrxl_total_output_size, int(input_neuron_numbers[0]))
+            self.val_lin0 = nn.Linear(
+                gtrxl_total_output_size, int(input_neuron_numbers[0])
+            )
 
         elif self.use_gru:
             self.gru_layer = nn.GRU(
@@ -251,7 +255,9 @@ class Conv2dAgentPPO(BaseAgent):
             if self.use_batch_norm:
                 self.norm5 = nn.BatchNorm1d(lstm_total_output_size)
             self.lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
-            self.val_lin0 = nn.Linear(lstm_total_output_size, int(input_neuron_numbers[0]))
+            self.val_lin0 = nn.Linear(
+                lstm_total_output_size, int(input_neuron_numbers[0])
+            )
             print("Use GRU")
 
         else:
@@ -291,9 +297,7 @@ class Conv2dAgentPPO(BaseAgent):
         self.output_layer = nn.Linear(
             input_neuron_numbers[-1], int(self.neurons_output)
         )
-        self.val_output_layer = nn.Linear(
-            input_neuron_numbers[-1], 1
-        )
+        self.val_output_layer = nn.Linear(input_neuron_numbers[-1], 1)
 
     def forward(self, state: torch.Tensor):
         """
