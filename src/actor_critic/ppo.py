@@ -320,7 +320,10 @@ class PPO:
             if self.verbosity >= 6:
                 grad_string = ""
                 for i, param in enumerate(self.combined_model.parameters()):
-                    grad_string += f"{param.grad.data.sum().item():.2e}, "
+                    if param.grad is not None:
+                        grad_string += f"{param.grad.data.sum().item():.2e}, "
+                    else:
+                        grad_string += "None, "
                 print(grad_string)
                 if self.verbosity >= 7:
                     policy_params = list(self.combined_model.parameters())
