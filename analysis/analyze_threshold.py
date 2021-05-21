@@ -244,7 +244,7 @@ print(f'{df_all["logical_err_rate_per_cycle"]=}')
 print(f'{df_all["valid_fail_rate_per_cycle"]=}')
 print(f'{df_all["overall_fail_rate_per_cycle"]=}')
 
-df_all.to_csv("analysis/threshold_summary.csv")
+# df_all.to_csv("analysis/threshold_summary.csv")
 sweke_data = pd.read_csv("plots/sweke_lifetime_datapoints.csv", index_col=None, header=0)
 
 max_x = max(new_dfs[0]["p_err"].max(), sweke_data["p_err"].max())
@@ -311,7 +311,7 @@ def set_text_log_split(axis):
         rotation=-15
     )
 
-if True:
+if False:
     ################## Plot Logical Error Rate per Cycle ##################
     fig, ax = plt.subplots(1, 1, sharex=True)
 
@@ -330,7 +330,7 @@ if True:
             y=new_dfs[i][key_logical_err_rate],
             yerr=y_error,
             fmt='o',
-            label=f"d=h={code_size}",
+            label=r"$d=h=$" + f"{code_size}",
             c=plot_colors[i],
             marker=markers[i]
         )
@@ -353,7 +353,7 @@ if True:
     plt.savefig("plots/threshold_logical_err_rate_p_err.pdf", bbox_inches="tight")
     plt.show()
 
-if True:
+if False:
     ################## Plot Logical Error Rate Lifetime ##################
     fig, ax = plt.subplots(1, 1, sharex=True)
 
@@ -376,7 +376,7 @@ if True:
                 ),
             y=new_dfs[i][key_logical_lifetime],
             yerr=log_y_error,
-            label=f"d=h={code_size}",
+            label=r"$d=h=$" + f"{code_size}",
             fmt='o',
             c=plot_colors[i],
             marker=markers[i]
@@ -415,7 +415,7 @@ if True:
     plt.savefig("plots/threshold_logical_lifetime_p_err_log.pdf", bbox_inches="tight")
     plt.show()
 
-if True:
+if False:
     ################## Plot Overall Fail Rate per Cycle ##################
     fig, ax = plt.subplots(1, 1, sharex=True)
 
@@ -430,7 +430,7 @@ if True:
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_scaled_fail_rate],
-            label=f"d=h={code_size}",
+            label=r"$d=h=$" + f"{code_size}",
             c=plot_colors[i],
             marker=markers[i]
         )
@@ -467,7 +467,7 @@ if True:
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_valid_fail_rate],
-            label=f"d=h={code_size}",
+            label=r"$d=h=$" + f"{code_size}",
             s=100 * (
                     new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]
                 )**1.2,
@@ -532,7 +532,7 @@ if True:
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_valid_avg_life],
-            label=f"d=h={code_size}",
+            label=r"$d=h=$" + f"{code_size}",
             s=100 * (
                     new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]
                 )**1.2,
@@ -563,14 +563,16 @@ if True:
         # plot disregard-fraction
         ax1.scatter(
             x=new_dfs[i]["p_err"],
-            y=1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]),
+            y=(
+                1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"])
+            ) * 100,
             c=plot_colors[i],
             marker=markers[i]
         )
     ax.scatter(
         sweke_data["p_err"],
         sweke_data["Lifetime"],
-        label="Sweke et al.",
+        # label="Sweke et al.",
         c=plot_colors[-1],
         marker=markers[-1]
     )
@@ -580,18 +582,24 @@ if True:
         c=plot_colors[-1],
         marker=markers[-1]
     )
+
+    ax.text(
+        0.0014,
+        4e4,
+        "Sweke et al.",
+        color=plot_colors[-1]
+    )
     ax.plot(
         np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
         1.0 / np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        'k',
-        # label="One Qubit"
+        'k'
     )
 
     set_text_log_split(ax)
     ax.set(title=title_valid_avg_life)
     ax.set(
         xlabel=r"$p_\mathrm{err}$",
-        ylabel=title_valid_avg_life,
+        ylabel="Measurement Cycles",
         xlim=(1e-3, max_x),
         yscale="log",
         ylim=ylim_log_plot
@@ -602,7 +610,7 @@ if True:
     plt.savefig("plots/threshold_valid_lifetime_p_err_log.pdf", bbox_inches="tight")
     plt.show()
     
-if True:
+if False:
     ################## Plot Overall Average Lifetime ##################
     fig, ax = plt.subplots(1, 1, sharex=True)
 
@@ -613,7 +621,7 @@ if True:
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_overall_avg_life],
-            label=f"d=h={code_size}",
+            label=r"$d=h=$" + f"{code_size}",
             c=plot_colors[i],
             marker=markers[i]
         )

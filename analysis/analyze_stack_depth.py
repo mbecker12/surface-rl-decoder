@@ -20,25 +20,30 @@ from evaluation.batch_evaluation import RESULT_KEY_COUNTS, RESULT_KEY_ENERGY, RE
 from distributed.model_util import choose_model, choose_old_model, load_model
 
 plt.rcParams.update({'font.size': 18})
-# job_ids = [
-#     70277,
-#     70278,
-#     70279,
-#     70280,
-#     70281
-# ]
 
+# 3D Conv
 job_ids = [
     70282,
     70278,
     70283,
     70286,
-    70287
+    70287,
+]
+
+# 2D Conv
+job_ids = [
+    72407,
+    72408,
+    72409,
+    72410,
 ]
 
 omit_job_ids = []
 
+# 3D Conv
 stack_depths = [3, 5, 7, 9, 11]
+# 2D Conv
+stack_depths = [2, 3, 5, 7]
 
 job_id_mapping = {jid: stack_depths[i] for i, jid in enumerate(job_ids)}
 print(f"{job_id_mapping=}")
@@ -72,12 +77,13 @@ df_all_stats = pd.DataFrame(columns=[
 
 all_results_counter = 0
 n_episodes = 128
-model_name = "conv3d"
+# model_name = "conv3d"
+model_name = "conv2d"
 eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
-run_evaluation = False
+run_evaluation = True
 load_eval_results = True
 produce_plots = True
 csv_file_path = "analysis/depth2_analysis_results_p_err.csv"
@@ -93,11 +99,11 @@ if run_evaluation:
         os.environ["CONFIG_ENV_SIZE"] = str(code_size)
         os.environ["CONFIG_ENV_STACK_DEPTH"] = str(stack_depth)
         network_list = glob.glob(f"{LOCAL_NETWORK_PATH}/{code_size}/*")
-        print(network_list)
+        # print(network_list)
         for load_path in network_list:
             if str(jid) not in load_path:
                 continue
-            print(f"{load_path=}")
+            # print(f"{load_path=}")
             jid = load_path.split("/")[-1]
             model_config_path = load_path + f"/{model_name}_{code_size}_meta.yaml"
             old_model_path = load_path + f"/{model_name}_{code_size}_{jid}.pt"
@@ -111,7 +117,7 @@ if run_evaluation:
             try:
                 # model = choose_old_model(model_name, model_config)
                 # TODO: may have to choose old model
-                model = choose_model(model_name, model_config)
+                model = choose_model(model_name, model_config, transfer_learning=0)
                 model, _, _ = load_model(model, old_model_path, model_device=eval_device)
             except Exception as err:
                 error_traceback = traceback.format_exc()
@@ -171,7 +177,11 @@ if not produce_plots:
 print(df_all_stats)
 # split df into sensible groups
 
-dfs = [df_all_stats.loc[(df_all_stats["jobid"] == jid) | (df_all_stats["jobid"] == str(jid))] for jid in job_ids]
+dfs = [
+    df_all_stats.loc[
+    (df_all_stats["jobid"] == jid) | (df_all_stats["jobid"] == str(jid))]
+    for jid in job_ids
+]
 new_dfs = []
 
 eval_key_list = [
@@ -244,6 +254,7 @@ for df in dfs:
 df_all = pd.concat(new_dfs)
 print(df_all)
 # need to filter best performing model for each d as well
+max_x = new_dfs[0]["p_err"].max()
 
 error_rates = df_all["p_err"]
 key_success_rate = "weighted_success_rate"
@@ -263,6 +274,44 @@ title_overall_avg_life = "Overall Average Lifetime"
 for o_jid in omit_job_ids:
     job_ids.remove(o_jid)
 
+plot_colors = ["#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
+markers = ["o", "v", "^", "X", "d"]
+ylim_lin_plot = (-1e-4, 0.008)
+ylim_log_plot = (50, 1e5)
+
+def set_text_lin(axis):
+    axis.text(
+        0.0055,
+        0.0052,
+        "Single Qubit",
+        rotation=49
+    )
+
+def set_text_lin_split(axis):
+    axis.text(
+        0.0053,
+        0.0044,
+        "Single Qubit",
+        rotation=42
+    )
+
+def set_text_log(axis):
+    axis.text(
+        0.0015,
+        125,
+        "Single Qubit",
+        rotation=-15
+    )
+
+def set_text_log_split(axis):
+    axis.text(
+        0.0015,
+        100,
+        "Single Qubit",
+        rotation=-15
+    )
+
+
 ################## Plot Overall Fail Rate per Cycle ##################
 fig, ax = plt.subplots(1, 1, sharex=True)
 
@@ -276,7 +325,10 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err"],
         y=new_dfs[i][key_scaled_fail_rate],
-        label=f"d={code_size}, h={stack_depth}")
+        label=f"d={code_size}, h={stack_depth}",
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
@@ -302,7 +354,10 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err"],
         y=new_dfs[i][key_valid_fail_rate],
-        label=f"d={code_size}, h={stack_depth}")
+        label=f"d={code_size}, h={stack_depth}",
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
@@ -328,7 +383,10 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err_one_layer"],
         y=new_dfs[i][key_valid_fail_rate],
-        label=f"h={stack_depth}")
+        label=f"h={stack_depth}",
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err_one_layer"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     np.linspace(new_dfs[0]["p_err_one_layer"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
@@ -353,7 +411,10 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err"],
         y=new_dfs[i][key_valid_avg_life],
-        label=f"d={code_size}, h={stack_depth}")
+        label=f"d={code_size}, h={stack_depth}",
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
@@ -378,7 +439,10 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err"],
         y=new_dfs[i][key_valid_avg_life],
-        label=f"h={stack_depth}")
+        label=f"h={stack_depth}",
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
@@ -406,7 +470,10 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err"],
         y=new_dfs[i][key_overall_avg_life],
-        label=f"d={code_size}, h={stack_depth}")
+        label=f"d={code_size}, h={stack_depth}",
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
@@ -431,7 +498,10 @@ for i, jid in enumerate(job_ids):
     ax.scatter(
         x=new_dfs[i]["p_err"],
         y=new_dfs[i][key_overall_avg_life],
-        label=f"h={stack_depth}")
+        label=f"h={stack_depth}",
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     1.0 / np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
