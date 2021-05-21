@@ -118,7 +118,10 @@ class PPO:
                 base_model_config = json.load(json_file)["simple_conv"]
 
             base_model_config = extend_model_config(
-                base_model_config, self.syndrome_size, self.stack_depth, device=self.device
+                base_model_config,
+                self.syndrome_size,
+                self.stack_depth,
+                device=self.device,
             )
         else:
             base_model_config = None

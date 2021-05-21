@@ -42,7 +42,7 @@ def choose_model(
     model_config_base=None,
     model_path_base=None,
     transfer_learning=1,
-    rl_type="q"
+    rl_type="q",
 ):
     """
     Given a model name, choose the corresponding neural network agent/model
