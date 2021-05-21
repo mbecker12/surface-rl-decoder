@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
-from pandas.core.frame import DataFrame
 import yaml
 import json
 import traceback

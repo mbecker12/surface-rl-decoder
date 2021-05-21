@@ -240,9 +240,6 @@ for df in dfs:
     new_dfs.append(agg_groups)
 
 df_all = pd.concat(new_dfs)
-print(f'{df_all["logical_err_rate_per_cycle"]=}')
-print(f'{df_all["valid_fail_rate_per_cycle"]=}')
-print(f'{df_all["overall_fail_rate_per_cycle"]=}')
 
 # df_all.to_csv("analysis/threshold_summary.csv")
 sweke_data = pd.read_csv("plots/sweke_lifetime_datapoints.csv", index_col=None, header=0)
