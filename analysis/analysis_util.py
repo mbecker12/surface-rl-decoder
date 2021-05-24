@@ -186,3 +186,32 @@ def analyze_succesful_episodes(
         "n_steps_arr": n_steps
     }
     return result_dict
+
+def provide_default_ppo_metadata(
+    code_size,
+    stack_depth,
+):
+    metadata = {
+        "code_size": code_size,
+        "channel_list": [
+            32,
+            64,
+            32,
+            16,
+            8,
+        ],
+        "device": "cuda",
+        "input_channels": 1,
+        "kernel_depth": 3,
+        "kernel_size": 3,
+        "model_name": "conv3d",
+        "name": "conv3d",
+        "network_size": "slim",
+        "neuron_list": [512, 256],
+        "num_actions_per_qubit": 3,
+        "padding_size": 1,
+        "split_input_toggle": 0,
+        "stack_depth": stack_depth,
+        "syndrome_size": 6,
+    }
+    return metadata
