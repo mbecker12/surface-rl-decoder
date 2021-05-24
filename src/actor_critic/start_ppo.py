@@ -3,10 +3,13 @@ Start the PPO learning algorithm
 by initializing the PPO class."
 """
 import logging
+import os
+from copy import deepcopy
 import sys
 import traceback
 from distributed.mp_util import configure_processes
 from actor_critic.ppo import PPO
+from distributed.model_util import save_metadata
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
@@ -49,6 +52,25 @@ def start_ppo():
         error_traceback = traceback.format_exc()
         logger.error("Caught exception in learning step")
         logger.error(error_traceback)
+
+        logger.info("Saving Metadata")
+        metadata = {}
+        metadata["global"] = deepcopy(global_config)
+        model_config = env_args["model_config"]
+        model_name = env_args["model_name"]
+        metadata["network"] = deepcopy(model_config)
+        metadata["network"]["name"] = model_name
+        save_model_path = env_args["save_model_path"]
+        code_size = env_args["code_size"]
+        summary_date = env_args["summary_date"]
+
+        save_model_path_date_meta = os.path.join(
+            save_model_path,
+            str(code_size),
+            summary_date,
+            f"{model_name}_{code_size}_meta.yaml",
+        )
+        save_metadata(metadata, save_model_path_date_meta)
         sys.exit()
 
 

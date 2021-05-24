@@ -6,6 +6,7 @@ Furthermore, this class implements the communication with the
 replay buffer to request episode samples and performs the actual learner step.
 """
 import json
+import yaml
 import os
 from time import time
 import logging
@@ -134,6 +135,10 @@ class PPO:
             model_config_base=base_model_config,
             transfer_learning=use_transfer_learning,
             rl_type=rl_type,
+        )
+
+        self.logger.debug(
+            "\nNetwork Config: \n\n" f"{yaml.dump(model_config, default_flow_style=False)}"
         )
 
         if load_model_flag:
