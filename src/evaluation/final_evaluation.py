@@ -22,7 +22,7 @@ from distributed.learner_util import (
     safe_append_in_dict,
     transform_list_dict,
 )
-from distributed.util import select_actions
+from distributed.util import q_value_index_to_action, select_actions
 from surface_rl_decoder.surface_code_util import (
     STATE_MULTIPLIER,
     TERMINAL_ACTION,
@@ -33,6 +33,10 @@ from surface_rl_decoder.surface_code_util import (
 )
 from surface_rl_decoder.surface_code import SurfaceCode
 from evaluation.eval_util import count_spikes, create_user_eval_state
+
+sys.path.append("/home/marvin/Projects/surface-rl-decoder")
+sys.path.append("/home/marvin/Projects/surface-rl-decoder/analysis")
+from analysis.analysis_util import provide_default_ppo_metadata
 
 # pylint: disable=unused-import
 from evaluation.batch_evaluation import (
@@ -69,6 +73,7 @@ def main_evaluation(
     stack_depth=None,
     block=False,
     verbosity=0,
+    rl_type="q"
 ):
     """
     The main program to be executed.
@@ -119,19 +124,28 @@ def main_evaluation(
         energy = np.sum(states[0, -1, :, :]) / STATE_MULTIPLIER
         energies.append(energy)
         torch_states = torch.tensor(states, dtype=torch.float32).to(device)
-        actions, _ = select_actions(torch_states, model, code_size, epsilon=epsilon)
+        if rl_type == "q":
+            actions, _ = select_actions(torch_states, model, code_size, epsilon=epsilon)
+        elif rl_type == "ppo":
+            actions = model.select_action_ppo(torch_states)
 
         assert np.all(
             state == surface_code.state
         ), f"{state[-1]}, {surface_code.state[-1]}"
-        action = actions[0]
+
+        if rl_type == "q":
+            action = actions[0]
+        elif rl_type == "ppo":
+            actions = actions.numpy()
+            action = q_value_index_to_action(actions, code_size)
+
         action_history.append(action)
         (
             next_state,
             reward,
             terminal,
             _,
-        ) = surface_code.step(actions[0])
+        ) = surface_code.step(action)
         if verbosity:
             print(f"{action}")
 
@@ -180,7 +194,7 @@ def main_evaluation(
         reward,
         terminal,
         _,
-    ) = surface_code.step(actions[0])
+    ) = surface_code.step(action)
     if reward != rewards[-1]:
         rewards.append(reward)
 
@@ -281,6 +295,8 @@ if __name__ == "__main__":
     tb_path = os.path.join(summary_path, summary_date, "learner")
     tensorboard = SummaryWriter(tb_path)
 
+    meta_file = None
+    rl_type = "q"
     for filename in glob.glob(load_path + "*"):
         if filename.endswith(".pt"):
             model_file = filename
@@ -288,15 +304,21 @@ if __name__ == "__main__":
         if "meta" in filename:
             meta_file = filename
 
-    with open(meta_file) as meta_fp:
-        metadata = yaml.load(meta_fp)
+    if meta_file is not None:
+        with open(meta_file) as meta_fp:
+            metadata = yaml.load(meta_fp)
 
-    network_config = metadata["network"]
+        network_config = metadata["network"]
+    else:
+        network_config = provide_default_ppo_metadata(code_size, stack_depth)
+        rl_type = "ppo"
+
+    network_config["rl_type"] = rl_type
     network_config["device"] = eval_device
     network_name = network_config["name"]
 
-    # model = choose_model(network_name, network_config)
-    model = choose_old_model(network_name, network_config)
+    model = choose_model(network_name, network_config)
+    # model = choose_old_model(network_name, network_config)
     model, *_ = load_model(model, old_model_path=model_file, model_device=eval_device)
 
     # check model layers, conv filters
@@ -340,7 +362,7 @@ if __name__ == "__main__":
         # and then act with (2, 2, 2) repeatedly on the resulting state
 
     # perform the main evaluation
-    if True:
+    if False:
         n_episodes = 250
         n_ground_states = 0
         n_valid_ground_states = 0
@@ -379,6 +401,15 @@ if __name__ == "__main__":
             f"Fraction of valid ground states: {n_valid_ground_states / n_valid_episodes:.4f}, "
             f"Valid Success Rate: {1.0 - n_valid_ground_states / n_valid_episodes:.4f}, "
             f"Valid episodes w/ non-trivial loops: {n_valid_non_trivial_loops}"
+        )
+
+    # perform visual evaluation
+    if True:
+        main_evaluation(
+            model,
+            eval_device,
+            block=True,
+            rl_type=rl_type
         )
 
     # test integration with evaluation routine in the real program

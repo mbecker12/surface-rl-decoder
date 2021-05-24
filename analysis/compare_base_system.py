@@ -1,6 +1,7 @@
 """
 Compare different architectures and approaches on d=5, h=5
 """
+import json
 import traceback
 from typing import Dict, List
 import pandas as pd
@@ -13,8 +14,8 @@ import sys
 import yaml
 import subprocess
 from dataclasses import dataclass
-from analysis_util import analyze_succesful_episodes
-from distributed.model_util import choose_model, choose_old_model, load_model
+from analysis_util import analyze_succesful_episodes, provide_default_ppo_metadata
+from distributed.model_util import choose_model, choose_old_model, extend_model_config, load_model
 
 @dataclass
 class TrainingRun():
@@ -29,11 +30,15 @@ class TrainingRun():
     duration: float = None
     model_name: str = None
     model_config_file: str = "conv_agents_slim.json"
+    transfer_learning: int = 0
+    
+base_model_config_path="src/config/model_spec/old_conv_agents.json"
+base_model_path="remote_networks/5/65280/simple_conv_5_65280.pt"
 
 training_runs = [
-    TrainingRun(69312, 5, 5, 0.01, 0.01, "q", "3D Conv", model_name="conv3d"),
     TrainingRun(69037, 5, 5, 0.0108, 0.0, "q", "3D Conv", model_name="conv3d"),
-    TrainingRun(71852, 5, 5, 0.008, 0.008, "q", "2D Conv + GRU", model_name="conv2d", model_config_file="conv_agents_slim_gru.json"),
+    TrainingRun(71852, 5, 5, 0.008, 0.008, "q", "2D Conv + GRU", model_name="conv2d", model_config_file="conv_agents_slim_gru.json", transfer_learning=1),
+    TrainingRun(69312, 5, 5, 0.01, 0.01, "q", "3D Conv", model_name="conv3d"),
     TrainingRun(71873, 5, 5, 0.01, 0.01, "ppo", "3D Conv", model_name="conv3d"),
     TrainingRun(72409, 5, 5, 0.01, 0.01, "q", "2D Conv", model_name="conv2d"),
 ]
@@ -47,7 +52,7 @@ plt.rcParams.update({'font.size': 16})
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
 
-do_copy = True
+do_copy = False
 if do_copy:
     print("Copy Data from Cluster")
     
@@ -75,10 +80,10 @@ eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.devic
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
-run_evaluation = True
+run_evaluation = False
 load_eval_results = True
 produce_plots = True
-csv_file_path = "analysis/comparison_base_system.csv"
+csv_file_path = "analysis/comparison_base_system_remote.csv"
 
 n_episodes = 256
 # model_name = "conv3d"
@@ -91,65 +96,90 @@ if run_evaluation:
     for run in training_runs:
         os.environ["CONFIG_ENV_SIZE"] = str(run.code_size)
         os.environ["CONFIG_ENV_STACK_DEPTH"] = str(run.stack_depth)
-        network_list = glob.glob(f"{LOCAL_NETWORK_PATH}/{run.code_size}/*")
-        print(network_list)
         load_path = f"{LOCAL_NETWORK_PATH}/{run.code_size}/{run.job_id}"
         model_config_path = load_path + f"/{run.model_name}_{run.code_size}_meta.yaml"
         old_model_path = load_path + f"/{run.model_name}_{run.code_size}_{run.job_id}.pt"
 
-        with open(model_config_path, "r") as yaml_file:
-            general_config = yaml.load(yaml_file)
-            model_config = general_config["network"]
-            model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-            p_err_train = general_config["global"]["env"]["p_error"]
-            # load model
-            print("Load Model")
-            try:
-                if int(run.job_id) < 70000:
-                    model = choose_old_model(run.model_name, model_config)
-                else:
-                    model = choose_model(run.model_name, model_config)
+        if run.rl_type == "ppo" and not os.path.exists(model_config_path):
+            model_config = provide_default_ppo_metadata(run.code_size, run.stack_depth)
+        else:
+            with open(model_config_path, "r") as yaml_file:
+                general_config = yaml.load(yaml_file)
+                model_config = general_config["network"]
 
-                model, _, _ = load_model(model, old_model_path, model_device=eval_device)
-            except Exception as err:
-                error_traceback = traceback.format_exc()
-                print("An error occurred!")
-                print(error_traceback)
-                
-                continue
-            p_error_list = np.arange(start=0.0001, stop=0.0120, step=0.0005)
-            print(f"Job ID = {run.job_id}, Iterate over p_err...")
-            for p_idx, p_err in enumerate(p_error_list):
-                sys.stdout.write(f"\r{p_idx + 1:02d} / {len(p_error_list):02d}")
-                p_msmt = p_err
-                # batch_evaluation(..., p_error, p_msmt)
+        model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+        p_err_train = general_config["global"]["env"]["p_error"]
+        # load model
+        print(f"Load Model for {run.job_id}")
+        try:
+            if int(run.job_id) < 70000:
+                model = choose_old_model(
+                    run.model_name,
+                    model_config
+                )
+            else:
+                base_model_config = None
+                if run.transfer_learning:
+                    with open(base_model_config_path, "r") as base_file:
+                        base_model_config = json.load(base_file)["simple_conv"]
+                    
+                    base_model_config = extend_model_config(
+                        base_model_config,
+                        run.code_size + 1,
+                        run.stack_depth
+                    )
+                    base_model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
 
-                result_dict: Dict = analyze_succesful_episodes(
-                    model,
-                    "",
-                    device=eval_device,
-                    total_n_episodes=n_episodes,
-                    max_num_of_steps=max_num_of_steps,
-                    discount_intermediate_reward=0.3,
-                    verbosity=2,
-                    p_msmt=p_msmt,
-                    p_err=p_err,
-                    code_size=run.code_size,
-                    stack_depth=run.stack_depth
+                model_config["rl_type"] = run.rl_type
+                model = choose_model(
+                    run.model_name,
+                    model_config,
+                    model_config_base=base_model_config,
+                    model_path_base=base_model_path,
+                    transfer_learning=run.transfer_learning
                 )
 
-                result_dict["jobid"]= run.job_id
-                result_dict["code_size"]= run.code_size
-                result_dict["stack_depth"]= run.stack_depth
-                result_dict["p_err_train"]= p_err_train
-                result_dict["p_err"]= p_err
-                result_dict["avg_steps"] = result_dict["n_steps_arr"].mean()
-                result_dict.pop("n_steps_arr")
-                
-                # save relevant eval stats to dataframe
-                df_all_stats = df_all_stats.append(result_dict, ignore_index=True)
-            print()
-            print()
+            model, _, _ = load_model(model, old_model_path, model_device=eval_device)
+        except Exception as err:
+            error_traceback = traceback.format_exc()
+            print("An error occurred!")
+            print(error_traceback)
+            
+            continue
+        p_error_list = np.arange(start=0.0001, stop=0.0120, step=0.0005)
+        print(f"Job ID = {run.job_id}, Iterate over p_err...")
+        for p_idx, p_err in enumerate(p_error_list):
+            sys.stdout.write(f"\r{p_idx + 1:02d} / {len(p_error_list):02d}")
+            p_msmt = p_err
+            # batch_evaluation(..., p_error, p_msmt)
+
+            result_dict: Dict = analyze_succesful_episodes(
+                model,
+                "",
+                device=eval_device,
+                total_n_episodes=n_episodes,
+                max_num_of_steps=max_num_of_steps,
+                discount_intermediate_reward=0.3,
+                verbosity=2,
+                p_msmt=p_msmt,
+                p_err=p_err,
+                code_size=run.code_size,
+                stack_depth=run.stack_depth,
+                rl_type=run.rl_type
+            )
+
+            result_dict["jobid"]= run.job_id
+            result_dict["code_size"]= run.code_size
+            result_dict["stack_depth"]= run.stack_depth
+            result_dict["p_err_train"]= p_err_train
+            result_dict["p_err"]= p_err
+            result_dict["avg_steps"] = result_dict["n_steps_arr"].mean()
+            result_dict.pop("n_steps_arr")
+            
+            # save relevant eval stats to dataframe
+            df_all_stats = df_all_stats.append(result_dict, ignore_index=True)
+        print()
+        print()
 
     print("Saving dataframe...")
     if os.path.exists(csv_file_path):
@@ -162,11 +192,16 @@ if load_eval_results:
     # df_all_stats = pd.read_csv("analysis/analysis_results2.csv")
     print("Load Data File")
     df_all_stats = pd.read_csv(csv_file_path, index_col=0)
-    print(f"{df_all_stats=}")
+    # print(f"{df_all_stats=}")
 
+if not produce_plots:
+    print("Not producing result plot. Exiting...")
+    sys.exit()
 
-
-dfs: List[pd.DataFrame] = [df_all_stats.loc[(df_all_stats["jobid"] == jid) | (df_all_stats["jobid"] == str(jid))].copy(deep=True) for jid in job_ids]
+dfs: List[pd.DataFrame] = [
+    df_all_stats.loc[(df_all_stats["jobid"] == run.job_id) | (df_all_stats["jobid"] == str(run.job_id))].copy(deep=True) 
+    for run in training_runs
+    ]
 new_dfs = []
 # TODO aggregate stats from different analysis runs
 eval_key_list = [
@@ -292,7 +327,7 @@ if True:
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_valid_fail_rate],
-            label=r"$d=h=$" + f"{run.code_size}, {run.architecture}, {run.rl_type}",
+            label=r"$d=h=$" + f"{run.code_size}, {run.architecture}, {run.rl_type}, " + r"$p_\mathrm{err}$=" + f"{run.p_err}, " + r"$p_\mathrm{msmt}$=" + f"{run.p_msmt}",
             s=100 * (
                     new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]
                 )**1.2,

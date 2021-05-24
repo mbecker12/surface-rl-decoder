@@ -31,19 +31,20 @@ job_ids = [
 ]
 
 # 2D Conv
-job_ids = [
-    72407,
-    72408,
-    72409,
-    72410,
-]
+# job_ids = [
+#     72499,
+#     72407,
+#     72408,
+#     72409,
+#     72410
+# ]
 
 omit_job_ids = []
 
-# 3D Conv
+# # 3D Conv
 stack_depths = [3, 5, 7, 9, 11]
 # 2D Conv
-stack_depths = [2, 3, 5, 7]
+# stack_depths = [1, 2, 3, 5, 7]
 
 job_id_mapping = {jid: stack_depths[i] for i, jid in enumerate(job_ids)}
 print(f"{job_id_mapping=}")
@@ -83,10 +84,11 @@ eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.devic
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
-run_evaluation = True
+run_evaluation = False
 load_eval_results = True
 produce_plots = True
-csv_file_path = "analysis/depth2_analysis_results_p_err.csv"
+# csv_file_path = "analysis/depth_analysis_results_p_err_72499.csv"
+csv_file_path = "analysis/depth_analysis_3d.csv"
 
 max_num_of_steps = 32
 if run_evaluation:
@@ -107,6 +109,7 @@ if run_evaluation:
             jid = load_path.split("/")[-1]
             model_config_path = load_path + f"/{model_name}_{code_size}_meta.yaml"
             old_model_path = load_path + f"/{model_name}_{code_size}_{jid}.pt"
+            print(f"{model_config_path=}")
             with open(model_config_path, "r") as yaml_file:
                 general_config = yaml.load(yaml_file)
                 model_config = general_config["network"]
