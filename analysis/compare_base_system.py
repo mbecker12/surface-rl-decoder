@@ -45,7 +45,6 @@ training_runs = [
     TrainingRun(73417, 9, 9, 0.05, 0.05, "q", "Hindsight 3D", model_name="conv3d"),
     TrainingRun(73418, 9, 9, 0.01, 0.01, "q", "Hindsight 3D", model_name="conv3d"),
     TrainingRun(73997, 9, 9, 0.005, 0.005, "q", "Hindsight 3D", model_name="conv3d"),
-
     TrainingRun(73998, 5, 5, 0.05, 0.05, "q", "Hindsight 2D", model_name="conv2d"),
     TrainingRun(73999, 5, 5, 0.01, 0.01, "q", "Hindsight 2D", model_name="conv2d"),
     TrainingRun(74000, 5, 5, 0.005, 0.005, "q", "Hindsight 2D", model_name="conv2d"),
