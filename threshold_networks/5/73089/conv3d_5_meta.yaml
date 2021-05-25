@@ -1,0 +1,107 @@
+global:
+  actor:
+    benchmarking: '0'
+    decay_factor_epsilon: '0.99997'
+    decay_factor_intermediate_reward: '0.99997'
+    discount_intermediate_reward: '0.3'
+    epsilon: '0.8'
+    load_model: '0'
+    min_value_factor_epsilon: '0.02'
+    min_value_factor_intermediate_reward: '0.0'
+    n_goals: '40'
+    num_cpu: '0'
+    num_cuda: '4'
+    num_environments: '128'
+    size_local_memory_buffer: '2000'
+    verbosity: '2'
+  env:
+    error_channel: dp
+    max_actions: '64'
+    min_qbit_err: '0'
+    p_error: '0.05'
+    p_msmt: '0.05'
+    size: '5'
+    stack_depth: '5'
+    state_multiplier: '1'
+    terminal_action: '4'
+  general:
+    description: hindsight
+    summary_date: '73089'
+    summary_path: runs
+    summary_run_info: run_info
+  learner:
+    base_model_config_path: /surface-rl-decoder/src/config/model_spec/old_conv_agents.json
+    base_model_path: /cephyr/NOBACKUP/groups/snic2021-23-319/networks/networks/5/65280/simple_conv_5_65280.pt
+    batch_size: '256'
+    benchmarking: '0'
+    device: cuda
+    discount_factor: '0.95'
+    entropy_loss_weight: '0.01'
+    eval_frequency: '250'
+    learner_epsilon: '0.0'
+    learning_rate: 1e-3
+    load_model: '0'
+    load_model_path: networks/test2/dummy_agent_5_test13.pt
+    max_episodes: '1024'
+    max_time_h: '4'
+    max_time_minutes: '0'
+    max_timesteps: '200000'
+    model_config_file: conv_agents_slim.json
+    model_config_location: /cephyr/users/falckk/Alvis/surface-rl-decoder/custom_config/model_spec
+    model_name: conv3d
+    optimization_epochs: '100'
+    policy_clip_range: '0.1'
+    policy_model_max_grad_norm: '100'
+    policy_stopping_kl: '0.02'
+    save_model_path: networks
+    target_update_steps: '200'
+    transfer_learning: '0'
+    value_clip_range: '1'
+    value_loss_weight: '0.0001'
+    value_model_max_grad_norm: '100'
+    value_stopping_mse: '25'
+    verbosity: '5'
+  replay_memory:
+    alpha: '0.9'
+    benchmarking: '0'
+    beta: '0.4'
+    decay_beta: '1.00002'
+    episode_buffer_device: cpu
+    episode_buffer_tau: '0.97'
+    max_buffer_episode_steps: '32'
+    max_buffer_episodes: '10000'
+    memory_type: prio
+    nvidia_log_frequency: '15'
+    replay_size_before_sampling: '2000'
+    size: '8388608'
+    verbosity: '2'
+  reward:
+    non_trivial_loop: '-39'
+    premature_ending: '-200'
+    repeating_action: '0'
+    solved_episode: '100'
+    syndrome_difference: '5'
+    syndrome_left: '-19'
+network:
+  channel_list:
+  - 32
+  - 64
+  - 32
+  - 16
+  - 8
+  code_size: 5
+  device: cuda
+  input_channels: 1
+  kernel_depth: 3
+  kernel_size: 3
+  model_name: conv3d
+  name: conv3d
+  network_size: slim
+  neuron_list:
+  - 512
+  - 256
+  num_actions_per_qubit: 3
+  padding_size: 1
+  split_input_toggle: 0
+  stack_depth: 5
+  syndrome_size: 6
