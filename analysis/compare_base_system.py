@@ -14,7 +14,7 @@ import sys
 import yaml
 import subprocess
 from dataclasses import dataclass
-from analysis_util import analyze_succesful_episodes, provide_default_ppo_metadata
+from analysis.analysis_util import analyze_succesful_episodes, provide_default_ppo_metadata
 from distributed.model_util import choose_model, choose_old_model, extend_model_config, load_model
 
 @dataclass
@@ -33,14 +33,10 @@ class TrainingRun():
     transfer_learning: int = 0
     
 base_model_config_path="src/config/model_spec/old_conv_agents.json"
-base_model_path="remote_networks/5/65280/simple_conv_5_65280.pt"
+base_model_path="remote_networks/5/73089/conv3d_5_73089.pt"
 
 training_runs = [
-    TrainingRun(69037, 5, 5, 0.0108, 0.0, "q", "3D Conv", model_name="conv3d"),
-    TrainingRun(71852, 5, 5, 0.008, 0.008, "q", "2D Conv + GRU", model_name="conv2d", model_config_file="conv_agents_slim_gru.json", transfer_learning=1),
-    TrainingRun(69312, 5, 5, 0.01, 0.01, "q", "3D Conv", model_name="conv3d"),
-    TrainingRun(71873, 5, 5, 0.01, 0.01, "ppo", "3D Conv", model_name="conv3d"),
-    TrainingRun(72409, 5, 5, 0.01, 0.01, "q", "2D Conv", model_name="conv2d"),
+    TrainingRun(73089, 5, 5, 0.05, 0.05, "q", "3D Conv", model_name="conv3d_hindsight"),
 ]
 
 
