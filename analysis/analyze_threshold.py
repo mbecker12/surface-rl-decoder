@@ -27,20 +27,30 @@ job_ids = [
     69312,
     69545,
     70425,
-    71571
+    71571,
+    74220,
+    72409,
+    73254,
+    73255
 ]
 
 omit_job_ids = [
-    71571
+    69366,
+    69312,
+    69545,
+    70425,
+    71571,
 ]
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
 
-do_copy = False
+do_copy = True
 if do_copy:
     print("Copy Data from Cluster")
     
     for jid in job_ids:
+        if jid in omit_job_ids:
+            continue
         print(f"\tCopying {jid}...")
         for code_size in (3, 5, 7, 9):
             try:
@@ -69,8 +79,8 @@ if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
 run_evaluation = False
-load_eval_results = True
-produce_plots = True
+load_eval_results = False
+produce_plots = False
 csv_file_path = "analysis/threshold_analysis_results.csv"
 
 max_num_of_steps = 40

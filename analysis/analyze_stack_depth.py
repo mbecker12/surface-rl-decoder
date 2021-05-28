@@ -79,7 +79,7 @@ df_all_stats = pd.DataFrame(columns=[
 all_results_counter = 0
 n_episodes = 128
 # model_name = "conv3d"
-model_name = "conv2d"
+model_name = "conv3d"
 eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
@@ -87,6 +87,7 @@ if torch.cuda.is_available():
 run_evaluation = False
 load_eval_results = True
 produce_plots = True
+save_plots = False
 # csv_file_path = "analysis/depth_analysis_results_p_err_72499.csv"
 csv_file_path = "analysis/depth_analysis_3d.csv"
 
@@ -344,12 +345,15 @@ ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_scaled_fail_rate)
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/depth_overall_fail_rate_p_err.pdf")
+if save_plots:
+    plt.savefig("plots/depth_overall_fail_rate_p_err.pdf")
 plt.show()
 
 ################## Plot Valid Fail Rate per Cycle ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
-
+# fig, ax = plt.subplots(1, 1, sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios': [1, 4], 'wspace': 0, 'hspace': 0.25})
+ax = axes[1]
+ax1 = axes[0]
 for i, jid in enumerate(job_ids):
     code_size = new_dfs[i]["code_size"].iloc[0]
     stack_depth = new_dfs[i]["stack_depth"].iloc[0]
@@ -361,24 +365,36 @@ for i, jid in enumerate(job_ids):
         c=plot_colors[i],
         marker=markers[i]
     )
+    # plot disregard-fraction
+    ax1.scatter(
+        x=new_dfs[i]["p_err"],
+        y=(
+            1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"])
+        ) * 100,
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     np.linspace(new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     'k',
-    label="One Qubit"
+    # label="One Qubit"
 )
 ax.set(title=title_valid_fail_rate)
 ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_fail_rate)
+ax1.set(title="% of Episodes w/ Remaining Syndromes")
 
 
 plt.legend()
-plt.tight_layout()
-plt.savefig("plots/depth_valid_fail_rate_p_err.pdf")
+# plt.tight_layout()
+if True:
+    plt.savefig("plots/depth_valid_fail_rate_p_err.pdf", bbox_inches="tight")
 plt.show()
 
 ################## Plot Valid Fail Rate per Cycle over Scaled Error Rate ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
-
+fig, axes = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios': [1, 4], 'wspace': 0, 'hspace': 0.25})
+ax = axes[1]
+ax1 = axes[0]
 for i, jid in enumerate(job_ids):
     code_size = new_dfs[i]["code_size"].iloc[0]
     stack_depth = new_dfs[i]["stack_depth"].iloc[0]
@@ -390,18 +406,28 @@ for i, jid in enumerate(job_ids):
         c=plot_colors[i],
         marker=markers[i]
     )
+    # plot disregard-fraction
+    ax1.scatter(
+        x=new_dfs[i]["p_err_one_layer"],
+        y=(
+            1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"])
+        ) * 100,
+        c=plot_colors[i],
+        marker=markers[i]
+    )
 ax.plot(
     np.linspace(new_dfs[0]["p_err_one_layer"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     np.linspace(new_dfs[0]["p_err_one_layer"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True),
     'k'
 )
-ax.set(title=title_valid_fail_rate)
+ax.set(title=title_valid_fail_rate + ", 3D Conv")
 ax.set(xlabel=r"$p_\mathrm{err}^\mathrm{one layer}$", ylabel=title_valid_fail_rate)
-
+ax1.set(title="% of Episodes w/ Remaining Syndromes")
 
 plt.legend()
-plt.tight_layout()
-plt.savefig("plots/depth_valid_fail_rate_p_err_one_layer.pdf")
+# plt.tight_layout()
+if save_plots:
+    plt.savefig("plots/depth_valid_fail_rate_p_err_one_layer.pdf", bbox_inches="tight")
 plt.show()
 
 ################## Plot Valid Average Lifetime ##################
@@ -430,7 +456,8 @@ ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_avg_life, ylim=(0, 10000))
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/depth_valid_lifetime_p_err.pdf")
+if save_plots:
+    plt.savefig("plots/depth_valid_lifetime_p_err.pdf")
 plt.show()
 
 fig, ax = plt.subplots(1, 1, sharex=True)
@@ -460,7 +487,8 @@ ax.set(
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/depth_valid_lifetime_p_err_log.pdf")
+if save_plots:
+    plt.savefig("plots/depth_valid_lifetime_p_err_log.pdf")
 plt.show()
 
 ################## Plot Overall Average Lifetime ##################
@@ -489,7 +517,8 @@ ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life, ylim=(0, 10000
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/depth_overall_lifetime_p_err.pdf")
+if save_plots:
+    plt.savefig("plots/depth_overall_lifetime_p_err.pdf")
 plt.show()
 
 fig, ax = plt.subplots(1, 1, sharex=True)
@@ -519,7 +548,8 @@ ax.set(
 
 plt.legend()
 plt.tight_layout()
-plt.savefig("plots/depth_overall_lifetime_p_err_log.pdf")
+if save_plots:
+    plt.savefig("plots/depth_overall_lifetime_p_err_log.pdf")
 plt.show()
 
 sys.exit()
