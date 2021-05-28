@@ -1,0 +1,87 @@
+Metadata-Version: 2.1
+Name: config-env-parser
+Version: 0.0.3
+Summary: Configuration parser with all variables possible to overwrite by environment variables
+Home-page: https://gitlab.com/jockel/config-env-parser.git
+Author: Jochen Gietzen
+Author-email: dev@gietzen.org
+License: UNKNOWN
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+
+# Config ENV Parser
+This project intents to simplify the process of reading configuration files and
+exposing these configuration variables to be overwritten with env variables.
+
+## Install
+`pip install config-env-parser`
+
+## Minimal Example
+```
+from iniparser import Config
+
+if __name__ == '__main__':
+    c = Config()
+    # True indicates recursive scan
+    # '.' indicates to start the scanning in '.' as root
+    c.scan('.', True)
+    # Reads your ini files
+    c.read()
+    # prints the rendered config file
+    print(c.config_rendered)
+    # prints the config file with lambda functions in the fields that are exposed to the environment.
+    print(c.config)
+```
+
+## Generate env markdown file
+To enable easy tracking of the created env variables, 
+you can call the Config's `to_env` method.
+
+```
+from iniparser import Config
+
+if __name__ == '__main__':
+    c = Config()
+    # True indicates recursive scan
+    # '.' starts the scanning in root
+    # read reads your ini files
+    c.scan('.', True).read()
+    # Writes all available env variables to env.md
+    c.to_env(output_path='./env.md')
+
+```
+
+## Hinting
+You can hint this tool in your ini files by adding a `cep:` hint.
+E.g. in your ini file `exclude|include|hint`
+```
+...
+; ceb: exclude
+excluded_key = excluded_value
+; ceb: include
+included_key = included_value
+; ceb: hint
+depends_key = depends_value
+```
+The `depends_key` depends on the settings of the Config class. If your setting of the mode was
+`all_allowed`, the hint keyword will exclude the `depends_key`. If your mode setting is
+`all_forbidden` on the other hand, the `depends_key` will be included.
+In short: The hint keyword will do the opposite of the mode for the following line. 
+If you place the `ceb:` command before a section, it will apply this to the whole section.
+
+The include will provide a always exposed ENV var coming from the name.
+The exclude will never expose the config variable to the ENV.
+
+
+## Exposed in this context
+Exposed in this context means, that an automated ENV variable is created and if the ENV variable is
+set or changed, the config variable is overwritten by the ENV variable. 
+
+## Find an example
+In [example](./example) you can find an example config.ini and the usage of the config parser in
+[example/example.py](./example/example.py).
+

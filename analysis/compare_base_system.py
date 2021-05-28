@@ -36,24 +36,24 @@ base_model_config_path="src/config/model_spec/old_conv_agents.json"
 base_model_path="remote_networks/5/73089/conv3d_5_73089.pt"
 
 training_runs = [
-    TrainingRun(73411, 5, 5, 0.05, 0.05, "q", "Hindsight 3D", model_name="conv3d"),
-    TrainingRun(73412, 5, 5, 0.01, 0.01, "q", "Hindsight 3D", model_name="conv3d"),
+    #TrainingRun(73411, 5, 5, 0.05, 0.05, "q", "Hindsight 3D", model_name="conv3d"),
+    #TrainingRun(73412, 5, 5, 0.01, 0.01, "q", "Hindsight 3D", model_name="conv3d"),
     TrainingRun(73413, 5, 5, 0.005, 0.005, "q", "Hindsight 3D", model_name="conv3d"),
-    TrainingRun(73414, 7, 7, 0.05, 0.05, "q", "Hindsight 3D", model_name="conv3d"),
-    TrainingRun(73415, 7, 7, 0.01, 0.01, "q", "Hindsight 3D", model_name="conv3d"),
+    #TrainingRun(73414, 7, 7, 0.05, 0.05, "q", "Hindsight 3D", model_name="conv3d"),
+    #TrainingRun(73415, 7, 7, 0.01, 0.01, "q", "Hindsight 3D", model_name="conv3d"),
     TrainingRun(73416, 7, 7, 0.005, 0.005, "q", "Hindsight 3D", model_name="conv3d"),
-    TrainingRun(73417, 9, 9, 0.05, 0.05, "q", "Hindsight 3D", model_name="conv3d"),
-    TrainingRun(73418, 9, 9, 0.01, 0.01, "q", "Hindsight 3D", model_name="conv3d"),
+    #TrainingRun(73417, 9, 9, 0.05, 0.05, "q", "Hindsight 3D", model_name="conv3d"),
+    #TrainingRun(73418, 9, 9, 0.01, 0.01, "q", "Hindsight 3D", model_name="conv3d"),
     TrainingRun(73997, 9, 9, 0.005, 0.005, "q", "Hindsight 3D", model_name="conv3d"),
-    TrainingRun(73998, 5, 5, 0.05, 0.05, "q", "Hindsight 2D", model_name="conv2d"),
-    TrainingRun(73999, 5, 5, 0.01, 0.01, "q", "Hindsight 2D", model_name="conv2d"),
-    TrainingRun(74000, 5, 5, 0.005, 0.005, "q", "Hindsight 2D", model_name="conv2d"),
-    TrainingRun(74001, 7, 7, 0.05, 0.05, "q", "Hindsight 2D", model_name="conv2d"),
-    TrainingRun(74002, 7, 7, 0.01, 0.01, "q", "Hindsight 2D", model_name="conv2d"),
-    TrainingRun(74003, 7, 7, 0.005, 0.005, "q", "Hindsight 2D", model_name="conv2d"),
-    TrainingRun(74011, 9, 9, 0.05, 0.05, "q", "Hindsight 2D", model_name="conv2d"),
-    TrainingRun(74012, 9, 9, 0.01, 0.01, "q", "Hindsight 2D", model_name="conv2d"),
-    TrainingRun(74013, 9, 9, 0.005, 0.005, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(73998, 5, 5, 0.05, 0.05, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(73999, 5, 5, 0.01, 0.01, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(74000, 5, 5, 0.005, 0.005, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(74001, 7, 7, 0.05, 0.05, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(74002, 7, 7, 0.01, 0.01, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(74003, 7, 7, 0.005, 0.005, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(74011, 9, 9, 0.05, 0.05, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(74012, 9, 9, 0.01, 0.01, "q", "Hindsight 2D", model_name="conv2d"),
+    #TrainingRun(74013, 9, 9, 0.005, 0.005, "q", "Hindsight 2D", model_name="conv2d"),
 ]
 
 plt.rcParams.update({'font.size': 16})
@@ -63,7 +63,7 @@ plt.rcParams.update({'font.size': 16})
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "networks"
 
-do_copy = True
+do_copy = False
 if do_copy:
     print("Copy Data from Cluster")
     
@@ -90,9 +90,9 @@ eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.devic
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = f"{os.getcwd()}/networks"
 
-run_evaluation = True
-load_eval_results = False
-produce_plots = False
+run_evaluation = False
+load_eval_results = True
+produce_plots = True
 csv_file_path = "analysis/comparison_base_system_remote.csv"
 
 n_episodes = 256
