@@ -317,7 +317,7 @@ if __name__ == "__main__":
     network_config["device"] = eval_device
     network_name = network_config["name"]
 
-    model = choose_model(network_name, network_config)
+    model = choose_model(network_name, network_config, transfer_learning=0)
     # model = choose_old_model(network_name, network_config)
     model, *_ = load_model(model, old_model_path=model_file, model_device=eval_device)
 
