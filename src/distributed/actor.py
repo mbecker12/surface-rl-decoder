@@ -16,7 +16,16 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from distributed.environment_set import EnvironmentSet
 from distributed.model_util import choose_model, extend_model_config, load_model
-from distributed.util import COORDINATE_SHIFTS, LOCAL_DELTAS, anneal_factor, compute_priorities, format_torch, select_actions, select_actions_value_network, time_tb
+from distributed.util import (
+    COORDINATE_SHIFTS,
+    LOCAL_DELTAS,
+    anneal_factor,
+    compute_priorities,
+    format_torch,
+    select_actions,
+    select_actions_value_network,
+    time_tb,
+)
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
@@ -170,7 +179,6 @@ def actor(args):
     base_model_config_path = args["base_model_config_path"]
     base_model_path = args["base_model_path"]
     use_transfer_learning = args["use_transfer_learning"]
-    
 
     if rl_type == "v":
         vertex_mask = get_vertex_mask(code_size)
@@ -258,7 +266,7 @@ def actor(args):
                 COORDINATE_SHIFTS,
                 LOCAL_DELTAS,
                 device=device,
-                epsilon=epsilon
+                epsilon=epsilon,
             )
 
         if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
@@ -345,7 +353,7 @@ def actor(args):
                 )
 
             new_local_qvalues = np.roll(local_buffer_qvalues, -1, axis=1)
-            
+
             priorities = compute_priorities(
                 local_buffer_actions[:, :-1],
                 local_buffer_rewards[:, :-1],
@@ -353,7 +361,7 @@ def actor(args):
                 new_local_qvalues[:, :-1],
                 discount_factor,
                 code_size,
-                rl_type=rl_type
+                rl_type=rl_type,
             )
 
             # this approach counts through all environments and local memory buffer continuously

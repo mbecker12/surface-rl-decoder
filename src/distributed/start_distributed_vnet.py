@@ -118,6 +118,7 @@ def start_vnet():
         actor_process[i].terminate()
     io_process.terminate()
 
+
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
     start_vnet()

@@ -9,6 +9,7 @@ import torch
 import numpy as np
 from torch.tensor import Tensor
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
+
 # from iniparser import Config
 
 # c = Config()
@@ -33,7 +34,7 @@ COORDINATE_SHIFT_3 = [0, -1]
 COORDINATE_SHIFT_4 = [0, 0]
 COORDINATE_SHIFTS = torch.tensor(
     [COORDINATE_SHIFT_1, COORDINATE_SHIFT_2, COORDINATE_SHIFT_3, COORDINATE_SHIFT_4],
-    dtype=torch.int8
+    dtype=torch.int8,
 )
 
 from torch.nn.functional import pad as torch_pad
@@ -283,13 +284,7 @@ def assert_not_all_states_equal(states_batch):
 
 
 def compute_priorities(
-    actions,
-    rewards,
-    qvalues,
-    qvalues_new,
-    gamma,
-    code_size,
-    rl_type="q"
+    actions, rewards, qvalues, qvalues_new, gamma, code_size, rl_type="q"
 ):
     """
     Compute the absolute temporal difference (TD) value, to be used
@@ -324,7 +319,9 @@ def compute_priorities(
         selected_q_values = np.array(
             [
                 [
-                    qvalues[env][buf][action_to_q_value_index(actions[env][buf], code_size)]
+                    qvalues[env][buf][
+                        action_to_q_value_index(actions[env][buf], code_size)
+                    ]
                     for buf in range(n_bufs)
                 ]
                 for env in range(n_envs)
@@ -395,6 +392,7 @@ def time_tb():
     """
     return int(time())
 
+
 def select_actions_value_network(
     state_batch,
     model,
@@ -405,7 +403,7 @@ def select_actions_value_network(
     local_deltas,
     device,
     num_actions_per_qubit=3,
-    epsilon=0.0
+    epsilon=0.0,
 ):
     """
     Select actions batch-wise according to an ε-greedy policy based on the
@@ -438,15 +436,12 @@ def select_actions_value_network(
     batch_size = state_batch.shape[0]
     batch_selected_actions = [None] * batch_size
     batch_selected_values = [None] * batch_size
-    
+
     with torch.no_grad():
         for i, state in enumerate(state_batch):
             # filter reasonable actions
             possible_actions = determine_possible_actions(
-                state,
-                code_size,
-                coordinate_shifts=coordinate_shifts,
-                device=device
+                state, code_size, coordinate_shifts=coordinate_shifts, device=device
             )
             l_actions = len(possible_actions) + 1
 
@@ -468,7 +463,12 @@ def select_actions_value_network(
             # apply operators to the state to create successor states
             new_states = torch.logical_xor(stacked_state, operators)
             new_states = new_states.to(device=device, dtype=torch.float32)
-            assert new_states.shape == (l_actions, stack_depth, code_size+1, code_size+1), new_states.shape
+            assert new_states.shape == (
+                l_actions,
+                stack_depth,
+                code_size + 1,
+                code_size + 1,
+            ), new_states.shape
 
             policy_net_output = model(new_states)
             assert policy_net_output.shape == (l_actions, 1), policy_net_output.shape
@@ -484,27 +484,29 @@ def select_actions_value_network(
             rand = np.random.random_sample()
             if rand < epsilon:
                 value_probabilities = (
-                    torch.softmax(
-                        values_torch_cpu, dim=0, dtype=torch.float32
-                    )
+                    torch.softmax(values_torch_cpu, dim=0, dtype=torch.float32)
                     .squeeze()
                     .detach()
                     .numpy()
                 )
-                action_idx = np.random.choice(
-                    range(len(values)), p=value_probabilities
-                )
+                action_idx = np.random.choice(range(len(values)), p=value_probabilities)
             else:
                 action_idx = torch.argmax(policy_net_output, dim=0)
 
             if action_idx == l_actions - 1:
-                selected_action = torch.tensor([[0, 0, TERMINAL_ACTION]], dtype=torch.int8, device=device)
+                selected_action = torch.tensor(
+                    [[0, 0, TERMINAL_ACTION]], dtype=torch.int8, device=device
+                )
             else:
                 selected_action = possible_actions[action_idx]
-            assert selected_action.shape == (1, 3) or selected_action.shape == (3,), selected_action.shape
+            assert selected_action.shape == (1, 3) or selected_action.shape == (
+                3,
+            ), selected_action.shape
 
             selected_value = values_torch_cpu[action_idx]
-            assert selected_value.shape == (1, 1) or selected_value.shape == (1,), selected_value.shape
+            assert selected_value.shape == (1, 1) or selected_value.shape == (
+                1,
+            ), selected_value.shape
 
             batch_selected_actions[i] = selected_action.squeeze().numpy()
             batch_selected_values[i] = selected_value.squeeze().numpy()
@@ -513,6 +515,7 @@ def select_actions_value_network(
     selected_values = np.stack(batch_selected_values)
 
     return selected_actions, selected_values
+
 
 def create_possible_operators(
     possible_action_list: List[Tuple],
@@ -598,7 +601,7 @@ def determine_possible_actions(
     state: torch.Tensor,
     code_size: int,
     coordinate_shifts: torch.Tensor,
-    device: Union[torch.DeviceObjType, str] = "cpu"
+    device: Union[torch.DeviceObjType, str] = "cpu",
 ):
     """
     Find the action which change the qubits adjacent to active syndromes.

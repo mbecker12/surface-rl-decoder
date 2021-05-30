@@ -3,7 +3,15 @@ import numpy as np
 import torch
 from src.surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 from src.distributed.model_util import choose_model, extend_model_config
-from src.distributed.util import COORDINATE_SHIFTS, LOCAL_DELTAS, create_possible_operators, determine_possible_actions, format_torch, select_actions_value_network
+from src.distributed.util import (
+    COORDINATE_SHIFTS,
+    LOCAL_DELTAS,
+    create_possible_operators,
+    determine_possible_actions,
+    format_torch,
+    select_actions_value_network,
+)
+
 
 def test_select_action():
     batch_size = 4
@@ -26,7 +34,7 @@ def test_select_action():
     all_states[3, :, 4, 2] = 1
     all_states[3, :, 1, 1] = 1
     all_states[3, :, 2, 2] = 1
-    
+
     plaquettes = get_plaquette_mask(code_size)
     vertices = get_vertex_mask(code_size)
     combined_mask = np.logical_or(plaquettes, vertices, dtype=np.int8)
@@ -54,7 +62,7 @@ def test_select_action():
         combined_mask,
         COORDINATE_SHIFTS,
         LOCAL_DELTAS,
-        device="cpu"
+        device="cpu",
     )
     assert selected_actions.shape == (batch_size, 3), selected_actions.shape
     assert selected_values.shape == (batch_size, 1), selected_values.shape
@@ -62,10 +70,7 @@ def test_select_action():
 
     for state in all_states:
         possible_actions = determine_possible_actions(
-            state,
-            code_size,
-            COORDINATE_SHIFTS,
-            device="cpu"
+            state, code_size, COORDINATE_SHIFTS, device="cpu"
         )
         l_actions = len(possible_actions) + 1
 
@@ -77,7 +82,7 @@ def test_select_action():
             stack_depth,
             combined_mask,
             LOCAL_DELTAS,
-            device="cpu"
+            device="cpu",
         )
 
         stacked_sample = torch.tile(

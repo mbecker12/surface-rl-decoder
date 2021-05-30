@@ -441,4 +441,3 @@ if __name__ == "__main__":
     # Now new_states is already in a shape where the 0th dimension
     # can be interpreted as the batch size.
     # This whole stack can now be fed to a neural network.
-

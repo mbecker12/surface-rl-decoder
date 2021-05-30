@@ -73,7 +73,7 @@ def main_evaluation(
     stack_depth=None,
     block=False,
     verbosity=0,
-    rl_type="q"
+    rl_type="q",
 ):
     """
     The main program to be executed.
@@ -405,12 +405,7 @@ if __name__ == "__main__":
 
     # perform visual evaluation
     if True:
-        main_evaluation(
-            model,
-            eval_device,
-            block=True,
-            rl_type=rl_type
-        )
+        main_evaluation(model, eval_device, block=True, rl_type=rl_type)
 
     # test integration with evaluation routine in the real program
     if False:
