@@ -138,7 +138,8 @@ class PPO:
         )
 
         self.logger.debug(
-            "\nNetwork Config: \n\n" f"{yaml.dump(model_config, default_flow_style=False)}"
+            "\nNetwork Config: \n\n"
+            f"{yaml.dump(model_config, default_flow_style=False)}"
         )
 
         if load_model_flag:

@@ -1,8 +1,9 @@
 import pandas as pd
 from dataclasses import dataclass
 
+
 @dataclass
-class TrainingRun():
+class TrainingRun:
     job_id: int
     code_size: int
     stack_depth: int
