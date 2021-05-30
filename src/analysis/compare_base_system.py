@@ -13,24 +13,24 @@ import os
 import sys
 import yaml
 import subprocess
-from dataclasses import dataclass
-from analysis_util import analyze_succesful_episodes, provide_default_ppo_metadata
+from analysis.training_run_class import TrainingRun
+from analysis.analysis_util import analyze_succesful_episodes, load_analysis_model, provide_default_ppo_metadata
 from distributed.model_util import choose_model, choose_old_model, extend_model_config, load_model
 
-@dataclass
-class TrainingRun():
-    job_id: int
-    code_size: int
-    stack_depth: int
-    p_err: float
-    p_msmt: float
-    rl_type: str
-    architecture: str
-    data: pd.DataFrame = None
-    duration: float = None
-    model_name: str = None
-    model_config_file: str = "conv_agents_slim.json"
-    transfer_learning: int = 0
+# @dataclass
+# class TrainingRun():
+#     job_id: int
+#     code_size: int
+#     stack_depth: int
+#     p_err: float
+#     p_msmt: float
+#     rl_type: str
+#     architecture: str
+#     data: pd.DataFrame = None
+#     duration: float = None
+#     model_name: str = None
+#     model_config_file: str = "conv_agents_slim.json"
+#     transfer_learning: int = 0
     
 base_model_config_path="src/config/model_spec/old_conv_agents.json"
 base_model_path="remote_networks/5/65280/simple_conv_5_65280.pt"
@@ -99,52 +99,8 @@ if run_evaluation:
     # keep track of absolute numbers in df, rather than averages/fractions
     # also maybe need to keep track of disregarded episodes
     for run in training_runs:
-        os.environ["CONFIG_ENV_SIZE"] = str(run.code_size)
-        os.environ["CONFIG_ENV_STACK_DEPTH"] = str(run.stack_depth)
-        load_path = f"{LOCAL_NETWORK_PATH}/{run.code_size}/{run.job_id}"
-        model_config_path = load_path + f"/{run.model_name}_{run.code_size}_meta.yaml"
-        old_model_path = load_path + f"/{run.model_name}_{run.code_size}_{run.job_id}.pt"
-
-        if run.rl_type == "ppo" and not os.path.exists(model_config_path):
-            model_config = provide_default_ppo_metadata(run.code_size, run.stack_depth)
-        else:
-            with open(model_config_path, "r") as yaml_file:
-                general_config = yaml.load(yaml_file)
-                model_config = general_config["network"]
-
-        model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-        p_err_train = general_config["global"]["env"]["p_error"]
-        # load model
-        print(f"Load Model for {run.job_id}")
         try:
-            if int(run.job_id) < 70000:
-                model = choose_old_model(
-                    run.model_name,
-                    model_config
-                )
-            else:
-                base_model_config = None
-                if run.transfer_learning:
-                    with open(base_model_config_path, "r") as base_file:
-                        base_model_config = json.load(base_file)["simple_conv"]
-                    
-                    base_model_config = extend_model_config(
-                        base_model_config,
-                        run.code_size + 1,
-                        run.stack_depth
-                    )
-                    base_model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-
-                model_config["rl_type"] = run.rl_type
-                model = choose_model(
-                    run.model_name,
-                    model_config,
-                    model_config_base=base_model_config,
-                    model_path_base=base_model_path,
-                    transfer_learning=run.transfer_learning
-                )
-
-            model, _, _ = load_model(model, old_model_path, model_device=eval_device)
+            model = load_analysis_model(run)
         except Exception as err:
             error_traceback = traceback.format_exc()
             print("An error occurred!")
@@ -176,7 +132,6 @@ if run_evaluation:
             result_dict["jobid"]= run.job_id
             result_dict["code_size"]= run.code_size
             result_dict["stack_depth"]= run.stack_depth
-            result_dict["p_err_train"]= p_err_train
             result_dict["p_err"]= p_err
             result_dict["avg_steps"] = result_dict["n_steps_arr"].mean()
             result_dict.pop("n_steps_arr")

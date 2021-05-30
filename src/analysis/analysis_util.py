@@ -1,13 +1,25 @@
+import json
+from analysis.analyze_general_training import TrainingRun
 from copy import deepcopy
 import os
 from typing import Dict
 import numpy as np
 import torch
+import yaml
 from agents.base_agent import BaseAgent
 from distributed.environment_set import EnvironmentSet
 from distributed.util import q_value_index_to_action, select_actions
+from distributed.model_util import choose_model, choose_old_model, extend_model_config, load_model
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION, check_final_state
+
+CLUSTER_NETWORK_PATH = "networks"
+LOCAL_NETWORK_PATH = "threshold_networks"
+CLUSTER_NETWORK_PATH = "networks"
+LOCAL_NETWORK_PATH = "threshold_networks"
+BASE_MODEL_CONFIG_PATH="src/config/model_spec/old_conv_agents.json"
+BASE_MODEL_PATH="remote_networks/5/65280/simple_conv_5_65280.pt"
+
 
 def analyze_succesful_episodes(
     model: BaseAgent,
@@ -215,3 +227,56 @@ def provide_default_ppo_metadata(
         "syndrome_size": 6,
     }
     return metadata
+
+def load_analysis_model(
+    run: TrainingRun,
+    local_network_path=LOCAL_NETWORK_PATH,
+    eval_device="cpu"
+) -> BaseAgent:
+    os.environ["CONFIG_ENV_SIZE"] = str(run.code_size)
+    os.environ["CONFIG_ENV_STACK_DEPTH"] = str(run.stack_depth)
+    load_path = f"{local_network_path}/{run.code_size}/{run.job_id}"
+    model_config_path = load_path + f"/{run.model_name}_{run.code_size}_meta.yaml"
+    old_model_path = load_path + f"/{run.model_name}_{run.code_size}_{run.job_id}.pt"
+
+    if run.rl_type == "ppo" and not os.path.exists(model_config_path):
+        model_config = provide_default_ppo_metadata(run.code_size, run.stack_depth)
+    else:
+        with open(model_config_path, "r") as yaml_file:
+            general_config = yaml.load(yaml_file)
+            model_config = general_config["network"]
+
+    model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # load model
+    print(f"Load Model for {run.job_id}")
+    if int(run.job_id) < 70000:
+        model = choose_old_model(
+            run.model_name,
+            model_config
+        )
+    else:
+        base_model_config = None
+        if run.transfer_learning:
+            with open(BASE_MODEL_CONFIG_PATH, "r") as base_file:
+                base_model_config = json.load(base_file)["simple_conv"]
+            
+            base_model_config = extend_model_config(
+                base_model_config,
+                run.code_size + 1,
+                run.stack_depth
+            )
+            base_model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+
+            model_config["rl_type"] = run.rl_type
+            model = choose_model(
+                run.model_name,
+                model_config,
+                model_config_base=base_model_config,
+                model_path_base=BASE_MODEL_PATH,
+                transfer_learning=run.transfer_learning
+            )
+
+        model, _, _ = load_model(model, old_model_path, model_device=eval_device)
+
+    return model
