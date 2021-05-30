@@ -4,9 +4,39 @@ Contains many of the actor utilities.
 """
 from time import time
 from typing import List, Tuple, Union
+from numpy.lib.function_base import select
 import torch
 import numpy as np
+from torch.tensor import Tensor
 from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
+# from iniparser import Config
+
+# c = Config()
+# _config = c.scan(".", True).read()
+# config = c.config_rendered
+
+# env_config = config.get("config").get("env")
+# learner_config = config.get("config").get("learner")
+# device = learner_config.get("device")
+# d = int(env_config.get("size"))
+
+# pylint: disable=not-callable
+LOCAL_X_DELTA = torch.tensor([[0, 1], [1, 0]], dtype=torch.int8)
+LOCAL_Y_DELTA = torch.tensor([[1, 1], [1, 1]], dtype=torch.int8)
+LOCAL_Z_DELTA = torch.tensor([[1, 0], [0, 1]], dtype=torch.int8)
+
+LOCAL_DELTAS = torch.stack([LOCAL_X_DELTA, LOCAL_Y_DELTA, LOCAL_Z_DELTA])
+
+COORDINATE_SHIFT_1 = [-1, -1]
+COORDINATE_SHIFT_2 = [-1, 0]
+COORDINATE_SHIFT_3 = [0, -1]
+COORDINATE_SHIFT_4 = [0, 0]
+COORDINATE_SHIFTS = torch.tensor(
+    [COORDINATE_SHIFT_1, COORDINATE_SHIFT_2, COORDINATE_SHIFT_3, COORDINATE_SHIFT_4],
+    dtype=torch.int8
+)
+
+from torch.nn.functional import pad as torch_pad
 
 
 def incremental_mean(value, mean, num_elements):
@@ -252,7 +282,15 @@ def assert_not_all_states_equal(states_batch):
     return similarity
 
 
-def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, code_size):
+def compute_priorities(
+    actions,
+    rewards,
+    qvalues,
+    qvalues_new,
+    gamma,
+    code_size,
+    rl_type="q"
+):
     """
     Compute the absolute temporal difference (TD) value, to be used
     as priority for replay memory.
@@ -282,17 +320,22 @@ def compute_priorities(actions, rewards, qvalues, qvalues_new, gamma, code_size)
     n_envs = qvalues.shape[0]
     n_bufs = qvalues.shape[1]
 
-    selected_q_values = np.array(
-        [
+    if rl_type == "q":
+        selected_q_values = np.array(
             [
-                qvalues[env][buf][action_to_q_value_index(actions[env][buf], code_size)]
-                for buf in range(n_bufs)
+                [
+                    qvalues[env][buf][action_to_q_value_index(actions[env][buf], code_size)]
+                    for buf in range(n_bufs)
+                ]
+                for env in range(n_envs)
             ]
-            for env in range(n_envs)
-        ]
-    )
+        )
 
-    priorities = np.absolute(rewards + gamma * qmax - selected_q_values)
+        priorities = np.absolute(rewards + gamma * qmax - selected_q_values)
+    elif rl_type == "v":
+        priorities = np.absolute(
+            rewards + gamma * qvalues_new.squeeze() - qvalues.squeeze()
+        )
 
     return priorities
 
@@ -351,3 +394,248 @@ def time_tb():
     But still it can't handle it properly... ¯\\_(ツ)_/¯
     """
     return int(time())
+
+def select_actions_value_network(
+    state_batch,
+    model,
+    code_size,
+    stack_depth,
+    combined_mask,
+    coordinate_shifts,
+    local_deltas,
+    device,
+    num_actions_per_qubit=3,
+    epsilon=0.0
+):
+    """
+    Select actions batch-wise according to an ε-greedy policy based on the
+    provided neural network model obeying the value network learning scheme.
+
+    Parameters
+    ==========
+    state: torch.tensor, batch of stacks of states,
+        shape: (batch_size, stack_depth, code_size, code_size)
+    model: the neural network model of choice
+    num_actions_per_qubit: (optional) number of possible operators on one qubit,
+        default is 3, for Pauli-X, -Y, or -Z.
+    epsilon: (float) probability to choose a random action
+
+    Returns
+    =======
+    actions: (array-like) shape: (batch_size, 3); chosen action for each batch
+    q_values: (array-like), shape: (batch_size, num_actions_per_qubit * d**2 + 1)
+        q_values for each action in the given input state.
+    """
+    model.eval()
+
+    policy_net_output = None
+
+    coordinate_shifts = format_torch(coordinate_shifts, device=device, dtype=torch.int8)
+    combined_mask = format_torch(combined_mask, device=device, dtype=torch.int8)
+    local_deltas = format_torch(local_deltas, device=device, dtype=torch.int8)
+    state_batch = format_torch(state_batch, device=device, dtype=torch.uint8)
+
+    batch_size = state_batch.shape[0]
+    batch_selected_actions = [None] * batch_size
+    batch_selected_values = [None] * batch_size
+    
+    with torch.no_grad():
+        for i, state in enumerate(state_batch):
+            # filter reasonable actions
+            possible_actions = determine_possible_actions(
+                state,
+                code_size,
+                coordinate_shifts=coordinate_shifts,
+                device=device
+            )
+            l_actions = len(possible_actions) + 1
+
+            # get operators corresponding to the above filtered actions
+            operators = create_possible_operators(
+                possible_actions,
+                code_size + 1,
+                stack_depth,
+                combined_mask,
+                local_deltas,
+                max_l=l_actions,
+            )
+
+            stacked_state = torch.tile(
+                state,
+                (l_actions, 1, 1, 1),
+            )
+
+            # apply operators to the state to create successor states
+            new_states = torch.logical_xor(stacked_state, operators)
+            new_states = new_states.to(device=device, dtype=torch.float32)
+            assert new_states.shape == (l_actions, stack_depth, code_size+1, code_size+1), new_states.shape
+
+            policy_net_output = model(new_states)
+            assert policy_net_output.shape == (l_actions, 1), policy_net_output.shape
+            values_torch_cpu = policy_net_output.detach().cpu()
+            assert values_torch_cpu.shape == (l_actions, 1), values_torch_cpu.shape
+            values = np.array(values_torch_cpu)
+            assert values.shape == (l_actions, 1), values.shape
+
+            # TODO:
+            # redo random action choosing
+            # need to collect all successor states and values first
+
+            rand = np.random.random_sample()
+            if rand < epsilon:
+                value_probabilities = (
+                    torch.softmax(
+                        values_torch_cpu, dim=0, dtype=torch.float32
+                    )
+                    .squeeze()
+                    .detach()
+                    .numpy()
+                )
+                action_idx = np.random.choice(
+                    range(len(values)), p=value_probabilities
+                )
+            else:
+                action_idx = torch.argmax(policy_net_output, dim=0)
+
+            if action_idx == l_actions - 1:
+                selected_action = torch.tensor([[0, 0, TERMINAL_ACTION]], dtype=torch.int8, device=device)
+            else:
+                selected_action = possible_actions[action_idx]
+            assert selected_action.shape == (1, 3) or selected_action.shape == (3,), selected_action.shape
+
+            selected_value = values_torch_cpu[action_idx]
+            assert selected_value.shape == (1, 1) or selected_value.shape == (1,), selected_value.shape
+
+            batch_selected_actions[i] = selected_action.squeeze().numpy()
+            batch_selected_values[i] = selected_value.squeeze().numpy()
+
+    selected_actions = np.stack(batch_selected_actions)
+    selected_values = np.stack(batch_selected_values)
+
+    return selected_actions, selected_values
+
+def create_possible_operators(
+    possible_action_list: List[Tuple],
+    state_size: int,
+    stack_depth: int,
+    combined_mask: torch.Tensor,
+    local_deltas: torch.Tensor,
+    device: Union[torch.DeviceObjType, str] = "cpu",
+    max_l: int = None,
+):
+    """
+    stacked_sample: shape (L, h, d+1, d+1), or maybe hstacked (h, {d+1}*L, d+1)
+    possible_action_list: maximal L-dimensional list with 3-tuples
+    max_l: maximum number of possible actions across one batch
+        might be larger that {len(possible_action_list) + 1}
+
+    assumes pauli_delta_x = [[0, 1],[1, 0]]
+    assumes pauli_delta_y = [[1, 1],[1, 1]]
+    assumes pauli_delta_z = [[1, 0],[0, 1]]
+
+    Example:
+    possible_action_list = [
+        (1,1,1),(1,1,2),(1,1,3),(1,2,1),(1,2,2),(1,2,3),
+        (2,1,1),(2,1,2),(2,1,3),(2,2,1),(2,2,2),(2,2,3)
+    ]
+    """
+
+    if max_l is None:
+        max_l = len(possible_action_list) + 1
+
+    # reshape stacked_sample to (h, {d+1}*L, d+1)
+    local_deltas.to(device)
+    n_possible_actions = len(possible_action_list)
+
+    stacked_combined_mask = torch.tile(
+        combined_mask[None, None, :, :], (max_l, stack_depth, 1, 1)
+    )
+
+    # collect local syndrome delta matrices
+    operators = torch.stack(
+        [
+            torch.roll(
+                torch_pad(
+                    local_deltas[operator - 1],
+                    (0, state_size - 2, 0, state_size - 2),
+                    "constant",
+                    0,
+                ),  # shift=(x_coord, y_coord)
+                shifts=(x_coord, y_coord),
+                dims=(0, 1),
+            )
+            for (x_coord, y_coord, operator) in possible_action_list
+        ]
+    )
+
+    # repeat operators depth-wise
+    operators = torch.tile(operators[:, None, :, :], (1, stack_depth, 1, 1))
+
+    # pad with zero-actions along action-dimension,
+    # so that all samples in a batch have the same action-dimensionality
+    operators = torch_pad(
+        operators, (0, 0, 0, 0, 0, 0, 0, max_l - n_possible_actions), "constant", 0
+    )
+
+    operators = torch.logical_and(operators, stacked_combined_mask)
+
+    return operators
+
+
+def format_torch(states, device="cpu", dtype=torch.float32):
+    x = states
+    if not isinstance(x, torch.Tensor):
+        x = torch.tensor(x, device=device, dtype=dtype)
+        if len(x.size()) == 1:
+            x = x.unsqueeze(0)
+    elif x.device != device:
+        x.to(device)
+
+    return x
+
+
+def determine_possible_actions(
+    state: torch.Tensor,
+    code_size: int,
+    coordinate_shifts: torch.Tensor,
+    device: Union[torch.DeviceObjType, str] = "cpu"
+):
+    """
+    Find the action which change the qubits adjacent to active syndromes.
+
+    Return
+    ======
+    possible_actions: (batch_size, 3) tensor containing action tuples for each sample
+    """
+    coordinate_shifts.to(device)
+    state = format_torch(state, dtype=torch.int8, device=device)
+    assert len(state.shape) == 3, state.shape
+
+    syndrome_coordinates = torch.nonzero(state)
+    syndrome_coordinates = syndrome_coordinates[:, 1:]
+    syndrome_coordinates = torch.unique(syndrome_coordinates, dim=0)
+
+    if len(syndrome_coordinates) == 0:
+        syndrome_coordinates = torch.randint(0, code_size, size=(2, 2))
+
+    possible_qb_coordinates = torch.stack(
+        [
+            syndrome_coord + shift
+            for shift in coordinate_shifts
+            for syndrome_coord in syndrome_coordinates
+        ]
+    )
+
+    possible_qb_coordinates = torch.clip(
+        possible_qb_coordinates, min=0, max=code_size - 1
+    )
+    possible_qb_coordinates = torch.unique(possible_qb_coordinates, dim=0)
+
+    possible_actions = torch.stack(
+        [
+            torch.tensor([x_coord, y_coord, operator])
+            for (x_coord, y_coord) in possible_qb_coordinates
+            for operator in (1, 2, 3)
+        ]
+    )
+    return possible_actions

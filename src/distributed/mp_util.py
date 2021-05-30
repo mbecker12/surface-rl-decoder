@@ -100,7 +100,7 @@ def configure_processes(rl_type="q_learning"):
 
     # initialize communication queues
     logger.info("Initialize queues")
-    if "q" in rl_type.lower():
+    if "q" in rl_type.lower() or "v" in rl_type.lower():
         actor_io_queues = [None] * num_actors
         learner_actor_queues = [None] * num_actors
         for i in range(num_actors):
@@ -267,7 +267,7 @@ def configure_processes(rl_type="q_learning"):
         mem_args["max_buffer_episode_steps"] = max_buffer_episode_steps
         mem_args["episode_buffer_device"] = episode_buffer_device
 
-    if "q" in rl_type.lower():
+    if "q" in rl_type.lower() or "v" in rl_type.lower():
         mem_args["actor_io_queues"] = actor_io_queues
         mem_args["learner_io_queue"] = learner_io_queue
         mem_args["io_learner_queue"] = io_learner_queue

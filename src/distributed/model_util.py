@@ -41,7 +41,7 @@ def choose_model(
     model_config,
     model_config_base=None,
     model_path_base=None,
-    transfer_learning=1,
+    transfer_learning=0,
     rl_type="q",
 ):
     """
@@ -58,7 +58,7 @@ def choose_model(
     =======
     model: The desired neural network object, subclass of torch.nn.Module
     """
-
+    print(f"{model_config=}")
     if "dummy" in model_name:
         model = DummyModel(model_config)
     elif model_name.lower() == "conv2d":
@@ -86,7 +86,7 @@ def choose_model(
             )
             print("Prepare Conv2dAgent and OldConv2dAgent using transfer learning.")
         else:
-            if rl_type == "q":
+            if rl_type in ("q", "v"):
                 model = Conv2dAgent(model_config)
                 print("Prepare Q Learning Conv2dAgent w/o transfer learning")
             elif rl_type == "ppo":

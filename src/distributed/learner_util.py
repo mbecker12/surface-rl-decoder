@@ -278,158 +278,106 @@ def log_evaluation_data(
             )
 
 
-# Value Network Functions
-def prepare_successor_states(qubits):
-
-    pass
-
-
-from iniparser import Config
-
-c = Config()
-_config = c.scan(".", True).read()
-config = c.config_rendered
-
-env_config = config.get("config").get("env")
-learner_config = config.get("config").get("learner")
-device = learner_config.get("device")
-d = int(env_config.get("size"))
-
-# pylint: disable=not-callable
-LOCAL_X_DELTA = torch.tensor([[0, 1], [1, 0]], dtype=torch.int8, device=device)
-LOCAL_Y_DELTA = torch.tensor([[1, 1], [1, 1]], dtype=torch.int8, device=device)
-LOCAL_Z_DELTA = torch.tensor([[1, 0], [0, 1]], dtype=torch.int8, device=device)
-
-LOCAL_DELTAS = torch.stack([LOCAL_X_DELTA, LOCAL_Y_DELTA, LOCAL_Z_DELTA])
-
-COORDINATE_SHIFT_1 = [-1, -1]
-COORDINATE_SHIFT_2 = [-1, 0]
-COORDINATE_SHIFT_3 = [0, -1]
-COORDINATE_SHIFT_4 = [0, 0]
-COORDINATE_SHIFTS = torch.tensor(
-    [COORDINATE_SHIFT_1, COORDINATE_SHIFT_2, COORDINATE_SHIFT_3, COORDINATE_SHIFT_4],
-    dtype=torch.int8,
-    device=device,
-)
-
-from torch.nn.functional import pad as torch_pad
-
-
-def create_possible_operators(
-    possible_action_list: List[Tuple],
-    max_l: int,
-    state_size: int,
-    stack_depth: int,
-    combined_mask: torch.Tensor,
+# pylint: disable=too-many-locals, too-many-statements, too-many-arguments
+def perform_value_network_learning_step(
+    policy_network,
+    target_network,
+    device,
+    criterion,
+    optimizer,
+    input_data,
+    code_size,
+    batch_size,
+    discount_factor,
+    policy_model_max_grad_norm=100,
 ):
     """
-    stacked_sample: shape (L, h, d+1, d+1), or maybe hstacked (h, {d+1}*L, d+1)
-    possible_action_list: maximal L-dimensional list with 3-tuples
-    max_l: maximum number of possible actions across one batch
-        might be larger that {len(possible_action_list) + 1}
+    Perform the actual stochastic gradient descent step.
+    Make use of a frozen target network to stabilize training.
 
-    assumes pauli_delta_x = [[0, 1],[1, 0]]
-    assumes pauli_delta_y = [[1, 1],[1, 1]]
-    assumes pauli_delta_z = [[1, 0],[0, 1]]
+    Parameters
+    ==========
+    policy_net: online network to peform the actual training step on
+    target_net: offline network with frozen parameters,
+        serves as the target Q value term in the Bellman equation.
+    device: torch device
+    criterion: loss function
+    optimizer: optimizer for training
+    input_data: (Tuple) data received io-learner-queue
+    code_size: code distance, number of qubits in one row/column
+    batch_size: number of different states in a batch
+    discount_factor: γ-factor in reinforcement learning
 
-    Example:
-    possible_action_list = [
-        (1,1,1),(1,1,2),(1,1,3),(1,2,1),(1,2,2),(1,2,3),
-        (2,1,1),(2,1,2),(2,1,3),(2,2,1),(2,2,2),(2,2,3)
-    ]
+    Returns
+    =======
+    indices: indices for (prioritized) memory replay objects
+    priorities: priorities for (prioritized) memory replay objects
     """
+    (
+        batch_state,
+        batch_actions,
+        batch_reward,
+        batch_next_state,
+        batch_terminal,
+        weights,
+        indices,
+    ) = data_to_batch(input_data, device, batch_size)
 
-    # reshape stacked_sample to (h, {d+1}*L, d+1)
-
-    n_possible_actions = len(possible_action_list)
-
-    stacked_combined_mask = torch.tile(
-        combined_mask[None, None, :, :], (max_l, stack_depth, 1, 1)
-    )
-
-    # TODO: stack operators properly
-
-    # collect local syndrome delta matrices
-    operators = torch.stack(
+    # pylint: disable=not-callable
+    batch_action_indices = torch.tensor(
         [
-            torch.roll(
-                torch_pad(
-                    LOCAL_DELTAS[operator - 1],
-                    (0, state_size - 2, 0, state_size - 2),
-                    "constant",
-                    0,
-                ),  # shift=(x_coord, y_coord)
-                shifts=(x_coord, y_coord),
-                dims=(0, 1),
-            )
-            for (x_coord, y_coord, operator) in possible_action_list
+            action_to_q_value_index(batch_actions[i], code_size)
+            for i in range(batch_size)
         ]
+    ).view(-1, 1)
+    batch_action_indices = batch_action_indices.to(device)
+
+    policy_network.train()
+    target_network.eval()
+
+    # compute policy net output
+    policy_output = policy_network(batch_state)
+    assert policy_output.shape == (
+        batch_size,
+        3 * code_size * code_size + 1,
+    ), policy_output.shape
+    policy_output_gathered = policy_output.gather(1, batch_action_indices)
+
+    # compute target network output
+    with torch.no_grad():
+        target_output = target_network(batch_next_state)
+        target_output = target_output.max(1)[0].detach()
+
+    # compute loss and update replay memory
+    expected_q_values = (
+        target_output * (~batch_terminal).type(torch.float32) * discount_factor
     )
 
-    # repeat operators depth-wise
-    operators = torch.tile(operators[:, None, :, :], (1, stack_depth, 1, 1))
+    target_q_values = expected_q_values + batch_reward
+    target_q_values = target_q_values.view(-1, 1)
+    target_q_values = target_q_values.clamp(-200, 200)
 
-    # pad with zero-actions along action-dimension,
-    # so that all samples in a batch have the same action-dimensionality
-    operators = torch_pad(
-        operators, (0, 0, 0, 0, 0, 0, 0, max_l - n_possible_actions), "constant", 0
+    loss = criterion(target_q_values, policy_output_gathered)
+
+    optimizer.zero_grad()
+
+    # only used for prioritized experience replay
+    if weights is not None:
+        loss = weights * loss
+
+    # Compute priorities
+    priorities = np.absolute(loss.cpu().detach().numpy())
+
+    loss = loss.mean()
+
+    # backpropagate
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(
+        policy_network.parameters(), policy_model_max_grad_norm
     )
+    optimizer.step()
 
-    operators = torch.logical_and(operators, stacked_combined_mask)
-    # print(f"{operators}")
-
-    return operators
-
-
-def format_torch(states, device="cpu", dtype=torch.float32):
-    x = states
-    if not isinstance(x, torch.Tensor):
-        x = torch.tensor(x, device=device, dtype=dtype)
-        if len(x.size()) == 1:
-            x = x.unsqueeze(0)
-    elif x.device != device:
-        x.to(device)
-
-    return x
-
-
-def determine_possible_actions(state: torch.Tensor, code_size: int):
-    """
-    Find the action which change the qubits adjacent to active syndromes.
-    """
-    state = format_torch(state, dtype=torch.int8, device="cpu")
-    syndrome_coordinates = torch.nonzero(state)
-    syndrome_coordinates = syndrome_coordinates[:, 1:]
-    syndrome_coordinates = torch.unique(syndrome_coordinates, dim=0)
-    print(f"{syndrome_coordinates=}")
-
-    possible_qb_coordinates = torch.stack(
-        [
-            syndrome_coord + shift
-            for shift in COORDINATE_SHIFTS
-            for syndrome_coord in syndrome_coordinates
-        ]
-    )
-
-    print(f"{possible_qb_coordinates=}")
-    print(f"{possible_qb_coordinates.dtype=}")
-    print(f"{possible_qb_coordinates.device=}")
-
-    possible_qb_coordinates = torch.clip(
-        possible_qb_coordinates, min=0, max=code_size - 1
-    )
-    possible_qb_coordinates = torch.unique(possible_qb_coordinates, dim=0)
-
-    possible_actions = torch.stack(
-        [
-            torch.tensor([x_coord, y_coord, operator])
-            for (x_coord, y_coord) in possible_qb_coordinates
-            for operator in (1, 2, 3)
-        ]
-    )
-
-    print(f"{possible_actions=}")
-    return possible_actions
+    return indices, priorities
 
 
 if __name__ == "__main__":
@@ -493,3 +441,4 @@ if __name__ == "__main__":
     # Now new_states is already in a shape where the 0th dimension
     # can be interpreted as the batch size.
     # This whole stack can now be fed to a neural network.
+
