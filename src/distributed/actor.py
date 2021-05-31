@@ -150,7 +150,7 @@ def actor(args):
         (num_environments, size_local_memory_buffer), dtype=float
     )
     buffer_idx = 0
-    max_reward = 100
+    max_reward = 1 #change to 100 for non-sparse reward and 1 for sparse
 
 
     # load communication queues
