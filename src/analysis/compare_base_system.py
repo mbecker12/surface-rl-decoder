@@ -44,30 +44,30 @@ from distributed.model_util import (
 base_model_config_path = "src/config/model_spec/old_conv_agents.json"
 base_model_path = "remote_networks/5/65280/simple_conv_5_65280.pt"
 
-# training_runs = [
-#     TrainingRun(69037, 5, 5, 0.0108, 0.0, "q", "3D Conv", model_name="conv3d"),
-#     TrainingRun(71852, 5, 5, 0.008, 0.008, "q", "2D Conv + GRU", model_name="conv2d", model_config_file="conv_agents_slim_gru.json", transfer_learning=1),
-#     TrainingRun(69312, 5, 5, 0.01, 0.01, "q", "3D Conv", model_name="conv3d"),
-#     TrainingRun(71873, 5, 5, 0.01, 0.01, "ppo", "3D Conv", model_name="conv3d"),
-#     TrainingRun(72409, 5, 5, 0.01, 0.01, "q", "2D Conv", model_name="conv2d"),
-# ]
-
 training_runs = [
-    TrainingRun(72411, 7, 7, 0.003, 0.003, "q", "2D Conv", model_name="conv2d"),
-    TrainingRun(69545, 7, 7, 0.005, 0.005, "q", "3D Conv", model_name="conv3d"),
-    TrainingRun(
-        72099,
-        7,
-        7,
-        0.003,
-        0.003,
-        "q",
-        "2D Conv + GRU",
-        model_name="conv2d",
-        model_config_file="conv_agents_slim_gru.json",
-        transfer_learning=1,
-    ),
+    TrainingRun(69037, 5, 5, 0.0108, 0.0, "q", "3D Conv", model_name="conv3d"),
+    TrainingRun(71852, 5, 5, 0.008, 0.008, "q", "2D Conv + GRU", model_name="conv2d", model_config_file="conv_agents_slim_gru.json", transfer_learning=1),
+    TrainingRun(69312, 5, 5, 0.01, 0.01, "q", "3D Conv", model_name="conv3d"),
+    TrainingRun(71873, 5, 5, 0.01, 0.01, "ppo", "3D Conv", model_name="conv3d"),
+    TrainingRun(72409, 5, 5, 0.01, 0.01, "q", "2D Conv", model_name="conv2d"),
 ]
+
+# training_runs = [
+#     TrainingRun(72411, 7, 7, 0.003, 0.003, "q", "2D Conv", model_name="conv2d"),
+#     TrainingRun(69545, 7, 7, 0.005, 0.005, "q", "3D Conv", model_name="conv3d"),
+#     TrainingRun(
+#         72099,
+#         7,
+#         7,
+#         0.003,
+#         0.003,
+#         "q",
+#         "2D Conv + GRU",
+#         model_name="conv2d",
+#         model_config_file="conv_agents_slim_gru.json",
+#         transfer_learning=1,
+#     ),
+# ]
 
 
 plt.rcParams.update({"font.size": 16})
@@ -199,6 +199,7 @@ eval_key_list = [
 agg_key_list = [key for key in eval_key_list]
 
 for df in dfs:
+    # print(df)
     df = df.sort_values(by="n_ground_states", ascending=True)
 
     # TODO: aggregate / sum values first
@@ -298,7 +299,7 @@ ylim_log_plot = (50, 1e5)
 
 
 def set_text_lin_split(axis):
-    axis.text(0.0053, 0.0044, "Single Qubit", rotation=42)
+    axis.text(0.0053, 0.0049, "Single Qubit", rotation=27)
 
 
 def set_text_log_split(axis):

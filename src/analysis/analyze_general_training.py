@@ -89,8 +89,10 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(2, 1)
 
     plot_keys = {"ground_state_per_env": "Ground State Rate"}
-    plot_lines = ["-", ":"]
-    plot_colors = ["black", "blue", "orange", "red", "green", "pink"]
+    plot_lines = ["-", ":", '--', '-.', '-']
+    # plot_colors = ["black", "blue", "orange", "red", "green", "pink"]
+    plot_colors = ["#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
+    markers = ["o", "v", "^", "X", "d"]
 
     for i, run in enumerate(training_runs):
         for j, (plot_key, plot_str) in enumerate(plot_keys.items()):
@@ -100,7 +102,7 @@ if __name__ == "__main__":
                 run.data[plot_key],
                 label=f"d={run.code_size}, h={run.stack_depth}, {run.rl_type}, {run.architecture}",
                 color=plot_colors[i],
-                linestyle=plot_lines[j],
+                linestyle=plot_lines[i],
             )
     ax[0].set(
         title="Ground State Rate",
@@ -119,12 +121,12 @@ if __name__ == "__main__":
                 run.data[plot_key],
                 label=f"d={run.code_size}, h={run.stack_depth}, {run.rl_type}, {run.architecture}",
                 color=plot_colors[i],
-                linestyle=plot_lines[j],
+                linestyle=plot_lines[i],
             )
     ax[1].set(
         title="Syndrome Annihilation",
-        ylabel="annihilation rate",
-        xlabel="Steps",
+        ylabel="Annihilation Rate",
+        xlabel="Learner Steps",
         xlim=(0, 150_000),
     )
     plt.tight_layout()
@@ -136,8 +138,8 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(2, 1)
 
     plot_keys = {"number_of_steps": "Avg Steps"}
-    plot_lines = ["-", ":"]
-    plot_colors = ["black", "blue", "orange", "red", "green", "pink"]
+    # plot_lines = ["-", ":"]
+    # plot_colors = ["black", "blue", "orange", "red", "green", "pink"]
 
     for i, run in enumerate(training_runs):
         for j, (plot_key, plot_str) in enumerate(plot_keys.items()):
@@ -147,7 +149,7 @@ if __name__ == "__main__":
                 run.data[plot_key],
                 label=f"d={run.code_size}, h={run.stack_depth}, {run.rl_type}, {run.architecture}",
                 color=plot_colors[i],
-                linestyle=plot_lines[j],
+                linestyle=plot_lines[i],
             )
     ax[0].set(title="Avg Steps per Episode", ylabel="Steps", xlim=(0, 150_000))
     ax[0].legend()
@@ -162,12 +164,12 @@ if __name__ == "__main__":
                 run.data[plot_key],
                 label=f"d={run.code_size}, h={run.stack_depth}, {run.rl_type}, {run.architecture}",
                 color=plot_colors[i],
-                linestyle=plot_lines[j],
+                linestyle=plot_lines[i],
             )
     ax[1].set(
         title="Median Steps per Episode",
-        ylabel="Step",
-        xlabel="Steps",
+        ylabel="Median Steps",
+        xlabel="Learner Steps",
         xlim=(0, 150_000),
     )
     plt.tight_layout()
@@ -179,8 +181,8 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(2, 1)
 
     plot_keys = {"mean_q_value": "Max Q Value"}
-    plot_lines = ["-", ":"]
-    plot_colors = ["black", "blue", "orange", "red", "green", "pink"]
+    # plot_lines = ["-", ":"]
+    # plot_colors = ["black", "blue", "orange", "red", "green", "pink"]
 
     for i, run in enumerate(training_runs):
         for j, (plot_key, plot_str) in enumerate(plot_keys.items()):
@@ -190,7 +192,7 @@ if __name__ == "__main__":
                 run.data[plot_key],
                 label=f"d={run.code_size}, h={run.stack_depth}, {run.rl_type}, {run.architecture}",
                 color=plot_colors[i],
-                linestyle=plot_lines[j],
+                linestyle=plot_lines[i],
             )
     ax[0].set(
         title="Q values",
@@ -209,12 +211,12 @@ if __name__ == "__main__":
                 run.data[plot_key],
                 label=f"d={run.code_size}, h={run.stack_depth}, {run.rl_type}, {run.architecture}",
                 color=plot_colors[i],
-                linestyle=plot_lines[j],
+                linestyle=plot_lines[i],
             )
     ax[1].set(
         title="Final Energy",
         ylabel="Syndrome Counts",
-        xlabel="Steps",
+        xlabel="Learner Steps",
         xlim=(0, 150_000),
     )
     ax[1].legend()
