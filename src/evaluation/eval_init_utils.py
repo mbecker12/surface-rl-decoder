@@ -88,7 +88,7 @@ def initialize_accumulation_stats(
     }
 
 
-def initialize_empty_containers(total_n_episodes, num_of_user_episodes, code_size):
+def initialize_empty_containers(total_n_episodes, num_of_user_episodes, code_size, rl_type="q"):
     """
     Initialize base quantities for the general execution and running
     of the different environments.
@@ -99,9 +99,14 @@ def initialize_empty_containers(total_n_episodes, num_of_user_episodes, code_siz
     empty_actions = np.zeros((total_n_episodes, 3), dtype=np.uint8)
     terminal_actions = empty_actions
     terminal_actions[:, -1] = TERMINAL_ACTION
-    empty_q_values = np.zeros(
-        (total_n_episodes, 3 * code_size * code_size + 1), dtype=float
-    )
+    if rl_type != "v":
+        empty_q_values = np.zeros(
+            (total_n_episodes, 3 * code_size * code_size + 1), dtype=float
+        )
+    else:
+        empty_q_values = np.zeros(
+            (total_n_episodes, 1), dtype=float
+        )
     # ppo
     empty_values = np.zeros((total_n_episodes, 1), dtype=float)
     empty_entropies = np.zeros((total_n_episodes, 1), dtype=float)

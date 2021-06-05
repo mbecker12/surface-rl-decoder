@@ -107,10 +107,13 @@ def evaluate(
         )
 
         for category_name, category in eval_results.items():
-            for key, val in category.items():
-                final_result_dict[category_name] = safe_append_in_dict(
-                    final_result_dict[category_name], key, val
-                )
+            try:
+                for key, val in category.items():
+                    final_result_dict[category_name] = safe_append_in_dict(
+                        final_result_dict[category_name], key, val
+                    )
+            except AttributeError as attr_err:
+                logger.debug(f"Skipping category '{category_name}'.")
 
     # end for; error_list
 

@@ -9,9 +9,13 @@ import traceback
 import numpy as np
 import torch
 from distributed.util import (
+    COORDINATE_SHIFTS,
+    LOCAL_DELTAS,
     action_to_q_value_index,
+    format_torch,
     q_value_index_to_action,
     select_actions,
+    select_actions_value_network,
 )
 from distributed.environment_set import EnvironmentSet
 from evaluation.eval_util import (
@@ -38,6 +42,7 @@ from surface_rl_decoder.surface_code_util import (
     compute_layer_diff,
 )
 from surface_rl_decoder.surface_code import SurfaceCode
+from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
 # define keys for different groups in the result dictionary
 RESULT_KEY_EPISODE_AVG = "avg_per_episode"
@@ -111,6 +116,12 @@ def batch_evaluation(
     env_set = EnvironmentSet(environment_def, total_n_episodes)
     code_size = env_set.code_size
     stack_depth = env_set.stack_depth
+
+    if rl_type == "v":
+        vertex_mask = get_vertex_mask(code_size)
+        plaquette_mask = get_plaquette_mask(code_size)
+        combined_mask = np.logical_or(vertex_mask, plaquette_mask, dtype=np.int8)
+        combined_mask = format_torch(combined_mask, device=device, dtype=torch.int8)
 
     if post_run:
         print("Run Post-run analysis")
@@ -227,6 +238,20 @@ def batch_evaluation(
             tmp_actions, tmp_q_values = select_actions(
                 torch_states, model, code_size, epsilon=epsilon
             )
+        elif "v" in rl_type.lower():
+            tmp_actions, tmp_q_values = select_actions_value_network(
+                torch_states,
+                model,
+                code_size,
+                stack_depth,
+                combined_mask,
+                COORDINATE_SHIFTS,
+                LOCAL_DELTAS,
+                device=device,
+                epsilon=epsilon,
+            )
+            tmp_q_values = np.expand_dims(tmp_q_values, axis=-1)
+
         elif "ppo" in rl_type.lower():
             if epsilon == 1:
                 tmp_actions, logits, tmp_values = model.select_greedy_action_ppo(
@@ -289,17 +314,18 @@ def batch_evaluation(
             is_active,
         )
 
-        first_q_value, second_q_value = get_two_highest_q_values(active_q_values)
-        terminal_q_value = active_q_values[:, -1]
+        if rl_type != "v":
+            first_q_value, second_q_value = get_two_highest_q_values(active_q_values)
+            terminal_q_value = active_q_values[:, -1]
 
-        theoretical_q_values = calc_theoretical_q_value(
-            is_user_episode,
-            essentials["steps_per_episode"],
-            essentials["theoretical_q_values"],
-            states,
-            discount_factor_gamma,
-            discount_intermediate_reward,
-        )
+            theoretical_q_values = calc_theoretical_q_value(
+                is_user_episode,
+                essentials["steps_per_episode"],
+                essentials["theoretical_q_values"],
+                states,
+                discount_factor_gamma,
+                discount_intermediate_reward,
+            )
 
         # get info about max q values
         actions_in_one_episode[is_active, global_episode_steps - 1] = q_value_indices
@@ -309,27 +335,36 @@ def batch_evaluation(
         else:
             active_values = None
             active_entropies = None
-        (
-            accumulators["q_value_aggregation"][is_active],
-            accumulators["q_value_diff_aggregation"][is_active],
-            accumulators["q_value_certainty_aggregation"][is_active],
-            accumulators["terminal_q_value_aggregation"][is_active],
-            accumulators["values_aggregation"][is_active],
-            accumulators["entropy_aggregation"][is_active],
-        ) = aggregate_q_value_stats(
-            accumulators["q_value_aggregation"][is_active],
-            accumulators["q_value_diff_aggregation"][is_active],
-            accumulators["q_value_certainty_aggregation"][is_active],
-            accumulators["terminal_q_value_aggregation"][is_active],
-            first_q_value,
-            second_q_value,
-            theoretical_q_values[is_active],
-            terminal_q_value,
-            values=active_values,
-            entropies=active_entropies,
-            values_aggregation=accumulators["values_aggregation"][is_active],
-            entropy_aggregation=accumulators["entropy_aggregation"][is_active],
-        )
+
+        if rl_type != "v":
+            (
+                accumulators["q_value_aggregation"][is_active],
+                accumulators["q_value_diff_aggregation"][is_active],
+                accumulators["q_value_certainty_aggregation"][is_active],
+                accumulators["terminal_q_value_aggregation"][is_active],
+                accumulators["values_aggregation"][is_active],
+                accumulators["entropy_aggregation"][is_active],
+            ) = aggregate_q_value_stats(
+                accumulators["q_value_aggregation"][is_active],
+                accumulators["q_value_diff_aggregation"][is_active],
+                accumulators["q_value_certainty_aggregation"][is_active],
+                accumulators["terminal_q_value_aggregation"][is_active],
+                first_q_value,
+                second_q_value,
+                theoretical_q_values[is_active],
+                terminal_q_value,
+                values=active_values,
+                entropies=active_entropies,
+                values_aggregation=accumulators["values_aggregation"][is_active],
+                entropy_aggregation=accumulators["entropy_aggregation"][is_active],
+            )
+        else:
+            accumulators["q_value_aggregation"] = None
+            accumulators["q_value_diff_aggregation"] = None
+            accumulators["q_value_certainty_aggregation"] = None
+            accumulators["terminal_q_value_aggregation"] = None
+            accumulators["values_aggregation"] = None
+            accumulators["entropy_aggregation"] = None
 
         # apply the chosen action
         next_states, rewards, terminals, _ = env_set.step(
@@ -506,9 +541,10 @@ def batch_evaluation(
     accumulators["syndromes_annihilated"] /= syndromes_normalization
 
     # q_value_aggregation contains info of every step in every episode
-    mean_q_value = np.mean(
-        accumulators["q_value_aggregation"] / essentials["steps_per_episode"]
-    )
+    if rl_type != "v":
+        mean_q_value = np.mean(
+            accumulators["q_value_aggregation"] / essentials["steps_per_episode"]
+        )
     if rl_type == "q":
         mean_q_value_diff = np.mean(
             accumulators["q_value_diff_aggregation"] / essentials["steps_per_episode"]
@@ -521,21 +557,24 @@ def batch_evaluation(
         mean_entropies = np.mean(
             accumulators["entropy_aggregation"] / essentials["steps_per_episode"]
         )
+    elif rl_type == "v":
+        pass
     else:
         raise Exception(f"RL Type {rl_type} is not supported!")
 
-    std_q_value = np.std(
-        accumulators["q_value_aggregation"] / essentials["steps_per_episode"]
-    )
-    q_value_certainty = np.mean(
-        accumulators["q_value_certainty_aggregation"] / essentials["steps_per_episode"]
-    )
-    avg_terminal_q_value = np.mean(
-        accumulators["terminal_q_value_aggregation"] / essentials["steps_per_episode"]
-    )
-    median_terminal_q_value = np.median(
-        accumulators["terminal_q_value_aggregation"] / essentials["steps_per_episode"]
-    )
+    if rl_type != "v":
+        std_q_value = np.std(
+            accumulators["q_value_aggregation"] / essentials["steps_per_episode"]
+        )
+        q_value_certainty = np.mean(
+            accumulators["q_value_certainty_aggregation"] / essentials["steps_per_episode"]
+        )
+        avg_terminal_q_value = np.mean(
+            accumulators["terminal_q_value_aggregation"] / essentials["steps_per_episode"]
+        )
+        median_terminal_q_value = np.median(
+            accumulators["terminal_q_value_aggregation"] / essentials["steps_per_episode"]
+        )
 
     # An untrained network seems to choose a certain action lots of times
     # within an episode.
@@ -574,6 +613,8 @@ def batch_evaluation(
             "mean_values": mean_values,
             "mean_entropy": mean_entropies,
         }
+    elif rl_type == "v":
+        q_value_result_dict = None
 
     return (
         {
