@@ -461,6 +461,8 @@ def select_actions_value_network(
             )
 
             # apply operators to the state to create successor states
+            operators = operators.to(device)
+            stacked_state = stacked_state.to(device)
             new_states = torch.logical_xor(stacked_state, operators)
             new_states = new_states.to(device=device, dtype=torch.float32)
             assert new_states.shape == (
@@ -508,8 +510,8 @@ def select_actions_value_network(
                 1,
             ), selected_value.shape
 
-            batch_selected_actions[i] = selected_action.squeeze().numpy()
-            batch_selected_values[i] = selected_value.squeeze().numpy()
+            batch_selected_actions[i] = selected_action.squeeze().cpu().numpy()
+            batch_selected_values[i] = selected_value.squeeze().cpu().numpy()
 
     selected_actions = np.stack(batch_selected_actions)
     selected_values = np.stack(batch_selected_values)
@@ -580,6 +582,9 @@ def create_possible_operators(
         operators, (0, 0, 0, 0, 0, 0, 0, max_l - n_possible_actions), "constant", 0
     )
 
+    operators = operators.to(device)
+    stacked_combined_mask = stacked_combined_mask.to(device)
+
     operators = torch.logical_and(operators, stacked_combined_mask)
 
     return operators
@@ -592,7 +597,7 @@ def format_torch(states, device="cpu", dtype=torch.float32):
         if len(x.size()) == 1:
             x = x.unsqueeze(0)
     elif x.device != device:
-        x.to(device)
+        x = x.to(device)
 
     return x
 
@@ -610,9 +615,13 @@ def determine_possible_actions(
     ======
     possible_actions: (batch_size, 3) tensor containing action tuples for each sample
     """
-    coordinate_shifts.to(device)
+
     state = format_torch(state, dtype=torch.int8, device=device)
+    coordinate_shifts = format_torch(coordinate_shifts, dtype=torch.int8, device=device)
+    coordinate_shifts = coordinate_shifts.to(device)
+
     assert len(state.shape) == 3, state.shape
+    # assert coordinate_shifts.device == torch.device(device), f"{coordinate_shifts.device=}, {device=}"
 
     syndrome_coordinates = torch.nonzero(state)
     syndrome_coordinates = syndrome_coordinates[:, 1:]
@@ -620,6 +629,8 @@ def determine_possible_actions(
 
     if len(syndrome_coordinates) == 0:
         syndrome_coordinates = torch.randint(0, code_size, size=(2, 2))
+
+    syndrome_coordinates = syndrome_coordinates.to(device)
 
     possible_qb_coordinates = torch.stack(
         [

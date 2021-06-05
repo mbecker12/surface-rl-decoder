@@ -19,6 +19,7 @@ from evaluation.eval_util import RESULT_KEY_HISTOGRAM_Q_VALUES
 from distributed.learner_util import (
     log_evaluation_data,
     perform_q_learning_step,
+    perform_value_network_learning_step,
     transform_list_dict,
 )
 from distributed.model_util import (
@@ -259,17 +260,30 @@ def learner(args: Dict):
             try:
                 learning_step_start = time()
 
-                indices, priorities = perform_q_learning_step(
-                    policy_net,
-                    target_net,
-                    device,
-                    criterion,
-                    optimizer,
-                    data,
-                    code_size,
-                    batch_size,
-                    discount_factor,
-                )
+                if rl_type == "q":
+                    indices, priorities = perform_q_learning_step(
+                        policy_net,
+                        target_net,
+                        device,
+                        criterion,
+                        optimizer,
+                        data,
+                        code_size,
+                        batch_size,
+                        discount_factor,
+                    )
+                elif rl_type == "v":
+                    indices, priorities = perform_value_network_learning_step(
+                        policy_net,
+                        target_net,
+                        device,
+                        criterion,
+                        optimizer,
+                        data,
+                        code_size,
+                        batch_size,
+                        discount_factor,
+                    )
 
                 if benchmarking and t % eval_frequency == 0:
                     learning_step_stop = time()
@@ -337,6 +351,7 @@ def learner(args: Dict):
                 num_of_random_episodes=120,
                 num_of_user_episodes=8,
                 verbosity=verbosity,
+                rl_type=rl_type
             )
             if benchmarking:
                 evaluation_stop = time()

@@ -159,7 +159,7 @@ def actor(args):
     elif rl_type == "v":
         local_buffer_qvalues = np.empty(
             (num_environments, size_local_memory_buffer),
-            dtype=(float, 1),
+            dtype=float,
         )
     local_buffer_rewards = np.empty(
         (num_environments, size_local_memory_buffer), dtype=float
@@ -269,6 +269,8 @@ def actor(args):
                 epsilon=epsilon,
             )
 
+            q_values = np.squeeze(q_values)
+
         if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             select_action_stop = time()
             logger.info(
@@ -349,10 +351,17 @@ def actor(args):
                     model.to(device)
             if rl_type == "v":
                 local_buffer_qvalues = local_buffer_qvalues.reshape(
-                    num_environments, -1, 1
+                    (
+                        num_environments, -1
+                    )
                 )
 
             new_local_qvalues = np.roll(local_buffer_qvalues, -1, axis=1)
+
+            if rl_type == "v":
+                original_shape = local_buffer_qvalues.shape
+                local_buffer_qvalues = local_buffer_qvalues.reshape((num_environments, -1, 1))
+                new_local_qvalues = new_local_qvalues.reshape((num_environments, -1, 1))
 
             priorities = compute_priorities(
                 local_buffer_actions[:, :-1],
@@ -363,6 +372,10 @@ def actor(args):
                 code_size,
                 rl_type=rl_type,
             )
+
+            if rl_type == "v":
+                local_buffer_qvalues = local_buffer_qvalues.reshape(original_shape)
+                new_local_qvalues = new_local_qvalues.reshape(original_shape)
 
             # this approach counts through all environments and local memory buffer continuously
             # with no differentiation between those two channels

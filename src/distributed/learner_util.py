@@ -264,18 +264,23 @@ def log_evaluation_data(
     list_of_p_errors: List,
     evaluation_step: int,
     current_time_tb,
+    verbosity=0
 ):
     """
     Utility function to send the evaluation data to tensorboard.
     """
     for i, p_err in enumerate(list_of_p_errors):
         for result_key, result_values in all_results.items():
-            tensorboard.add_scalars(
-                f"network/{result_key}, p_error {p_err}",
-                result_values[i],
-                evaluation_step,
-                walltime=current_time_tb,
-            )
+            try:
+                tensorboard.add_scalars(
+                    f"network/{result_key}, p_error {p_err}",
+                    result_values[i],
+                    evaluation_step,
+                    walltime=current_time_tb,
+                )
+            except IndexError as ind_err:
+                if verbosity >= 3:
+                    print(f"Skipping result {result_key}.")
 
 
 # pylint: disable=too-many-locals, too-many-statements, too-many-arguments
@@ -299,7 +304,7 @@ def perform_value_network_learning_step(
     ==========
     policy_net: online network to peform the actual training step on
     target_net: offline network with frozen parameters,
-        serves as the target Q value term in the Bellman equation.
+        serves as the target value term in the Bellman equation.
     device: torch device
     criterion: loss function
     optimizer: optimizer for training
@@ -337,16 +342,14 @@ def perform_value_network_learning_step(
 
     # compute policy net output
     policy_output = policy_network(batch_state)
-    assert policy_output.shape == (
-        batch_size,
-        3 * code_size * code_size + 1,
-    ), policy_output.shape
-    policy_output_gathered = policy_output.gather(1, batch_action_indices)
+    assert policy_output.shape == (batch_size, 1), policy_output.shape
+    # policy_output_gathered = policy_output.gather(1, batch_action_indices)
 
     # compute target network output
     with torch.no_grad():
         target_output = target_network(batch_next_state)
-        target_output = target_output.max(1)[0].detach()
+        target_output = target_output.squeeze()
+        # target_output = target_output.max(1)[0].detach()
 
     # compute loss and update replay memory
     expected_q_values = (
@@ -357,7 +360,7 @@ def perform_value_network_learning_step(
     target_q_values = target_q_values.view(-1, 1)
     target_q_values = target_q_values.clamp(-200, 200)
 
-    loss = criterion(target_q_values, policy_output_gathered)
+    loss = criterion(target_q_values, policy_output)
 
     optimizer.zero_grad()
 

@@ -258,6 +258,9 @@ class Conv3dAgent(BaseAgent):
             self.output_layer = nn.Linear(int(input_neuron_numbers[-1]), 1)
         elif self.rl_type == "ppo":
             self.output_value_layer = nn.Linear(int(input_neuron_numbers[-1]), 1)
+            self.output_layer = nn.Linear(
+                int(input_neuron_numbers[-1]), self.neurons_output
+            )
 
         # for param_tensor in self.state_dict():
         #     print(param_tensor, "\t", self.state_dict()[param_tensor].size())

@@ -72,6 +72,8 @@ class Conv2dAgent(BaseAgent):
         self.padding_size = int(config.get("padding_size"))
         self.network_size = str(config.get("network_size"))
         assert self.network_size in NETWORK_SIZES, f"{self.network_size=}"
+        self.rl_type = str(config.get("rl_type", "q"))
+        assert self.rl_type in ("q", "ppo", "v")
 
         self.use_batch_norm = int(config.get("use_batch_norm"))
 
@@ -272,9 +274,12 @@ class Conv2dAgent(BaseAgent):
             )
             lin_layer_count += 1
 
-        self.output_layer = nn.Linear(
-            input_neuron_numbers[-1], int(self.neurons_output)
-        )
+        if self.rl_type == "q":
+            self.output_layer = nn.Linear(
+                input_neuron_numbers[-1], int(self.neurons_output)
+            )
+        elif self.rl_type == "v":
+            self.output_layer = nn.Linear(int(input_neuron_numbers[-1]), 1)
 
     def forward(self, state: torch.Tensor):
         """
@@ -349,7 +354,6 @@ class Conv2dAgent(BaseAgent):
         else:
             output = complete.view(batch_size, -1)
 
-        # print(f"{output.shape=}, {type(output)=}")
         output = output.reshape(batch_size, -1)
         complete = self.lin0(output)
         if self.use_batch_norm:
