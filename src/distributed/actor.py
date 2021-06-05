@@ -351,16 +351,16 @@ def actor(args):
                     model.to(device)
             if rl_type == "v":
                 local_buffer_qvalues = local_buffer_qvalues.reshape(
-                    (
-                        num_environments, -1
-                    )
+                    (num_environments, -1)
                 )
 
             new_local_qvalues = np.roll(local_buffer_qvalues, -1, axis=1)
 
             if rl_type == "v":
                 original_shape = local_buffer_qvalues.shape
-                local_buffer_qvalues = local_buffer_qvalues.reshape((num_environments, -1, 1))
+                local_buffer_qvalues = local_buffer_qvalues.reshape(
+                    (num_environments, -1, 1)
+                )
                 new_local_qvalues = new_local_qvalues.reshape((num_environments, -1, 1))
 
             priorities = compute_priorities(

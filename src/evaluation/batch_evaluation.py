@@ -567,13 +567,16 @@ def batch_evaluation(
             accumulators["q_value_aggregation"] / essentials["steps_per_episode"]
         )
         q_value_certainty = np.mean(
-            accumulators["q_value_certainty_aggregation"] / essentials["steps_per_episode"]
+            accumulators["q_value_certainty_aggregation"]
+            / essentials["steps_per_episode"]
         )
         avg_terminal_q_value = np.mean(
-            accumulators["terminal_q_value_aggregation"] / essentials["steps_per_episode"]
+            accumulators["terminal_q_value_aggregation"]
+            / essentials["steps_per_episode"]
         )
         median_terminal_q_value = np.median(
-            accumulators["terminal_q_value_aggregation"] / essentials["steps_per_episode"]
+            accumulators["terminal_q_value_aggregation"]
+            / essentials["steps_per_episode"]
         )
 
     # An untrained network seems to choose a certain action lots of times

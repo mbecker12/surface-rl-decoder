@@ -351,7 +351,7 @@ def learner(args: Dict):
                 num_of_random_episodes=120,
                 num_of_user_episodes=8,
                 verbosity=verbosity,
-                rl_type=rl_type
+                rl_type=rl_type,
             )
             if benchmarking:
                 evaluation_stop = time()

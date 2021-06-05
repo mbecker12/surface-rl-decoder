@@ -264,7 +264,7 @@ def log_evaluation_data(
     list_of_p_errors: List,
     evaluation_step: int,
     current_time_tb,
-    verbosity=0
+    verbosity=0,
 ):
     """
     Utility function to send the evaluation data to tensorboard.
