@@ -278,12 +278,12 @@ def load_analysis_model(
             )
         else:
             model = choose_model(
-                    run.model_name,
-                    model_config,
-                    model_config_base=base_model_config,
-                    model_path_base=BASE_MODEL_PATH,
-                    transfer_learning=run.transfer_learning,
-                )
+                run.model_name,
+                model_config,
+                model_config_base=base_model_config,
+                model_path_base=BASE_MODEL_PATH,
+                transfer_learning=run.transfer_learning,
+            )
 
     model, _, _ = load_model(model, old_model_path, model_device=eval_device)
 
