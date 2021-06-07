@@ -124,7 +124,7 @@ def analyze_succesful_episodes(
                     env_set.environments[i].plaquette_mask,
                 )
 
-                if env_set.environments[i].current_action_index == max_num_of_steps:
+                if env_set.environments[i].current_action_index >= max_num_of_steps - 1:
                     print("line 110: failed episode; too many steps")
                     n_too_long += 1
                     if n_syndromes > 0:
@@ -276,7 +276,15 @@ def load_analysis_model(
                 model_path_base=BASE_MODEL_PATH,
                 transfer_learning=run.transfer_learning,
             )
+        else:
+            model = choose_model(
+                    run.model_name,
+                    model_config,
+                    model_config_base=base_model_config,
+                    model_path_base=BASE_MODEL_PATH,
+                    transfer_learning=run.transfer_learning,
+                )
 
-        model, _, _ = load_model(model, old_model_path, model_device=eval_device)
+    model, _, _ = load_model(model, old_model_path, model_device=eval_device)
 
     return model

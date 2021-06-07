@@ -39,10 +39,12 @@ omit_job_ids = [
     70425,
     71571,
 ]
+omit_job_ids = [74220, 72409, 73254, 73255, 70425]
+
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
 
-do_copy = True
+do_copy = False
 if do_copy:
     print("Copy Data from Cluster")
 
@@ -74,9 +76,9 @@ if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
 run_evaluation = False
-load_eval_results = False
-produce_plots = False
-csv_file_path = "analysis/threshold_analysis_results.csv"
+load_eval_results = True
+produce_plots = True
+csv_file_path = "analysis/threshold_analysis_results_remote.csv"
 
 max_num_of_steps = 40
 if run_evaluation:
@@ -197,11 +199,16 @@ eval_key_list = [
 agg_key_list = [key for key in eval_key_list]
 
 for df in dfs:
-    print(f"{df=}")
-    if int(df["jobid"].iloc[0]) == 69308:
+    try:
+        if int(df["jobid"].iloc[0]) in omit_job_ids:
+            continue
+    except:
         continue
-    if int(df["jobid"].iloc[0]) == 71571:
-        continue
+    print(f"{df['jobid'].iloc[0]}, {df=}")
+    # if int(df["jobid"].iloc[0]) == 69308:
+    #     continue
+    # if int(df["jobid"].iloc[0]) == 71571:
+    #     continue
 
     df = df.sort_values(by="n_ground_states", ascending=True)
 
@@ -230,7 +237,7 @@ for df in dfs:
 
     agg_groups.columns = agg_groups.columns.droplevel(1)
 
-    print(agg_groups)
+    print(f"{agg_groups=}")
 
     agg_groups["logical_err_rate"] = (
         agg_groups["n_ep_w_loops"] / agg_groups["total_n_episodes"]
@@ -466,6 +473,74 @@ if False:
 
     plt.legend()
     plt.savefig("plots/threshold_overall_fail_rate_p_err.pdf", bbox_inches="tight")
+    plt.show()
+if True:
+    ################## Plot Valid Fail Rate per Cycle Log Scale ##################
+    fig, axes = plt.subplots(
+        2,
+        1,
+        sharex=True,
+        gridspec_kw={"height_ratios": [1, 4], "wspace": 0, "hspace": 0.25},
+    )
+    ax = axes[1]
+    ax1 = axes[0]
+
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_fail_rate],
+            label=r"$d=h=$" + f"{code_size}",
+            # s=100
+            # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+        y_error = np.sqrt(
+            new_dfs[i][key_valid_fail_rate]
+            * (1.0 - new_dfs[i][key_valid_fail_rate])
+            / new_dfs[i]["n_valid_episodes"]
+        )
+        # ax.errorbar(
+        #     x=new_dfs[i]["p_err"]
+        #     + np.random.normal(loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])),
+        #     y=new_dfs[i][key_valid_fail_rate],
+        #     yerr=y_error,
+        #     fmt=".",
+        #     linewidth=2,
+        #     markersize=0,
+        #     c=plot_colors[i],
+        #     marker=markers[i],
+        # )
+
+        # plot disregard-fraction
+        ax1.scatter(
+            x=new_dfs[i]["p_err"],
+            y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
+            * 100,
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+    ax.plot(
+        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
+        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
+        "k",
+    )
+
+    # set_text_lin_split(ax)
+    ax.set(title=title_valid_fail_rate)
+    ax.set(
+        xlabel=r"$p_\mathrm{err}$",
+        ylabel=title_valid_fail_rate,
+        # ylim=np.array(ylim_lin_plot) + (0, 0.001),
+        yscale="log",
+    )
+    ax1.set(title="% of Episodes w/ Remaining Syndromes")
+
+    plt.legend()
+    plt.savefig("plots/threshold_valid_fail_rate_p_err_log.pdf", bbox_inches="tight")
     plt.show()
 
 if True:

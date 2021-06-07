@@ -89,7 +89,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(2, 1)
 
     plot_keys = {"ground_state_per_env": "Ground State Rate"}
-    plot_lines = ["-", ":", '--', '-.', '-']
+    plot_lines = ["-", ":", "--", "-.", "-"]
     # plot_colors = ["black", "blue", "orange", "red", "green", "pink"]
     plot_colors = ["#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
     markers = ["o", "v", "^", "X", "d"]

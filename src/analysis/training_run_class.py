@@ -16,3 +16,4 @@ class TrainingRun:
     model_name: str = None
     model_config_file: str = "conv_agents_slim.json"
     transfer_learning: int = 0
+    model_location: str = None
