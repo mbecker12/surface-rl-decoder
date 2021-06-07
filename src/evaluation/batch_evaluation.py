@@ -456,18 +456,11 @@ def batch_evaluation(
         averages["logical_errors"][i] += n_loops
     # end for; loop over all episodes one last time
 
-    print("End of Evaluation")
-    # print(env_set.environments[0].state)
-    # print(env_set.environments[0].qubits)
-    # print(env_set.environments[0].actions[:10])
-    # print(env_set.environments[0].actual_errors)
-
     avg_number_of_steps = np.mean(essentials["steps_per_episode"])
     avg_chose_correct_action_per_episode = np.mean(
         accumulators["correct_actions_aggregation"] / num_of_user_episodes
     )
-    # print(f"{averages['ground_state']=}")
-    # print(f"{averages['averaging_terminals']=}")
+
     avg_ground_state = np.mean(averages["ground_state"])
     avg_remaining_syndromes = np.mean(averages["remaining_syndromes"])
     avg_logical_errors = np.mean(averages["logical_errors"])
