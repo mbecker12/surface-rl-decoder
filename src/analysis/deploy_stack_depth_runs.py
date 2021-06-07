@@ -13,7 +13,7 @@ DEFAULT_VALUES = {
     "d": DEFAULT_CODE_SIZE,
     "h": DEFAULT_STACK_DEPTH,
     "p": DEFAULT_P_ERROR,
-    "P": DEFAULT_P_MSMT
+    "P": DEFAULT_P_MSMT,
 }
 
 script_name = "surface-rl-decoder/mp-script.sh"
@@ -25,13 +25,32 @@ network_save_dir = "networks"
 base_path_config_file = "surface-rl-decoder/stack_depth_conf"
 base_description = "stack depth / gtrxl / "
 
-parser = argparse.ArgumentParser(description='Deploy runs for stack depth analysis using different child env config files.')
-parser.add_argument('-b', '--base-script', metavar='b', type=str,
-                    help='give the path to the file to use as the base config file')
-parser.add_argument('-p', '--parameters', metavar='p', type=str, default="dhp",
-                    help="Give a list of parameters that should be changed in child files.")
-parser.add_argument('-B', '--base-path', metavar='B', type=str, default="stack_depth_test",
-                    help="The base path to write the new config files to.")
+parser = argparse.ArgumentParser(
+    description="Deploy runs for stack depth analysis using different child env config files."
+)
+parser.add_argument(
+    "-b",
+    "--base-script",
+    metavar="b",
+    type=str,
+    help="give the path to the file to use as the base config file",
+)
+parser.add_argument(
+    "-p",
+    "--parameters",
+    metavar="p",
+    type=str,
+    default="dhp",
+    help="Give a list of parameters that should be changed in child files.",
+)
+parser.add_argument(
+    "-B",
+    "--base-path",
+    metavar="B",
+    type=str,
+    default="stack_depth_test",
+    help="The base path to write the new config files to.",
+)
 
 for h_value in DEFAULT_VALUES["h"]:
     h_config_file = base_path_config_file + f"/h{h_value}"
@@ -45,27 +64,24 @@ for h_value in DEFAULT_VALUES["h"]:
             p_description = d_description + f"p={p_value}"
 
             command_list = [
-                    "sbatch",
-                    script_name,
-                    "-w",
-                    workdir,
-                    "-i",
-                    singularity_image,
-                    "-C",
-                    p_config_file,
-                    "-t",
-                    tensorboard_log_dir,
-                    "-n",
-                    network_save_dir,
-                    "-d",
-                    p_description
-                ]
+                "sbatch",
+                script_name,
+                "-w",
+                workdir,
+                "-i",
+                singularity_image,
+                "-C",
+                p_config_file,
+                "-t",
+                tensorboard_log_dir,
+                "-n",
+                network_save_dir,
+                "-d",
+                p_description,
+            ]
             sbatch_command = str(command_list)
             print(f"sbatch_command: {sbatch_command}")
 
             command = f"sbatch {script_name} -w {workdir} -i {singularity_image} -C {p_config_file} -t {tensorboard_log_dir} -n {network_save_dir} -d '{p_description}'"
 
-            process = subprocess.run(
-                command.split(),
-                stdout=subprocess.PIPE
-            )
+            process = subprocess.run(command.split(), stdout=subprocess.PIPE)

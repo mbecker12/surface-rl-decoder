@@ -12,7 +12,7 @@ DEFAULT_VALUES = {
     "d": DEFAULT_CODE_SIZE,
     "h": DEFAULT_STACK_DEPTH,
     "p": DEFAULT_P_ERROR,
-    "P": DEFAULT_P_MSMT
+    "P": DEFAULT_P_MSMT,
 }
 
 script_name = "surface-rl-decoder/mp-script.sh"
@@ -34,28 +34,24 @@ for d_value in DEFAULT_VALUES["d"]:
         p_description = d_description + f"p={p_value}"
 
         command_list = [
-                "sbatch",
-                script_name,
-                "-w",
-                workdir,
-                "-i",
-                singularity_image,
-                "-C",
-                p_config_file,
-                "-t",
-                tensorboard_log_dir,
-                "-n",
-                network_save_dir,
-                "-d",
-                p_description
-            ]
+            "sbatch",
+            script_name,
+            "-w",
+            workdir,
+            "-i",
+            singularity_image,
+            "-C",
+            p_config_file,
+            "-t",
+            tensorboard_log_dir,
+            "-n",
+            network_save_dir,
+            "-d",
+            p_description,
+        ]
         sbatch_command = str(command_list)
-        
 
         command = f"sbatch {script_name} -w {workdir} -i {singularity_image} -C {p_config_file} -t {tensorboard_log_dir} -n {network_save_dir} -d '{p_description}'"
         print(f"sbatch_command: {command}")
         # TODO: find a way around splitting the -d argument
-        process = subprocess.run(
-            command.split(),
-            stdout=subprocess.PIPE
-        )
+        process = subprocess.run(command.split(), stdout=subprocess.PIPE)

@@ -13,27 +13,36 @@ import os
 import sys
 import yaml
 import subprocess
-from dataclasses import dataclass
-from analysis_util import analyze_succesful_episodes, provide_default_ppo_metadata
-from distributed.model_util import choose_model, choose_old_model, extend_model_config, load_model
+from analysis.training_run_class import TrainingRun
+from analysis.analysis_util import (
+    analyze_succesful_episodes,
+    load_analysis_model,
+    provide_default_ppo_metadata,
+)
+from distributed.model_util import (
+    choose_model,
+    choose_old_model,
+    extend_model_config,
+    load_model,
+)
 
-@dataclass
-class TrainingRun():
-    job_id: int
-    code_size: int
-    stack_depth: int
-    p_err: float
-    p_msmt: float
-    rl_type: str
-    architecture: str
-    data: pd.DataFrame = None
-    duration: float = None
-    model_name: str = None
-    model_config_file: str = "conv_agents_slim.json"
-    transfer_learning: int = 0
-    
-base_model_config_path="src/config/model_spec/old_conv_agents.json"
-base_model_path="remote_networks/5/65280/simple_conv_5_65280.pt"
+# @dataclass
+# class TrainingRun():
+#     job_id: int
+#     code_size: int
+#     stack_depth: int
+#     p_err: float
+#     p_msmt: float
+#     rl_type: str
+#     architecture: str
+#     data: pd.DataFrame = None
+#     duration: float = None
+#     model_name: str = None
+#     model_config_file: str = "conv_agents_slim.json"
+#     transfer_learning: int = 0
+
+base_model_config_path = "src/config/model_spec/old_conv_agents.json"
+base_model_path = "remote_networks/5/65280/simple_conv_5_65280.pt"
 
 # training_runs = [
 #     TrainingRun(69037, 5, 5, 0.0108, 0.0, "q", "3D Conv", model_name="conv3d"),
@@ -46,11 +55,33 @@ base_model_path="remote_networks/5/65280/simple_conv_5_65280.pt"
 training_runs = [
     TrainingRun(72411, 7, 7, 0.003, 0.003, "q", "2D Conv", model_name="conv2d"),
     TrainingRun(69545, 7, 7, 0.005, 0.005, "q", "3D Conv", model_name="conv3d"),
-    TrainingRun(72099, 7, 7, 0.003, 0.003, "q", "2D Conv + GRU", model_name="conv2d", model_config_file="conv_agents_slim_gru.json", transfer_learning=1)
+    # TrainingRun(
+    #     72099,
+    #     7,
+    #     7,
+    #     0.003,
+    #     0.003,
+    #     "q",
+    #     "2D Conv + GRU",
+    #     model_name="conv2d",
+    #     model_config_file="conv_agents_slim_gru.json",
+    #     transfer_learning=1,
+    # ),
+    TrainingRun(
+        76564,
+        7,
+        7,
+        0.005,
+        0.005,
+        "q",
+        "2D Conv",
+        model_name="conv2d",
+        model_location="alvis://cephyr/NOBACKUP/groups/snic2021-23-319/falckk_networks/7/76564/",
+    ),
 ]
 
 
-plt.rcParams.update({'font.size': 16})
+plt.rcParams.update({"font.size": 16})
 
 # omit_job_ids = [65280]
 
@@ -60,23 +91,21 @@ LOCAL_NETWORK_PATH = "threshold_networks"
 do_copy = False
 if do_copy:
     print("Copy Data from Cluster")
-    
+
     for run in training_runs:
         print(f"\tCopying {run.job_id}...")
         target_path = f"{LOCAL_NETWORK_PATH}/{run.code_size}"
-        
+
         os.makedirs(target_path, exist_ok=True)
-        command = f"scp -r alvis://cephyr/users/gunter/Alvis/surface-rl-decoder/{CLUSTER_NETWORK_PATH}/{run.code_size}/{run.job_id} {target_path}"
-        process = subprocess.run(
-            command.split(),
-            stdout=subprocess.PIPE
-        )
+        if run.model_location is None:
+            command = f"scp -r alvis://cephyr/NOBACKUP/groups/snic2021-23-319/networks/{CLUSTER_NETWORK_PATH}/{run.code_size}/{run.job_id} {target_path}"
+        else:
+            command = f"scp -r {run.model_location} {target_path}"
+        process = subprocess.run(command.split(), stdout=subprocess.PIPE)
         print(f"{target_path}")
-        
+
 df_all_stats = pd.DataFrame(
-    columns=[
-        "jobid", "code_size", "stack_depth", "p_err_train", "p_err"
-    ]
+    columns=["jobid", "code_size", "stack_depth", "p_err_train", "p_err"]
 )
 
 all_results_counter = 0
@@ -88,9 +117,9 @@ if torch.cuda.is_available():
 run_evaluation = False
 load_eval_results = True
 produce_plots = True
-csv_file_path = "analysis/comparison_base_system_remote.csv"
+csv_file_path = "analysis/comparison_base_system_7.csv"
 
-n_episodes = 256
+n_episodes = 128
 # model_name = "conv3d"
 max_num_of_steps = 40
 if run_evaluation:
@@ -99,57 +128,13 @@ if run_evaluation:
     # keep track of absolute numbers in df, rather than averages/fractions
     # also maybe need to keep track of disregarded episodes
     for run in training_runs:
-        os.environ["CONFIG_ENV_SIZE"] = str(run.code_size)
-        os.environ["CONFIG_ENV_STACK_DEPTH"] = str(run.stack_depth)
-        load_path = f"{LOCAL_NETWORK_PATH}/{run.code_size}/{run.job_id}"
-        model_config_path = load_path + f"/{run.model_name}_{run.code_size}_meta.yaml"
-        old_model_path = load_path + f"/{run.model_name}_{run.code_size}_{run.job_id}.pt"
-
-        if run.rl_type == "ppo" and not os.path.exists(model_config_path):
-            model_config = provide_default_ppo_metadata(run.code_size, run.stack_depth)
-        else:
-            with open(model_config_path, "r") as yaml_file:
-                general_config = yaml.load(yaml_file)
-                model_config = general_config["network"]
-
-        model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-        p_err_train = general_config["global"]["env"]["p_error"]
-        # load model
-        print(f"Load Model for {run.job_id}")
         try:
-            if int(run.job_id) < 70000:
-                model = choose_old_model(
-                    run.model_name,
-                    model_config
-                )
-            else:
-                base_model_config = None
-                if run.transfer_learning:
-                    with open(base_model_config_path, "r") as base_file:
-                        base_model_config = json.load(base_file)["simple_conv"]
-                    
-                    base_model_config = extend_model_config(
-                        base_model_config,
-                        run.code_size + 1,
-                        run.stack_depth
-                    )
-                    base_model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-
-                model_config["rl_type"] = run.rl_type
-                model = choose_model(
-                    run.model_name,
-                    model_config,
-                    model_config_base=base_model_config,
-                    model_path_base=base_model_path,
-                    transfer_learning=run.transfer_learning
-                )
-
-            model, _, _ = load_model(model, old_model_path, model_device=eval_device)
+            model = load_analysis_model(run)
         except Exception as err:
             error_traceback = traceback.format_exc()
             print("An error occurred!")
             print(error_traceback)
-            
+
             continue
         p_error_list = np.arange(start=0.0001, stop=0.0120, step=0.0005)
         print(f"Job ID = {run.job_id}, Iterate over p_err...")
@@ -170,17 +155,16 @@ if run_evaluation:
                 p_err=p_err,
                 code_size=run.code_size,
                 stack_depth=run.stack_depth,
-                rl_type=run.rl_type
+                rl_type=run.rl_type,
             )
 
-            result_dict["jobid"]= run.job_id
-            result_dict["code_size"]= run.code_size
-            result_dict["stack_depth"]= run.stack_depth
-            result_dict["p_err_train"]= p_err_train
-            result_dict["p_err"]= p_err
+            result_dict["jobid"] = run.job_id
+            result_dict["code_size"] = run.code_size
+            result_dict["stack_depth"] = run.stack_depth
+            result_dict["p_err"] = p_err
             result_dict["avg_steps"] = result_dict["n_steps_arr"].mean()
             result_dict.pop("n_steps_arr")
-            
+
             # save relevant eval stats to dataframe
             df_all_stats = df_all_stats.append(result_dict, ignore_index=True)
         print()
@@ -188,7 +172,7 @@ if run_evaluation:
 
     print("Saving dataframe...")
     if os.path.exists(csv_file_path):
-        df_all_stats.to_csv(csv_file_path, mode='a', header=False)
+        df_all_stats.to_csv(csv_file_path, mode="a", header=False)
     else:
         df_all_stats.to_csv(csv_file_path)
 
@@ -204,32 +188,38 @@ if not produce_plots:
     sys.exit()
 
 dfs: List[pd.DataFrame] = [
-    df_all_stats.loc[(df_all_stats["jobid"] == run.job_id) | (df_all_stats["jobid"] == str(run.job_id))].copy(deep=True) 
+    df_all_stats.loc[
+        (df_all_stats["jobid"] == run.job_id)
+        | (df_all_stats["jobid"] == str(run.job_id))
+    ].copy(deep=True)
     for run in training_runs
-    ]
+]
 new_dfs = []
 # TODO aggregate stats from different analysis runs
 eval_key_list = [
-            "total_n_episodes",
-            "n_ground_states",
-            "n_valid_episodes",
-            "n_valid_ground_states",
-            "n_valid_non_trivial_loops",
-            "n_ep_w_syndromes",
-            "n_ep_w_loops",
-            "n_too_long",
-            "n_too_long_w_loops",
-            "n_too_long_w_syndromes",
-            "avg_steps"
-        ]
+    "total_n_episodes",
+    "n_ground_states",
+    "n_valid_episodes",
+    "n_valid_ground_states",
+    "n_valid_non_trivial_loops",
+    "n_ep_w_syndromes",
+    "n_ep_w_loops",
+    "n_too_long",
+    "n_too_long_w_loops",
+    "n_too_long_w_syndromes",
+    "avg_steps",
+]
 
 agg_key_list = [key for key in eval_key_list]
 
 for df in dfs:
+    # print(df)
     df = df.sort_values(by="n_ground_states", ascending=True)
 
-    #TODO: aggregate / sum values first
-    df["expected_n_err"] = df["p_err"] * df["code_size"] * df["code_size"] * df["stack_depth"]
+    # TODO: aggregate / sum values first
+    df["expected_n_err"] = (
+        df["p_err"] * df["code_size"] * df["code_size"] * df["stack_depth"]
+    )
     df["p_err_one_layer"] = df["p_err"] * df["stack_depth"]
     df["avg_steps"] = df["avg_steps"] * df["total_n_episodes"]
 
@@ -239,31 +229,47 @@ for df in dfs:
     aggregation_dict["p_err"] = ["last"]
     aggregation_dict["expected_n_err"] = ["last"]
     aggregation_dict["p_err_one_layer"] = ["last"]
-    
+
     groups = df.groupby(by="p_err")
     agg_groups = groups.agg(aggregation_dict)
 
     new_df = pd.DataFrame()
 
-    agg_groups["weighted_avg_steps"] = agg_groups["avg_steps"] / agg_groups["total_n_episodes"]
+    agg_groups["weighted_avg_steps"] = (
+        agg_groups["avg_steps"] / agg_groups["total_n_episodes"]
+    )
 
     agg_groups.columns = agg_groups.columns.droplevel(1)
-    
+
     print(agg_groups)
 
-    agg_groups["logical_err_rate"] = agg_groups["n_ep_w_loops"] / agg_groups["total_n_episodes"]
+    agg_groups["logical_err_rate"] = (
+        agg_groups["n_ep_w_loops"] / agg_groups["total_n_episodes"]
+    )
 
-    agg_groups["valid_success_rate"] = agg_groups["n_valid_ground_states"] / agg_groups["n_valid_episodes"]
-    agg_groups["overall_success_rate"] = (agg_groups["n_ground_states"] + agg_groups["n_ep_w_syndromes"]) / agg_groups["total_n_episodes"]
+    agg_groups["valid_success_rate"] = (
+        agg_groups["n_valid_ground_states"] / agg_groups["n_valid_episodes"]
+    )
+    agg_groups["overall_success_rate"] = (
+        agg_groups["n_ground_states"] + agg_groups["n_ep_w_syndromes"]
+    ) / agg_groups["total_n_episodes"]
 
     agg_groups["valid_fail_rate"] = 1.0 - agg_groups["valid_success_rate"]
     agg_groups["overall_fail_rate"] = 1.0 - agg_groups["overall_success_rate"]
 
-    agg_groups["valid_fail_rate_per_cycle"] = agg_groups["valid_fail_rate"] / agg_groups["stack_depth"]
-    agg_groups["overall_fail_rate_per_cycle"] = agg_groups["overall_fail_rate"] / agg_groups["stack_depth"]
-    agg_groups["logical_err_rate_per_cycle"] = agg_groups["logical_err_rate"] / agg_groups["stack_depth"]
+    agg_groups["valid_fail_rate_per_cycle"] = (
+        agg_groups["valid_fail_rate"] / agg_groups["stack_depth"]
+    )
+    agg_groups["overall_fail_rate_per_cycle"] = (
+        agg_groups["overall_fail_rate"] / agg_groups["stack_depth"]
+    )
+    agg_groups["logical_err_rate_per_cycle"] = (
+        agg_groups["logical_err_rate"] / agg_groups["stack_depth"]
+    )
 
-    agg_groups["validity_rate"] = agg_groups["n_valid_episodes"] / agg_groups["total_n_episodes"]
+    agg_groups["validity_rate"] = (
+        agg_groups["n_valid_episodes"] / agg_groups["total_n_episodes"]
+    )
 
     agg_groups["valid_avg_lifetime"] = 1.0 / agg_groups["valid_fail_rate_per_cycle"]
     agg_groups["overall_avg_lifetime"] = 1.0 / agg_groups["overall_fail_rate_per_cycle"]
@@ -305,25 +311,23 @@ markers = ["o", "v", "^", "X", "d"]
 ylim_lin_plot = (-1e-4, 0.008)
 ylim_log_plot = (50, 1e5)
 
+
 def set_text_lin_split(axis):
-    axis.text(
-        0.0053,
-        0.0044,
-        "Single Qubit",
-        rotation=42
-    )
+    axis.text(0.0053, 0.0049, "Single Qubit", rotation=27)
+
 
 def set_text_log_split(axis):
-    axis.text(
-        0.0015,
-        100,
-        "Single Qubit",
-        rotation=-15
-    )
+    axis.text(0.0015, 100, "Single Qubit", rotation=-15)
+
 
 if True:
     ################## Plot Valid Fail Rate per Cycle ##################
-    fig, axes = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios': [1, 4], 'wspace': 0, 'hspace': 0.25})
+    fig, axes = plt.subplots(
+        2,
+        1,
+        sharex=True,
+        gridspec_kw={"height_ratios": [1, 4], "wspace": 0, "hspace": 0.25},
+    )
     ax = axes[1]
     ax1 = axes[0]
 
@@ -332,42 +336,46 @@ if True:
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_valid_fail_rate],
-            label=r"$d=h=$" + f"{run.code_size}, {run.architecture}, {run.rl_type}, " + r"$p_\mathrm{err}$=" + f"{run.p_err}, " + r"$p_\mathrm{msmt}$=" + f"{run.p_msmt}",
-            s=100 * (
-                    new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]
-                )**1.2,
+            label=r"$d=h=$"
+            + f"{run.code_size}, {run.architecture}, {run.rl_type}, "
+            + r"$p_\mathrm{err}$="
+            + f"{run.p_err}, "
+            + r"$p_\mathrm{msmt}$="
+            + f"{run.p_msmt}",
+            # s=100
+            # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
             c=plot_colors[i],
-            marker=markers[i]
-            )
+            marker=markers[i],
+        )
         y_error = np.sqrt(
-            new_dfs[i][key_valid_fail_rate] * (1.0 - new_dfs[i][key_valid_fail_rate]) / new_dfs[i]["n_valid_episodes"]
+            new_dfs[i][key_valid_fail_rate]
+            * (1.0 - new_dfs[i][key_valid_fail_rate])
+            / new_dfs[i]["n_valid_episodes"]
         )
         ax.errorbar(
-            x=new_dfs[i]["p_err"] + np.random.normal(
-                loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])
-                ),
+            x=new_dfs[i]["p_err"]
+            + np.random.normal(loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])),
             y=new_dfs[i][key_valid_fail_rate],
             yerr=y_error,
-            fmt='.',
+            fmt=".",
             linewidth=2,
             markersize=0,
             c=plot_colors[i],
-            marker=markers[i]
+            marker=markers[i],
         )
 
         # plot disregard-fraction
         ax1.scatter(
             x=new_dfs[i]["p_err"],
-            y=(
-                1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"])
-            ) * 100,
+            y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
+            * 100,
             c=plot_colors[i],
-            marker=markers[i]
+            marker=markers[i],
         )
     ax.plot(
         np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
         np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        'k'
+        "k",
     )
 
     set_text_lin_split(ax)
@@ -375,10 +383,10 @@ if True:
     ax.set(
         xlabel=r"$p_\mathrm{err}$",
         ylabel=title_valid_fail_rate,
-        ylim=np.array(ylim_lin_plot) + (0, 0.001)
+        ylim=np.array(ylim_lin_plot) + (0, 0.001),
     )
     ax1.set(title="% of Episodes w/ Remaining Syndromes")
 
     plt.legend()
-    plt.savefig("plots/compare_base.pdf", bbox_inches="tight")
+    plt.savefig("plots/compare_base_7.pdf", bbox_inches="tight")
     plt.show()

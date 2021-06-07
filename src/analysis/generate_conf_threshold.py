@@ -10,7 +10,7 @@ PARAMETER_MAPPING = {
     "d": "CONFIG_ENV_SIZE",
     "h": "CONFIG_ENV_STACK_DEPTH",
     "p": "CONFIG_ENV_P_ERROR",
-    "P": "CONFIG_ENV_P_MSMT"
+    "P": "CONFIG_ENV_P_MSMT",
 }
 DEFAULT_CODE_SIZE = ["3", "5", "7", "9"]
 DEFAULT_STACK_DEPTH = ["3", "5", "7", "9"]
@@ -21,17 +21,36 @@ DEFAULT_VALUES = {
     "d": DEFAULT_CODE_SIZE,
     "h": DEFAULT_STACK_DEPTH,
     "p": DEFAULT_P_ERROR,
-    "P": DEFAULT_P_MSMT
+    "P": DEFAULT_P_MSMT,
 }
 MATCH_NUMERICAL = r"=\d\.?\d{0,}"
 
-parser = argparse.ArgumentParser(description='Generate child scripts from one base env config file.')
-parser.add_argument('-b', '--base-script', metavar='b', type=str,
-                    help='give the path to the file to use as the base config file')
-parser.add_argument('-p', '--parameters', metavar='p', type=str, default="dhpP",
-                    help="Give a list of parameters that should be changed in child files.")
-parser.add_argument('-B', '--base-path', metavar='B', type=str, default="threshold_test",
-                    help="The base path to write the new config files to.")
+parser = argparse.ArgumentParser(
+    description="Generate child scripts from one base env config file."
+)
+parser.add_argument(
+    "-b",
+    "--base-script",
+    metavar="b",
+    type=str,
+    help="give the path to the file to use as the base config file",
+)
+parser.add_argument(
+    "-p",
+    "--parameters",
+    metavar="p",
+    type=str,
+    default="dhpP",
+    help="Give a list of parameters that should be changed in child files.",
+)
+parser.add_argument(
+    "-B",
+    "--base-path",
+    metavar="B",
+    type=str,
+    default="threshold_test",
+    help="The base path to write the new config files to.",
+)
 
 if __name__ == "__main__":
     args = parser.parse_args()
