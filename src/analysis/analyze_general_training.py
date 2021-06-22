@@ -86,7 +86,8 @@ if __name__ == "__main__":
 
     ############ Plot Ground State Rate ############
 
-    fig, ax = plt.subplots(2, 1)
+    fig, ax = plt.subplots(1, 1)
+    ax = [ax]
 
     plot_keys = {"ground_state_per_env": "Ground State Rate"}
     plot_lines = ["-", ":", "--", "-.", "-"]
@@ -111,24 +112,24 @@ if __name__ == "__main__":
     )
     ax[0].legend()
 
-    plot_keys = {"syndromes_annihilated_per_step": "Syndrome Annihilation"}
+    # plot_keys = {"syndromes_annihilated_per_step": "Syndrome Annihilation"}
 
-    for i, run in enumerate(training_runs):
-        for j, (plot_key, plot_str) in enumerate(plot_keys.items()):
+    # for i, run in enumerate(training_runs):
+    #     for j, (plot_key, plot_str) in enumerate(plot_keys.items()):
 
-            ax[1].plot(
-                run.data["Step"],
-                run.data[plot_key],
-                label=f"d={run.code_size}, h={run.stack_depth}, {run.rl_type}, {run.architecture}",
-                color=plot_colors[i],
-                linestyle=plot_lines[i],
-            )
-    ax[1].set(
-        title="Syndrome Annihilation",
-        ylabel="Annihilation Rate",
-        xlabel="Learner Steps",
-        xlim=(0, 150_000),
-    )
+    #         ax[1].plot(
+    #             run.data["Step"],
+    #             run.data[plot_key],
+    #             label=f"d={run.code_size}, h={run.stack_depth}, {run.rl_type}, {run.architecture}",
+    #             color=plot_colors[i],
+    #             linestyle=plot_lines[i],
+    #         )
+    # ax[1].set(
+    #     title="Syndrome Annihilation",
+    #     ylabel="Annihilation Rate",
+    #     xlabel="Learner Steps",
+    #     xlim=(0, 150_000),
+    # )
     plt.tight_layout()
     plt.savefig("plots/training_ground_state.pdf")
     plt.show()
@@ -152,7 +153,7 @@ if __name__ == "__main__":
                 linestyle=plot_lines[i],
             )
     ax[0].set(title="Avg Steps per Episode", ylabel="Steps", xlim=(0, 150_000))
-    ax[0].legend()
+    # ax[0].legend()
 
     plot_keys = {"median number_of_steps": "Median Steps"}
 
@@ -172,6 +173,7 @@ if __name__ == "__main__":
         xlabel="Learner Steps",
         xlim=(0, 150_000),
     )
+    ax[1].legend()
     plt.tight_layout()
     plt.savefig("plots/training_steps.pdf")
     plt.show()

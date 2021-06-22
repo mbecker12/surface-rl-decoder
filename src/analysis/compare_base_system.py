@@ -44,41 +44,41 @@ from distributed.model_util import (
 base_model_config_path = "src/config/model_spec/old_conv_agents.json"
 base_model_path = "remote_networks/5/65280/simple_conv_5_65280.pt"
 
-# training_runs = [
-#     TrainingRun(69037, 5, 5, 0.0108, 0.0, "q", "3D Conv", model_name="conv3d"),
-#     TrainingRun(71852, 5, 5, 0.008, 0.008, "q", "2D Conv + GRU", model_name="conv2d", model_config_file="conv_agents_slim_gru.json", transfer_learning=1),
-#     TrainingRun(69312, 5, 5, 0.01, 0.01, "q", "3D Conv", model_name="conv3d"),
-#     TrainingRun(71873, 5, 5, 0.01, 0.01, "ppo", "3D Conv", model_name="conv3d"),
-#     TrainingRun(72409, 5, 5, 0.01, 0.01, "q", "2D Conv", model_name="conv2d"),
-# ]
-
 training_runs = [
-    TrainingRun(72411, 7, 7, 0.003, 0.003, "q", "2D Conv", model_name="conv2d"),
-    TrainingRun(69545, 7, 7, 0.005, 0.005, "q", "3D Conv", model_name="conv3d"),
-    # TrainingRun(
-    #     72099,
-    #     7,
-    #     7,
-    #     0.003,
-    #     0.003,
-    #     "q",
-    #     "2D Conv + GRU",
-    #     model_name="conv2d",
-    #     model_config_file="conv_agents_slim_gru.json",
-    #     transfer_learning=1,
-    # ),
-    TrainingRun(
-        76564,
-        7,
-        7,
-        0.005,
-        0.005,
-        "q",
-        "2D Conv",
-        model_name="conv2d",
-        model_location="alvis://cephyr/NOBACKUP/groups/snic2021-23-319/falckk_networks/7/76564/",
-    ),
+    TrainingRun(69037, 5, 5, 0.0108, 0.0, "q", "3D Conv", model_name="conv3d"),
+    TrainingRun(71852, 5, 5, 0.008, 0.008, "q", "2D Conv + GRU", model_name="conv2d", model_config_file="conv_agents_slim_gru.json", transfer_learning=1),
+    TrainingRun(69312, 5, 5, 0.01, 0.01, "q", "3D Conv", model_name="conv3d"),
+    TrainingRun(71873, 5, 5, 0.01, 0.01, "ppo", "3D Conv", model_name="conv3d"),
+    TrainingRun(72409, 5, 5, 0.01, 0.01, "q", "2D Conv", model_name="conv2d"),
 ]
+
+# training_runs = [
+#     TrainingRun(72411, 7, 7, 0.003, 0.003, "q", "2D Conv", model_name="conv2d"),
+#     TrainingRun(69545, 7, 7, 0.005, 0.005, "q", "3D Conv", model_name="conv3d"),
+#     # TrainingRun(
+#     #     72099,
+#     #     7,
+#     #     7,
+#     #     0.003,
+#     #     0.003,
+#     #     "q",
+#     #     "2D Conv + GRU",
+#     #     model_name="conv2d",
+#     #     model_config_file="conv_agents_slim_gru.json",
+#     #     transfer_learning=1,
+#     # ),
+#     TrainingRun(
+#         76564,
+#         7,
+#         7,
+#         0.005,
+#         0.005,
+#         "q",
+#         "2D Conv",
+#         model_name="conv2d",
+#         model_location="alvis://cephyr/NOBACKUP/groups/snic2021-23-319/falckk_networks/7/76564/",
+#     ),
+# ]
 
 
 plt.rcParams.update({"font.size": 16})
@@ -117,7 +117,7 @@ if torch.cuda.is_available():
 run_evaluation = False
 load_eval_results = True
 produce_plots = True
-csv_file_path = "analysis/comparison_base_system_7.csv"
+csv_file_path = "analysis/comparison_base_system_remote.csv"
 
 n_episodes = 128
 # model_name = "conv3d"
@@ -326,27 +326,13 @@ if True:
         2,
         1,
         sharex=True,
-        gridspec_kw={"height_ratios": [1, 4], "wspace": 0, "hspace": 0.25},
+        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
     )
-    ax = axes[1]
-    ax1 = axes[0]
+    ax = axes[0]
+    ax1 = axes[1]
 
     for i, run in enumerate(training_runs):
         # print(new_dfs[i])
-        ax.scatter(
-            x=new_dfs[i]["p_err"],
-            y=new_dfs[i][key_valid_fail_rate],
-            label=r"$d=h=$"
-            + f"{run.code_size}, {run.architecture}, {run.rl_type}, "
-            + r"$p_\mathrm{err}$="
-            + f"{run.p_err}, "
-            + r"$p_\mathrm{msmt}$="
-            + f"{run.p_msmt}",
-            # s=100
-            # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
         y_error = np.sqrt(
             new_dfs[i][key_valid_fail_rate]
             * (1.0 - new_dfs[i][key_valid_fail_rate])
@@ -363,6 +349,21 @@ if True:
             c=plot_colors[i],
             marker=markers[i],
         )
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_fail_rate],
+            label=r"$d=h=$"
+            + f"{run.code_size}, {run.architecture}, {run.rl_type}, "
+            + r"$p_\mathrm{err}$="
+            + f"{run.p_err}, "
+            + r"$p_\mathrm{msmt}$="
+            + f"{run.p_msmt}",
+            # s=100
+            # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+        
 
         # plot disregard-fraction
         ax1.scatter(
@@ -378,15 +379,25 @@ if True:
         "k",
     )
 
-    set_text_lin_split(ax)
-    ax.set(title=title_valid_fail_rate)
+    # set_text_lin_split(ax)
+    ax.text(0.0023, 0.0029, "Single Qubit", rotation=27)
+
     ax.set(
-        xlabel=r"$p_\mathrm{err}$",
+        title="Compare Strategies",
+        # xlabel=r"$p_\mathrm{err}$",
         ylabel=title_valid_fail_rate,
         ylim=np.array(ylim_lin_plot) + (0, 0.001),
     )
-    ax1.set(title="% of Episodes w/ Remaining Syndromes")
 
-    plt.legend()
-    plt.savefig("plots/compare_base_7.pdf", bbox_inches="tight")
+    ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
+
+    ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
+    ax.set_xticks(np.arange(0.0, 0.013, 0.003))
+
+    ax.set_yticks(np.arange(0.0, 0.0081, 0.002))
+    ax1.text(0, 16, "Remaining Syndromes")
+
+    # plt.legend()
+    ax.legend()
+    plt.savefig("plots/comparison_base_5.pdf", bbox_inches="tight")
     plt.show()
