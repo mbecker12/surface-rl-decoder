@@ -38,13 +38,7 @@ plt.rcParams.update({"font.size": 18})
 # ]
 
 # 2D Conv
-job_ids = [
-    72499,
-    72407,
-    72408,
-    72409,
-    72410
-]
+job_ids = [72499, 72407, 72408, 72409, 72410]
 
 omit_job_ids = []
 
@@ -300,8 +294,16 @@ title_overall_avg_life = "Overall Average Lifetime"
 for o_jid in omit_job_ids:
     job_ids.remove(o_jid)
 
-if True: # in case of conv2d
-    plot_colors = ["#24258E", "#669900", "#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
+if True:  # in case of conv2d
+    plot_colors = [
+        "#24258E",
+        "#669900",
+        "#404E5C",
+        "#F76C5E",
+        "#E9B44C",
+        "#7F95D1",
+        "#CF1259",
+    ]
     markers = ["P", "d", "o", "v", "^", "X", "d"]
 else:
     plot_colors = ["#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
@@ -324,6 +326,7 @@ def set_text_log(axis):
 
 def set_text_log_split(axis):
     axis.text(0.0015, 100, "Single Qubit", rotation=-15)
+
 
 if False:
     ################## Plot Overall Fail Rate per Cycle ##################
@@ -355,7 +358,6 @@ if False:
     )
     ax.set(title=title_scaled_fail_rate)
     ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_scaled_fail_rate)
-
 
     plt.legend()
     plt.tight_layout()
@@ -405,8 +407,9 @@ if False:
     )
     ax.set(
         title=f"Stack Depth Comparison, 3D Conv",
-        ylabel=title_valid_fail_rate, 
-        ylim=np.array(ylim_lin_plot) + (0, 0.001))
+        ylabel=title_valid_fail_rate,
+        ylim=np.array(ylim_lin_plot) + (0, 0.001),
+    )
     ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
 
     ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
@@ -420,7 +423,6 @@ if False:
     # ax.set(title=title_valid_fail_rate)
     # ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_fail_rate)
     # ax1.set(title="% of Episodes w/ Remaining Syndromes")
-
 
     # plt.legend()
     # plt.tight_layout()
@@ -475,8 +477,9 @@ if True:
 
     ax.set(
         title=f"Stack Depth Comparison, 2D Conv",
-        ylabel=title_valid_fail_rate, 
-        ylim=np.array(ylim_lin_plot) + (0, 0.001))
+        ylabel=title_valid_fail_rate,
+        ylim=np.array(ylim_lin_plot) + (0, 0.001),
+    )
     ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
 
     # ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
@@ -485,7 +488,7 @@ if True:
     ax.set_yticks(np.arange(0.0, 0.0081, 0.002))
 
     ax.legend()
-    
+
     ax1.text(0.03, 15, "Remaining Syndromes")
     # ax.set(title=title_valid_fail_rate + ", 3D Conv")
     # ax.set(xlabel=r"$p_\mathrm{err}^\mathrm{one layer}$", ylabel=title_valid_fail_rate)
@@ -494,7 +497,9 @@ if True:
     # plt.legend()
     # plt.tight_layout()
     if True:
-        plt.savefig("plots/depth_valid_fail_rate_p_err_one_layer_2d.pdf", bbox_inches="tight")
+        plt.savefig(
+            "plots/depth_valid_fail_rate_p_err_one_layer_2d.pdf", bbox_inches="tight"
+        )
     plt.show()
 
 if False:
@@ -525,7 +530,6 @@ if False:
     )
     ax.set(title=title_valid_avg_life)
     ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_avg_life, ylim=(0, 10000))
-
 
     plt.legend()
     plt.tight_layout()
@@ -599,7 +603,6 @@ if False:
     ax.set(title=title_overall_avg_life)
     ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life, ylim=(0, 10000))
 
-
     plt.legend()
     plt.tight_layout()
     if save_plots:
@@ -644,4 +647,3 @@ if False:
     plt.show()
 
 sys.exit()
-

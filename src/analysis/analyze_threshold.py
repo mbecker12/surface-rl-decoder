@@ -515,7 +515,6 @@ if True:
             c=plot_colors[i],
             marker=markers[i],
         )
-        
 
         # plot disregard-fraction
         ax1.scatter(
@@ -594,7 +593,6 @@ if False:
             c=plot_colors[i],
             marker=markers[i],
         )
-        
 
         # plot disregard-fraction
         ax1.scatter(
@@ -632,7 +630,12 @@ if False:
 if False:
     ################## Plot Valid Average Lifetime ##################
     # plt.figure(figsize=(800, 800))
-    fig, axes = plt.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05})
+    fig, axes = plt.subplots(
+        2,
+        1,
+        sharex=True,
+        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
+    )
     ax = axes[0]
     ax1 = axes[1]
 
@@ -673,7 +676,6 @@ if False:
             marker=markers[i],
         )
 
-        
         # plot disregard-fraction
         ax1.scatter(
             x=new_dfs[i]["p_err"],
