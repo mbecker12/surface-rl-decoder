@@ -2,7 +2,7 @@
 surface-rl-decoder
 ==================
 
-Train agents via reinforcement learning for decoding on qubit surface codes 
+Train agents via reinforcement learning for decoding on qubit surface codes. Code for Master's thesis project at Chalmers University of Technology (https://odr.chalmers.se/handle/20.500.12380/302593). 
 
 
 Description

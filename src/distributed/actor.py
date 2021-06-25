@@ -16,8 +16,18 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn.utils import vector_to_parameters
 from distributed.environment_set import EnvironmentSet
 from distributed.model_util import choose_model, extend_model_config, load_model
-from distributed.util import anneal_factor, compute_priorities, select_actions, time_tb
+from distributed.util import (
+    COORDINATE_SHIFTS,
+    LOCAL_DELTAS,
+    anneal_factor,
+    compute_priorities,
+    format_torch,
+    select_actions,
+    select_actions_value_network,
+    time_tb,
+)
 from surface_rl_decoder.surface_code import SurfaceCode
+from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
 # pylint: disable=too-many-statements,too-many-locals,too-many-branches
 
@@ -85,6 +95,7 @@ def actor(args):
     load_model_flag = args["load_model"]
     old_model_path = args["old_model_path"]
     discount_factor = args["discount_factor"]
+    rl_type = args["rl_type"]
     discount_intermediate_reward = float(args.get("discount_intermediate_reward", 0.75))
     min_value_factor_intermediate_reward = float(
         args.get("min_value_intermediate_reward", 0.0)
@@ -140,10 +151,16 @@ def actor(args):
     local_buffer_actions = np.empty(
         (num_environments, size_local_memory_buffer, 3), dtype=np.uint8
     )
-    local_buffer_qvalues = np.empty(
-        (num_environments, size_local_memory_buffer),
-        dtype=(float, num_actions_per_qubit * code_size * code_size + 1),
-    )
+    if rl_type == "q":
+        local_buffer_qvalues = np.empty(
+            (num_environments, size_local_memory_buffer),
+            dtype=(float, num_actions_per_qubit * code_size * code_size + 1),
+        )
+    elif rl_type == "v":
+        local_buffer_qvalues = np.empty(
+            (num_environments, size_local_memory_buffer),
+            dtype=float,
+        )
     local_buffer_rewards = np.empty(
         (num_environments, size_local_memory_buffer), dtype=float
     )
@@ -162,7 +179,12 @@ def actor(args):
     base_model_config_path = args["base_model_config_path"]
     base_model_path = args["base_model_path"]
     use_transfer_learning = args["use_transfer_learning"]
-    rl_type = args["rl_type"]
+
+    if rl_type == "v":
+        vertex_mask = get_vertex_mask(code_size)
+        plaquette_mask = get_plaquette_mask(code_size)
+        combined_mask = np.logical_or(vertex_mask, plaquette_mask, dtype=np.int8)
+        combined_mask = format_torch(combined_mask, device=device, dtype=torch.int8)
 
     # prepare Transfer learning, if enabled
     if use_transfer_learning:
@@ -228,9 +250,26 @@ def actor(args):
             base_factor=epsilon,
         )
 
-        actions, q_values = select_actions(
-            _states, model, state_size - 1, epsilon=annealed_epsilon
-        )
+        if rl_type == "q":
+            actions, q_values = select_actions(
+                _states, model, state_size - 1, epsilon=annealed_epsilon
+            )
+        elif rl_type == "v":
+            # call values here the same as q values, although they are actually
+            # plain values
+            actions, q_values = select_actions_value_network(
+                _states,
+                model,
+                code_size,
+                stack_depth,
+                combined_mask,
+                COORDINATE_SHIFTS,
+                LOCAL_DELTAS,
+                device=device,
+                epsilon=epsilon,
+            )
+
+            q_values = np.squeeze(q_values)
 
         if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             select_action_stop = time()
@@ -310,8 +349,20 @@ def actor(args):
                     )
                     vector_to_parameters(network_params, model.parameters())
                     model.to(device)
+            if rl_type == "v":
+                local_buffer_qvalues = local_buffer_qvalues.reshape(
+                    (num_environments, -1)
+                )
 
             new_local_qvalues = np.roll(local_buffer_qvalues, -1, axis=1)
+
+            if rl_type == "v":
+                original_shape = local_buffer_qvalues.shape
+                local_buffer_qvalues = local_buffer_qvalues.reshape(
+                    (num_environments, -1, 1)
+                )
+                new_local_qvalues = new_local_qvalues.reshape((num_environments, -1, 1))
+
             priorities = compute_priorities(
                 local_buffer_actions[:, :-1],
                 local_buffer_rewards[:, :-1],
@@ -319,7 +370,12 @@ def actor(args):
                 new_local_qvalues[:, :-1],
                 discount_factor,
                 code_size,
+                rl_type=rl_type,
             )
+
+            if rl_type == "v":
+                local_buffer_qvalues = local_buffer_qvalues.reshape(original_shape)
+                new_local_qvalues = new_local_qvalues.reshape(original_shape)
 
             # this approach counts through all environments and local memory buffer continuously
             # with no differentiation between those two channels

@@ -485,7 +485,7 @@ class PPO:
 
                 except Exception as _:
                     error_traceback = traceback.format_exc()
-                    self.logger.error("Caught exception in learning step")
+                    self.logger.error("Caught exception in evaluation step")
                     self.logger.error(error_traceback)
                 if self.benchmark:
                     evaluation_stop = time()

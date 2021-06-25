@@ -53,6 +53,7 @@ stack_depths = [3, 5, 7, 9, 11]
 # 2D Conv
 # stack_depths = [1, 2, 3, 5, 7]
 
+
 job_id_mapping = {jid: stack_depths[i] for i, jid in enumerate(job_ids)}
 print(f"{job_id_mapping=}")
 CLUSTER_NETWORK_PATH = "networks"
@@ -84,6 +85,7 @@ all_results_counter = 0
 n_episodes = 128
 # model_name = "conv3d"
 model_name = "conv3d"
+
 eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
@@ -94,6 +96,7 @@ produce_plots = True
 save_plots = False
 # csv_file_path = "analysis/depth_analysis_results_p_err_72499.csv"
 csv_file_path = "analysis/depth_analysis_3d.csv"
+# csv_file_path = "analysis/depth_analysis_2d.csv"
 
 max_num_of_steps = 32
 if run_evaluation:
@@ -288,10 +291,10 @@ key_scaled_fail_rate = "overall_fail_rate_per_cycle"
 title_scaled_fail_rate = "Overall Fail Rate Per Cycle"
 
 key_valid_fail_rate = "valid_fail_rate_per_cycle"
-title_valid_fail_rate = "Valid Fail Rate Per Cycle"
+title_valid_fail_rate = "Fail Rate Per Cycle"
 
 key_valid_avg_life = "valid_avg_lifetime"
-title_valid_avg_life = "Valid Average Lifetime"
+title_valid_avg_life = "Average Lifetime"
 
 key_overall_avg_life = "overall_avg_lifetime"
 title_overall_avg_life = "Overall Average Lifetime"
@@ -299,8 +302,21 @@ title_overall_avg_life = "Overall Average Lifetime"
 for o_jid in omit_job_ids:
     job_ids.remove(o_jid)
 
-plot_colors = ["#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
-markers = ["o", "v", "^", "X", "d"]
+if True:  # in case of conv2d
+    plot_colors = [
+        "#24258E",
+        "#669900",
+        "#404E5C",
+        "#F76C5E",
+        "#E9B44C",
+        "#7F95D1",
+        "#CF1259",
+    ]
+    markers = ["P", "d", "o", "v", "^", "X", "d"]
+else:
+    plot_colors = ["#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
+    markers = ["o", "v", "^", "X", "d"]
+
 ylim_lin_plot = (-1e-4, 0.008)
 ylim_log_plot = (50, 1e5)
 
@@ -321,395 +337,322 @@ def set_text_log_split(axis):
     axis.text(0.0015, 100, "Single Qubit", rotation=-15)
 
 
-################## Plot Overall Fail Rate per Cycle ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
+if False:
+    ################## Plot Overall Fail Rate per Cycle ##################
+    fig, ax = plt.subplots(1, 1, sharex=True)
 
-for i, jid in enumerate(job_ids):
-    if jid in omit_job_ids:
-        continue
+    for i, jid in enumerate(job_ids):
+        if jid in omit_job_ids:
+            continue
 
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_scaled_fail_rate],
-        label=f"d={code_size}, h={stack_depth}",
-        c=plot_colors[i],
-        marker=markers[i],
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_scaled_fail_rate],
+            label=f"d={code_size}, h={stack_depth}",
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+    ax.plot(
+        np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        "k",
+        label="One Qubit",
     )
-ax.plot(
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    "k",
-    label="One Qubit",
-)
-ax.set(title=title_scaled_fail_rate)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_scaled_fail_rate)
+    ax.set(title=title_scaled_fail_rate)
+    ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_scaled_fail_rate)
 
+    plt.legend()
+    plt.tight_layout()
+    if save_plots:
+        plt.savefig("plots/depth_overall_fail_rate_p_err.pdf")
+    plt.show()
 
-plt.legend()
-plt.tight_layout()
-if save_plots:
-    plt.savefig("plots/depth_overall_fail_rate_p_err.pdf")
-plt.show()
-
-################## Plot Valid Fail Rate per Cycle ##################
-# fig, ax = plt.subplots(1, 1, sharex=True)
-fig, axes = plt.subplots(
-    2,
-    1,
-    sharex=True,
-    gridspec_kw={"height_ratios": [1, 4], "wspace": 0, "hspace": 0.25},
-)
-ax = axes[1]
-ax1 = axes[0]
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_valid_fail_rate],
-        label=f"d={code_size}, h={stack_depth}",
-        c=plot_colors[i],
-        marker=markers[i],
+if False:
+    ################## Plot Valid Fail Rate per Cycle ##################
+    # fig, ax = plt.subplots(1, 1, sharex=True)
+    fig, axes = plt.subplots(
+        2,
+        1,
+        sharex=True,
+        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
     )
-    # plot disregard-fraction
-    ax1.scatter(
-        x=new_dfs[i]["p_err"],
-        y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
-        * 100,
-        c=plot_colors[i],
-        marker=markers[i],
+    ax = axes[0]
+    ax1 = axes[1]
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_fail_rate],
+            label=f"d={code_size}, h={stack_depth}",
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+        # plot disregard-fraction
+        ax1.scatter(
+            x=new_dfs[i]["p_err"],
+            y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
+            * 100,
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+    ax.plot(
+        np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        "k",
+        # label="One Qubit"
     )
-ax.plot(
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    "k",
-    # label="One Qubit"
-)
-ax.set(title=title_valid_fail_rate)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_fail_rate)
-ax1.set(title="% of Episodes w/ Remaining Syndromes")
+    ax.set(
+        title=f"Stack Depth Comparison, 3D Conv",
+        ylabel=title_valid_fail_rate,
+        ylim=np.array(ylim_lin_plot) + (0, 0.001),
+    )
+    ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
 
+    ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
+    ax.set_xticks(np.arange(0.0, 0.013, 0.003))
 
-plt.legend()
-# plt.tight_layout()
+    ax.set_yticks(np.arange(0.0, 0.0081, 0.002))
+
+    ax.legend()
+
+    ax1.text(0, 13, "Remaining Syndromes")
+    # ax.set(title=title_valid_fail_rate)
+    # ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_fail_rate)
+    # ax1.set(title="% of Episodes w/ Remaining Syndromes")
+
+    # plt.legend()
+    # plt.tight_layout()
+    if True:
+        plt.savefig("plots/depth_valid_fail_rate_p_err_3d.pdf", bbox_inches="tight")
+    plt.show()
+
 if True:
-    plt.savefig("plots/depth_valid_fail_rate_p_err.pdf", bbox_inches="tight")
-plt.show()
-
-################## Plot Valid Fail Rate per Cycle over Scaled Error Rate ##################
-fig, axes = plt.subplots(
-    2,
-    1,
-    sharex=True,
-    gridspec_kw={"height_ratios": [1, 4], "wspace": 0, "hspace": 0.25},
-)
-ax = axes[1]
-ax1 = axes[0]
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err_one_layer"],
-        y=new_dfs[i][key_valid_fail_rate],
-        label=f"h={stack_depth}",
-        c=plot_colors[i],
-        marker=markers[i],
+    ################## Plot Valid Fail Rate per Cycle over Scaled Error Rate ##################
+    fig, axes = plt.subplots(
+        2,
+        1,
+        sharex=True,
+        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
     )
-    # plot disregard-fraction
-    ax1.scatter(
-        x=new_dfs[i]["p_err_one_layer"],
-        y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
-        * 100,
-        c=plot_colors[i],
-        marker=markers[i],
+    ax = axes[0]
+    ax1 = axes[1]
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err_one_layer"],
+            y=new_dfs[i][key_valid_fail_rate],
+            label=f"h={stack_depth}",
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+        # plot disregard-fraction
+        ax1.scatter(
+            x=new_dfs[i]["p_err_one_layer"],
+            y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
+            * 100,
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+    ax.plot(
+        np.linspace(
+            new_dfs[0]["p_err_one_layer"].min(),
+            new_dfs[0]["p_err"].max(),
+            100,
+            endpoint=True,
+        ),
+        np.linspace(
+            new_dfs[0]["p_err_one_layer"].min(),
+            new_dfs[0]["p_err"].max(),
+            100,
+            endpoint=True,
+        ),
+        "k",
     )
-ax.plot(
-    np.linspace(
-        new_dfs[0]["p_err_one_layer"].min(),
-        new_dfs[0]["p_err"].max(),
-        100,
-        endpoint=True,
-    ),
-    np.linspace(
-        new_dfs[0]["p_err_one_layer"].min(),
-        new_dfs[0]["p_err"].max(),
-        100,
-        endpoint=True,
-    ),
-    "k",
-)
-ax.set(title=title_valid_fail_rate + ", 3D Conv")
-ax.set(xlabel=r"$p_\mathrm{err}^\mathrm{one layer}$", ylabel=title_valid_fail_rate)
-ax1.set(title="% of Episodes w/ Remaining Syndromes")
 
-plt.legend()
-# plt.tight_layout()
-if save_plots:
-    plt.savefig("plots/depth_valid_fail_rate_p_err_one_layer.pdf", bbox_inches="tight")
-plt.show()
-
-################## Plot Valid Average Lifetime ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_valid_avg_life],
-        label=f"d={code_size}, h={stack_depth}",
-        c=plot_colors[i],
-        marker=markers[i],
+    ax.set(
+        title=f"Stack Depth Comparison, 2D Conv",
+        ylabel=title_valid_fail_rate,
+        ylim=np.array(ylim_lin_plot) + (0, 0.001),
     )
-ax.plot(
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    1.0
-    / np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    "k",
-    label="One Qubit",
-)
-ax.set(title=title_valid_avg_life)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_avg_life, ylim=(0, 10000))
+    ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
 
+    # ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
+    # ax.set_xticks(np.arange(0.0, 0.013, 0.003))
 
-plt.legend()
-plt.tight_layout()
-if save_plots:
-    plt.savefig("plots/depth_valid_lifetime_p_err.pdf")
-plt.show()
+    ax.set_yticks(np.arange(0.0, 0.0081, 0.002))
 
-fig, ax = plt.subplots(1, 1, sharex=True)
+    ax.legend()
 
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_valid_avg_life],
-        label=f"h={stack_depth}",
-        c=plot_colors[i],
-        marker=markers[i],
+    ax1.text(0.03, 15, "Remaining Syndromes")
+    # ax.set(title=title_valid_fail_rate + ", 3D Conv")
+    # ax.set(xlabel=r"$p_\mathrm{err}^\mathrm{one layer}$", ylabel=title_valid_fail_rate)
+    # ax1.set(title="% of Episodes w/ Remaining Syndromes")
+
+    # plt.legend()
+    # plt.tight_layout()
+    if True:
+        plt.savefig(
+            "plots/depth_valid_fail_rate_p_err_one_layer_2d.pdf", bbox_inches="tight"
+        )
+    plt.show()
+
+if False:
+    ################## Plot Valid Average Lifetime ##################
+    fig, ax = plt.subplots(1, 1, sharex=True)
+
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_avg_life],
+            label=f"d={code_size}, h={stack_depth}",
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+    ax.plot(
+        np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        1.0
+        / np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        "k",
+        label="One Qubit",
     )
-ax.plot(
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    1.0
-    / np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    "k",
-)
-ax.set(title=title_valid_avg_life)
-ax.set(
-    xlabel=r"$p_\mathrm{err}$",
-    ylabel=title_valid_avg_life,
-    xlim=(1e-3, new_dfs[0]["p_err"].max()),
-    yscale="log",
-)
+    ax.set(title=title_valid_avg_life)
+    ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_valid_avg_life, ylim=(0, 10000))
 
-plt.legend()
-plt.tight_layout()
-if save_plots:
-    plt.savefig("plots/depth_valid_lifetime_p_err_log.pdf")
-plt.show()
+    plt.legend()
+    plt.tight_layout()
+    if save_plots:
+        plt.savefig("plots/depth_valid_lifetime_p_err.pdf")
+    plt.show()
 
-################## Plot Overall Average Lifetime ##################
-fig, ax = plt.subplots(1, 1, sharex=True)
+    fig, ax = plt.subplots(1, 1, sharex=True)
 
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_overall_avg_life],
-        label=f"d={code_size}, h={stack_depth}",
-        c=plot_colors[i],
-        marker=markers[i],
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_avg_life],
+            label=f"h={stack_depth}",
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+    ax.plot(
+        np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        1.0
+        / np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        "k",
     )
-ax.plot(
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    1.0
-    / np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    "k",
-    label="One Qubit",
-)
-ax.set(title=title_overall_avg_life)
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life, ylim=(0, 10000))
-
-
-plt.legend()
-plt.tight_layout()
-if save_plots:
-    plt.savefig("plots/depth_overall_lifetime_p_err.pdf")
-plt.show()
-
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_overall_avg_life],
-        label=f"h={stack_depth}",
-        c=plot_colors[i],
-        marker=markers[i],
+    ax.set(title=title_valid_avg_life)
+    ax.set(
+        xlabel=r"$p_\mathrm{err}$",
+        ylabel=title_valid_avg_life,
+        xlim=(1e-3, new_dfs[0]["p_err"].max()),
+        yscale="log",
     )
-ax.plot(
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    1.0
-    / np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    "k",
-)
-ax.set(title=title_overall_avg_life)
-ax.set(
-    xlabel=r"$p_\mathrm{err}$",
-    ylabel=title_overall_avg_life,
-    xlim=(1e-3, new_dfs[0]["p_err"].max()),
-    yscale="log",
-)
 
-plt.legend()
-plt.tight_layout()
-if save_plots:
-    plt.savefig("plots/depth_overall_lifetime_p_err_log.pdf")
-plt.show()
+    plt.legend()
+    plt.tight_layout()
+    if save_plots:
+        plt.savefig("plots/depth_valid_lifetime_p_err_log.pdf")
+    plt.show()
+
+if False:
+    ################## Plot Overall Average Lifetime ##################
+    fig, ax = plt.subplots(1, 1, sharex=True)
+
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_overall_avg_life],
+            label=f"d={code_size}, h={stack_depth}",
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+    ax.plot(
+        np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        1.0
+        / np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        "k",
+        label="One Qubit",
+    )
+    ax.set(title=title_overall_avg_life)
+    ax.set(xlabel=r"$p_\mathrm{err}$", ylabel=title_overall_avg_life, ylim=(0, 10000))
+
+    plt.legend()
+    plt.tight_layout()
+    if save_plots:
+        plt.savefig("plots/depth_overall_lifetime_p_err.pdf")
+    plt.show()
+
+    fig, ax = plt.subplots(1, 1, sharex=True)
+
+    for i, jid in enumerate(job_ids):
+        code_size = new_dfs[i]["code_size"].iloc[0]
+        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
+        # print(new_dfs[i])
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_overall_avg_life],
+            label=f"h={stack_depth}",
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+    ax.plot(
+        np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        1.0
+        / np.linspace(
+            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
+        ),
+        "k",
+    )
+    ax.set(title=title_overall_avg_life)
+    ax.set(
+        xlabel=r"$p_\mathrm{err}$",
+        ylabel=title_overall_avg_life,
+        xlim=(1e-3, new_dfs[0]["p_err"].max()),
+        yscale="log",
+    )
+
+    plt.legend()
+    plt.tight_layout()
+    if save_plots:
+        plt.savefig("plots/depth_overall_lifetime_p_err_log.pdf")
+    plt.show()
 
 sys.exit()
-
-
-exit()
-
-
-error_rates = df_all["p_err"]
-key_success_rate = "weighted_success_rate"
-title_succes_rate = "Success Rate"
-key_scaled_fail_rate = "scaled_fail_rate"
-title_scaled_fail_rate = "Scaled Fail Rate"
-# TODO: what to plot?
-# idea 1) fix p_err
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-n_err_min = [0.809, 1.21]
-n_err_max = [0.9, 1.27]
-
-for i in range(len(n_err_min)):
-    plot_df = df_all.loc[
-        (df_all["expected_n_err"] <= n_err_max[i])
-        & (df_all["expected_n_err"] >= n_err_min[i])
-    ]
-
-    ax.scatter(
-        x=plot_df["stack_depth"],
-        y=plot_df[key_success_rate],
-        label=f"{n_err_min[i]:.2f}"
-        + r"$ < \overline{n_\mathrm{err}} < $"
-        + f"{n_err_max[i]:.2f}",
-        s=50,
-    )
-
-ax.set(title=title_succes_rate)
-
-ax.set(xlabel="Stack Depth", ylim=(0.8, 1.0))
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/stack_depth_expected_n_err.pdf")
-plt.show()
-
-# idea 2) fix p_err_one_layer
-# idea 3) plot all different stack depths over p_err
-# idea 5) plot all different stack depths over p_err_one_layer
-
-# fig, ax = plt.subplots(len(agg_key_list), 1, sharex=True)
-fig, ax = plt.subplots(1, 1, sharex=True)
-stack_depths = [3, 7, 11]
-# for ax_idx, key in enumerate(agg_key_list):
-ax_idx = 0
-for h_idx, stack_depth in enumerate(stack_depths):
-    df_plot = df_all.loc[df_all["stack_depth"] == stack_depth]
-
-    ax.scatter(
-        x=df_plot["p_err"], y=df_plot[key_success_rate], label=f"h={str(stack_depth)}"
-    )
-ax.set(title=title_succes_rate)
-ax.set(xlabel=r"$p_\mathrm{err}$")
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/stack_depth_p_err.pdf")
-plt.show()
-
-# idea 4) plot different error rates over stack depth
-# fig, ax = plt.subplots(len(agg_key_list), 1, sharex=True)
-fig, ax = plt.subplots(1, 1, sharex=True)
-tolerance = 1e-4
-plot_error_rates = [0.0041, 0.0071, 0.0101]
-# for ax_idx, key in enumerate(agg_key_list):
-for p_idx, p_err in enumerate(plot_error_rates):
-    df_plot = df_all.loc[
-        (p_err - tolerance <= df_all["p_err"]) & (df_all["p_err"] <= p_err + tolerance)
-    ]
-
-    ax.scatter(
-        x=df_plot["stack_depth"],
-        y=df_plot[key_success_rate],
-        label=r"$p_\mathrm{err}$=" + f"{p_err:.4f}",
-    )
-ax.set(title=title_succes_rate)
-ax.set(xlabel="Stack Depth")
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/stack_depth_compare_p_err.pdf")
-plt.show()
-
-# idea 5) plot all different stack depths over p_err_one_layer
-fig, ax = plt.subplots(1, 1, sharex=True)
-stack_depths = [3, 7, 11]
-
-for h_idx, stack_depth in enumerate(stack_depths):
-    df_plot = df_all.loc[df_all["stack_depth"] == stack_depth]
-
-    ax.scatter(
-        x=df_plot["p_err_one_layer"],
-        y=df_plot[key_success_rate],
-        label=f"h={str(stack_depth)}",
-    )
-ax.set(title=title_succes_rate)
-ax.set(xlabel=r"$p_\mathrm{err}^\mathrm{one \; layer}$")
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/stack_depth_p_err_one_layer.pdf")
-plt.show()

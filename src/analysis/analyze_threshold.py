@@ -480,15 +480,33 @@ if True:
         2,
         1,
         sharex=True,
-        gridspec_kw={"height_ratios": [1, 4], "wspace": 0, "hspace": 0.25},
+        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
     )
-    ax = axes[1]
-    ax1 = axes[0]
+    ax = axes[0]
+    ax1 = axes[1]
 
     for i, jid in enumerate(job_ids):
         code_size = new_dfs[i]["code_size"].iloc[0]
         stack_depth = new_dfs[i]["stack_depth"].iloc[0]
         # print(new_dfs[i])
+        y_error = np.sqrt(
+            new_dfs[i][key_valid_fail_rate]
+            * (1.0 - new_dfs[i][key_valid_fail_rate])
+            / new_dfs[i]["n_valid_episodes"]
+        )
+        log_y_error = 0.434 * y_error
+        ax.errorbar(
+            x=new_dfs[i]["p_err"]
+            + np.random.normal(loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])),
+            y=new_dfs[i][key_valid_fail_rate],
+            yerr=log_y_error,
+            fmt=".",
+            linewidth=1.5,
+            markersize=0,
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_valid_fail_rate],
@@ -498,22 +516,6 @@ if True:
             c=plot_colors[i],
             marker=markers[i],
         )
-        y_error = np.sqrt(
-            new_dfs[i][key_valid_fail_rate]
-            * (1.0 - new_dfs[i][key_valid_fail_rate])
-            / new_dfs[i]["n_valid_episodes"]
-        )
-        # ax.errorbar(
-        #     x=new_dfs[i]["p_err"]
-        #     + np.random.normal(loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])),
-        #     y=new_dfs[i][key_valid_fail_rate],
-        #     yerr=y_error,
-        #     fmt=".",
-        #     linewidth=2,
-        #     markersize=0,
-        #     c=plot_colors[i],
-        #     marker=markers[i],
-        # )
 
         # plot disregard-fraction
         ax1.scatter(
@@ -529,44 +531,42 @@ if True:
         "k",
     )
 
-    # set_text_lin_split(ax)
-    ax.set(title=title_valid_fail_rate)
     ax.set(
-        xlabel=r"$p_\mathrm{err}$",
+        title="Threshold Analysis",
+        # xlabel=r"$p_\mathrm{err}$",
         ylabel=title_valid_fail_rate,
-        # ylim=np.array(ylim_lin_plot) + (0, 0.001),
+        ylim=(1e-4, 1e-2),
         yscale="log",
     )
-    ax1.set(title="% of Episodes w/ Remaining Syndromes")
+    ax.text(0.001, 0.004, "Single Qubit", rotation=10)
 
-    plt.legend()
-    plt.savefig("plots/threshold_valid_fail_rate_p_err_log.pdf", bbox_inches="tight")
+    ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
+    ax1.text(0, 32, "Remaining Syndromes")
+
+    ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
+    ax.set_xticks(np.arange(0.0, 0.013, 0.003))
+
+    # plt.legend()
+    ax.legend()
+    if True:
+        plt.savefig("plots/thresh_valid_fail_rate_p_err_log.pdf", bbox_inches="tight")
     plt.show()
 
-if True:
+if False:
     ################## Plot Valid Fail Rate per Cycle ##################
     fig, axes = plt.subplots(
         2,
         1,
         sharex=True,
-        gridspec_kw={"height_ratios": [1, 4], "wspace": 0, "hspace": 0.25},
+        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
     )
-    ax = axes[1]
-    ax1 = axes[0]
+    ax = axes[0]
+    ax1 = axes[1]
 
     for i, jid in enumerate(job_ids):
         code_size = new_dfs[i]["code_size"].iloc[0]
         stack_depth = new_dfs[i]["stack_depth"].iloc[0]
         # print(new_dfs[i])
-        ax.scatter(
-            x=new_dfs[i]["p_err"],
-            y=new_dfs[i][key_valid_fail_rate],
-            label=r"$d=h=$" + f"{code_size}",
-            s=100
-            * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
         y_error = np.sqrt(
             new_dfs[i][key_valid_fail_rate]
             * (1.0 - new_dfs[i][key_valid_fail_rate])
@@ -578,8 +578,18 @@ if True:
             y=new_dfs[i][key_valid_fail_rate],
             yerr=y_error,
             fmt=".",
-            linewidth=2,
+            linewidth=1.5,
             markersize=0,
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_fail_rate],
+            label=r"$d=h=$" + f"{code_size}",
+            # s=100
+            # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
             c=plot_colors[i],
             marker=markers[i],
         )
@@ -599,39 +609,40 @@ if True:
     )
 
     set_text_lin_split(ax)
-    ax.set(title=title_valid_fail_rate)
     ax.set(
-        xlabel=r"$p_\mathrm{err}$",
+        title="Fail Rate Analysis",
+        # xlabel=r"$p_\mathrm{err}$",
         ylabel=title_valid_fail_rate,
         ylim=np.array(ylim_lin_plot) + (0, 0.001),
     )
-    ax1.set(title="% of Episodes w/ Remaining Syndromes")
+    ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
 
-    plt.legend()
-    plt.savefig("plots/threshold_valid_fail_rate_p_err.pdf", bbox_inches="tight")
+    ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
+    ax.set_xticks(np.arange(0.0, 0.013, 0.003))
+
+    ax.set_yticks(np.arange(0.0, 0.0081, 0.002))
+    ax1.text(0, 32, "Remaining Syndromes")
+    ax.legend()
+    # plt.legend()
+    plt.savefig("plots/thresh_valid_fail_rate_p_err.pdf", bbox_inches="tight")
     plt.show()
 
-if True:
+if False:
     ################## Plot Valid Average Lifetime ##################
     # plt.figure(figsize=(800, 800))
-    fig, axes = plt.subplots(2, 1, sharex=True, gridspec_kw={"height_ratios": [1, 4]})
-    ax = axes[1]
-    ax1 = axes[0]
+    fig, axes = plt.subplots(
+        2,
+        1,
+        sharex=True,
+        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
+    )
+    ax = axes[0]
+    ax1 = axes[1]
 
     for i, jid in enumerate(job_ids):
         code_size = new_dfs[i]["code_size"].iloc[0]
         stack_depth = new_dfs[i]["stack_depth"].iloc[0]
         # print(new_dfs[i])
-        ax.scatter(
-            x=new_dfs[i]["p_err"],
-            y=new_dfs[i][key_valid_avg_life],
-            label=r"$d=h=$" + f"{code_size}",
-            s=100
-            * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-
         y_error = 1.0 / (
             new_dfs[i][key_valid_fail_rate] * new_dfs[i][key_valid_fail_rate]
         )
@@ -650,11 +661,21 @@ if True:
             y=new_dfs[i][key_valid_avg_life],
             yerr=log_y_error,
             fmt=".",
-            linewidth=2,
+            linewidth=1.5,
             markersize=0,
             c=plot_colors[i],
             marker=markers[i],
         )
+        ax.scatter(
+            x=new_dfs[i]["p_err"],
+            y=new_dfs[i][key_valid_avg_life],
+            label=r"$d=h=$" + f"{code_size}",
+            # s=100
+            # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
+            c=plot_colors[i],
+            marker=markers[i],
+        )
+
         # plot disregard-fraction
         ax1.scatter(
             x=new_dfs[i]["p_err"],
@@ -685,18 +706,27 @@ if True:
     )
 
     set_text_log_split(ax)
-    ax.set(title=title_valid_avg_life)
+    ax.set()
     ax.set(
-        xlabel=r"$p_\mathrm{err}$",
+        title="Qubit Lifetime Analysis",
+        # xlabel=r"$p_\mathrm{err}$",
         ylabel="Measurement Cycles",
         xlim=(1e-3, max_x),
         yscale="log",
         ylim=ylim_log_plot,
     )
-    ax1.set(title="% of Episodes w/ Remaining Syndromes")
 
-    plt.legend()
-    plt.savefig("plots/threshold_valid_lifetime_p_err_log.pdf", bbox_inches="tight")
+    ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
+
+    # ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
+    # ax.set_xticks(np.arange(0.0, 0.013, 0.003))
+
+    # ax.set_yticks(np.arange(0.0, 0.0081, 0.002))
+    ax1.text(0.0011, 32, "Remaining Syndromes")
+
+    # plt.legend()
+    ax.legend()
+    plt.savefig("plots/thresh_valid_lifetime_p_err_log.pdf", bbox_inches="tight")
     plt.show()
 
 if False:
