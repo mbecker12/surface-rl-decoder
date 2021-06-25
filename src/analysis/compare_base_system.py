@@ -128,6 +128,8 @@ if torch.cuda.is_available():
 run_evaluation = False
 load_eval_results = True
 produce_plots = True
+# csv_file_path = "analysis/comparison_base_system_7.csv"
+
 csv_file_path = "analysis/comparison_base_system_remote.csv"
 
 n_episodes = 128
@@ -360,6 +362,7 @@ if True:
             c=plot_colors[i],
             marker=markers[i],
         )
+
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_valid_fail_rate],

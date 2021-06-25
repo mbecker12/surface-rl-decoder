@@ -506,6 +506,7 @@ if True:
             c=plot_colors[i],
             marker=markers[i],
         )
+
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_valid_fail_rate],
@@ -529,8 +530,6 @@ if True:
         np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
         "k",
     )
-
-    # set_text_lin_split(ax)
 
     ax.set(
         title="Threshold Analysis",
@@ -584,6 +583,7 @@ if False:
             c=plot_colors[i],
             marker=markers[i],
         )
+
         ax.scatter(
             x=new_dfs[i]["p_err"],
             y=new_dfs[i][key_valid_fail_rate],
@@ -715,6 +715,7 @@ if False:
         yscale="log",
         ylim=ylim_log_plot,
     )
+
     ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
 
     # ax1.set_xticks(np.arange(0.0, 0.013, 0.003))

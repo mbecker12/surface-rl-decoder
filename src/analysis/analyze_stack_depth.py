@@ -29,23 +29,30 @@ from distributed.model_util import choose_model, choose_old_model, load_model
 plt.rcParams.update({"font.size": 18})
 
 # 3D Conv
-# job_ids = [
-#     70282,
-#     70278,
-#     70283,
-#     70286,
-#     70287,
-# ]
+job_ids = [
+    70282,
+    70278,
+    70283,
+    70286,
+    70287,
+]
 
 # 2D Conv
-job_ids = [72499, 72407, 72408, 72409, 72410]
+# job_ids = [
+#     72499,
+#     72407,
+#     72408,
+#     72409,
+#     72410
+# ]
 
 omit_job_ids = []
 
 # # 3D Conv
-# stack_depths = [3, 5, 7, 9, 11]
+stack_depths = [3, 5, 7, 9, 11]
 # 2D Conv
-stack_depths = [1, 2, 3, 5, 7]
+# stack_depths = [1, 2, 3, 5, 7]
+
 
 job_id_mapping = {jid: stack_depths[i] for i, jid in enumerate(job_ids)}
 print(f"{job_id_mapping=}")
@@ -77,7 +84,8 @@ df_all_stats = pd.DataFrame(
 all_results_counter = 0
 n_episodes = 128
 # model_name = "conv3d"
-model_name = "conv2d"
+model_name = "conv3d"
+
 eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
@@ -87,8 +95,8 @@ load_eval_results = True
 produce_plots = True
 save_plots = False
 # csv_file_path = "analysis/depth_analysis_results_p_err_72499.csv"
-# csv_file_path = "analysis/depth_analysis_3d.csv"
-csv_file_path = "analysis/depth_analysis_2d.csv"
+csv_file_path = "analysis/depth_analysis_3d.csv"
+# csv_file_path = "analysis/depth_analysis_2d.csv"
 
 max_num_of_steps = 32
 if run_evaluation:
@@ -308,6 +316,7 @@ if True:  # in case of conv2d
 else:
     plot_colors = ["#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
     markers = ["o", "v", "^", "X", "d"]
+
 ylim_lin_plot = (-1e-4, 0.008)
 ylim_log_plot = (50, 1e5)
 
