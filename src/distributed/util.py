@@ -436,6 +436,8 @@ def select_actions_value_network(
     batch_size = state_batch.shape[0]
     batch_selected_actions = [None] * batch_size
     batch_selected_values = [None] * batch_size
+    batch_optimal_actions = [None] * batch_size
+    batch_optimal_values = [None] * batch_size
 
     with torch.no_grad():
         for i, state in enumerate(state_batch):
@@ -483,6 +485,25 @@ def select_actions_value_network(
             # redo random action choosing
             # need to collect all successor states and values first
 
+            # save optimal action separately
+            optimal_action_idx = torch.argmax(policy_net_output, dim=0)
+            if optimal_action_idx == l_actions - 1:
+                optimal_action = torch.tensor(
+                    [[0, 0, TERMINAL_ACTION]], dtype=torch.int8, device=device
+                )
+            else:
+                optimal_action = possible_actions[optimal_action_idx]
+            assert optimal_action.shape == (1, 3) or optimal_action.shape == (
+                3,
+            ), optimal_action.shape
+
+            # handle optimal value separately
+            optimal_value = values_torch_cpu[optimal_action_idx]
+            assert optimal_value.shape == (1, 1) or optimal_value.shape == (
+                1,
+            ), optimal_value.shape
+
+            # handle ε-greedy policy
             rand = np.random.random_sample()
             if rand < epsilon:
                 value_probabilities = (
@@ -493,7 +514,7 @@ def select_actions_value_network(
                 )
                 action_idx = np.random.choice(range(len(values)), p=value_probabilities)
             else:
-                action_idx = torch.argmax(policy_net_output, dim=0)
+                action_idx = optimal_action_idx
 
             if action_idx == l_actions - 1:
                 selected_action = torch.tensor(
@@ -512,11 +533,18 @@ def select_actions_value_network(
 
             batch_selected_actions[i] = selected_action.squeeze().cpu().numpy()
             batch_selected_values[i] = selected_value.squeeze().cpu().numpy()
+            batch_optimal_actions[i] = optimal_action.squeeze().cpu().numpy()
+            batch_optimal_values[i] = optimal_value.squeeze().cpu().numpy()
+            # TODO: need to select optimal new state
+            # batch_optimal_new_state[i] = 
 
     selected_actions = np.stack(batch_selected_actions)
     selected_values = np.stack(batch_selected_values)
 
-    return selected_actions, selected_values
+    optimal_actions = np.stack(batch_optimal_actions)
+    optimal_values = np.stack(batch_optimal_values)
+
+    return selected_actions, selected_values, optimal_actions, optimal_values
 
 
 def create_possible_operators(

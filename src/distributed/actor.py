@@ -257,7 +257,7 @@ def actor(args):
         elif rl_type == "v":
             # call values here the same as q values, although they are actually
             # plain values
-            actions, q_values = select_actions_value_network(
+            actions, q_values, optimal_actions, optimal_q_values = select_actions_value_network(
                 _states,
                 model,
                 code_size,
@@ -270,6 +270,7 @@ def actor(args):
             )
 
             q_values = np.squeeze(q_values)
+            optimal_q_values = np.squeeze(optimal_q_values)
 
         if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             select_action_stop = time()
