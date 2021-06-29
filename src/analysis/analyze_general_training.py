@@ -136,7 +136,6 @@ if __name__ == "__main__":
             )
     ax[0].set(title="Avg Steps per Episode", ylabel="Steps", xlim=(0, 150_000))
 
-
     plot_keys = {"median number_of_steps": "Median Steps"}
 
     for i, run in enumerate(training_runs):

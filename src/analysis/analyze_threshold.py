@@ -1,161 +1,239 @@
 # theoretically, we have all the runs for d=3,5,7
 # Still some uncertainties in error rate (p_{err} or p_{err}^{one_layer})
+from glob import glob
 from typing import Dict, List
-from analysis_util import analyze_succesful_episodes
+from analysis.analysis_util import analyze_succesful_episodes
 import sys
 import os
-import multiprocessing as mp
 import subprocess
 import traceback
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import glob
 import torch
 import yaml
-from evaluation.batch_evaluation import (
-    RESULT_KEY_COUNTS,
-    RESULT_KEY_ENERGY,
-    RESULT_KEY_EPISODE,
-    RESULT_KEY_Q_VALUE_STATS,
-    RESULT_KEY_RATES,
-    batch_evaluation,
-)
+import json
+from analysis.training_run_class import TrainingRun
+from argparse import ArgumentParser
+import logging
 
 from distributed.model_util import choose_model, choose_old_model, load_model
 
-plt.rcParams.update({"font.size": 18})
-# 69366	3	3	0.05	0.05
-# 69312	5	5	0.01	0.01
-# 69545	7	7	0.005	0.005
-# 69308	7	7	0.01	0.01
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("post-run-eval")
 
-job_ids = [69366, 69312, 69545, 70425, 71571, 74220, 72409, 73254, 73255]
-
-omit_job_ids = [
-    69366,
-    69312,
-    69545,
-    70425,
-    71571,
-]
-omit_job_ids = [74220, 72409, 73254, 73255, 70425]
-
-CLUSTER_NETWORK_PATH = "networks"
+CLUSTER_BASE_PATH = "/cephyr/NOBACKUP/groups/snic2021-23-319/"
+CLUSTER_NETWORK_PATH = "networks/"
+CLUSTER_RESULT_PATH = "analysis/"
 LOCAL_NETWORK_PATH = "threshold_networks"
+plt.rcParams.update({"font.size": 18})
 
-do_copy = False
+RUN_LOCAL = False
+parser = ArgumentParser()
+parser.add_argument("--base_path", default=CLUSTER_BASE_PATH, nargs="?")
+parser.add_argument(
+    "--network_path", default=CLUSTER_BASE_PATH + CLUSTER_NETWORK_PATH, nargs="?"
+)
+parser.add_argument(
+    "--result_path", default=CLUSTER_BASE_PATH + CLUSTER_RESULT_PATH, nargs="?"
+)
+parser.add_argument("--do_copy", action="store_true")
+parser.add_argument("--run_evaluation", action="store_true")
+parser.add_argument("--load_eval_results", action="store_true")
+parser.add_argument("--produce_plots", action="store_true")
+parser.add_argument("--n_episodes", default=256, nargs="?")
+parser.add_argument("--max_steps", default=40, nargs="?")
+parser.add_argument("--runs_config", default="", nargs="?")
+parser.add_argument("--eval_job_id", default=None, nargs="?")
+parser.add_argument("--merge_dfs", action="store_true")
+
+args = parser.parse_args()
+
+base_path = args.base_path
+network_path = args.network_path
+result_path = args.result_path
+run_evaluation = args.run_evaluation
+load_eval_results = args.load_eval_results
+produce_plots = args.produce_plots
+do_copy = args.do_copy
+n_episodes = int(args.n_episodes)
+max_num_of_steps = int(args.max_steps)
+runs_config = args.runs_config
+evaluation_job_id = args.eval_job_id
+merge_dfs = args.merge_dfs
+
+# define list of runs to analyze
+# define default case
+if runs_config == "":
+    training_runs = [
+        TrainingRun(
+            69366,
+            3,
+            3,
+            0.05,
+            0.05,
+            "q",
+            "3D Conv",
+            model_name="conv3d",
+            model_location=network_path,
+        ),
+        TrainingRun(
+            69312,
+            5,
+            5,
+            0.01,
+            0.01,
+            "q",
+            "3D Conv",
+            model_name="conv3d",
+            model_location=network_path,
+        ),
+        TrainingRun(
+            69545,
+            7,
+            7,
+            0.005,
+            0.005,
+            "q",
+            "3D Conv",
+            model_name="conv3d",
+            model_location=network_path,
+        ),
+        TrainingRun(
+            71571,
+            9,
+            9,
+            0.005,
+            0.005,
+            "q",
+            "3D Conv",
+            model_name="conv3d",
+            model_location=network_path,
+        ),
+    ]
+else:
+    with open(runs_config, "r") as jsonfile:
+        analysis_runs = json.load(jsonfile)
+        training_runs = []
+        for run in analysis_runs:
+            training_runs.append(
+                TrainingRun(
+                    run.get("job_id"),
+                    run.get("code_size"),
+                    run.get("stack_depth"),
+                    run.get("p_err"),
+                    run.get("p_msmt"),
+                    run.get("rl_type"),
+                    run.get("model_type"),
+                    model_name=run.get("model_name"),
+                    model_location=run.get("model_localtion", network_path),
+                )
+            )
+
 if do_copy:
-    print("Copy Data from Cluster")
+    logger.info("Copy Data from Cluster")
 
-    for jid in job_ids:
-        if jid in omit_job_ids:
+    for run in training_runs:
+        logger.info(f"\tCopying {run.job_id}...")
+        try:
+            target_path = f"{LOCAL_NETWORK_PATH}/{run.code_size}"
+            os.makedirs(target_path, exist_ok=True)
+            command = f"scp -r alvis://cephyr/users/gunter/Alvis/surface-rl-decoder/{CLUSTER_NETWORK_PATH}/{run.code_size}/{run.job_id} {target_path}"
+            process = subprocess.run(command.split(), stdout=subprocess.PIPE)
+            logger.debug(f"{target_path}")
+        except Exception as err:
+            logger.error(err)
             continue
-        print(f"\tCopying {jid}...")
-        for code_size in (3, 5, 7, 9):
-            try:
-                target_path = f"{LOCAL_NETWORK_PATH}/{code_size}"
-
-                os.makedirs(target_path, exist_ok=True)
-                command = f"scp -r alvis://cephyr/users/gunter/Alvis/surface-rl-decoder/{CLUSTER_NETWORK_PATH}/{code_size}/{jid} {target_path}"
-                process = subprocess.run(command.split(), stdout=subprocess.PIPE)
-                print(f"{target_path}")
-            except Exception as err:
-                print(err)
-                continue
 
 df_all_stats = pd.DataFrame(
     columns=["jobid", "code_size", "stack_depth", "p_err_train", "p_err"]
 )
 
+# TODO: look at job arrays
 all_results_counter = 0
-n_episodes = 256
-model_name = "conv3d"
 eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
-run_evaluation = False
-load_eval_results = True
-produce_plots = True
-csv_file_path = "analysis/threshold_analysis_results_remote.csv"
+if evaluation_job_id is not None:
+    csv_file_path = os.path.join(result_path, f"threshold_analysis_results_{evaluation_job_id}.csv")
+else:
+    csv_file_path = os.path.join(result_path, "threshold_analysis_results.csv")
 
-max_num_of_steps = 40
 if run_evaluation:
-    print("Proceed to Evaluation")
-    # TODO: Need to make changes to evaluation
-    # keep track of absolute numbers in df, rather than averages/fractions
-    # also maybe need to keep track of disregarded episodes
-    for code_size in (9,):
-        stack_depth = code_size
-        os.environ["CONFIG_ENV_SIZE"] = str(code_size)
-        os.environ["CONFIG_ENV_STACK_DEPTH"] = str(stack_depth)
-        network_list = glob.glob(f"{LOCAL_NETWORK_PATH}/{code_size}/*")
-        print(network_list)
-        for load_path in network_list:
-            print(f"{load_path}")
-            jid = load_path.split("/")[-1]
-            if int(jid) not in job_ids:
-                continue
-            model_config_path = load_path + f"/{model_name}_{code_size}_meta.yaml"
-            old_model_path = load_path + f"/{model_name}_{code_size}_{jid}.pt"
-            with open(model_config_path, "r") as yaml_file:
-                general_config = yaml.load(yaml_file)
-                model_config = general_config["network"]
-                model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-                p_err_train = general_config["global"]["env"]["p_error"]
-            # load model
-            print("Load Model")
-            try:
-                if int(jid) < 70000:
-                    model = choose_old_model(model_name, model_config)
-                else:
-                    model = choose_model(model_name, model_config)
+    logger.info("Proceed to Evaluation")
 
-                model, _, _ = load_model(
-                    model, old_model_path, model_device=eval_device
-                )
-            except Exception as err:
-                error_traceback = traceback.format_exc()
-                print("An error occurred!")
-                print(error_traceback)
+    for run in training_runs:
+        os.environ["CONFIG_ENV_SIZE"] = str(run.code_size)
+        os.environ["CONFIG_ENV_STACK_DEPTH"] = str(run.stack_depth)
 
-                continue
-            p_error_list = np.arange(start=0.0001, stop=0.0120, step=0.0005)
-            print(f"Code size = {code_size}, Iterate over p_err...")
-            for p_idx, p_err in enumerate(p_error_list):
-                sys.stdout.write(f"\r{p_idx + 1:02d} / {len(p_error_list):02d}")
-                p_msmt = p_err
-                # batch_evaluation(..., p_error, p_msmt)
+        model_config_path = os.path.join(
+            run.model_location,
+            str(run.code_size),
+            str(run.job_id),
+            f"{run.model_name}_{run.code_size}_meta.yaml",
+        )
 
-                result_dict: Dict = analyze_succesful_episodes(
-                    model,
-                    "",
-                    device=eval_device,
-                    total_n_episodes=n_episodes,
-                    max_num_of_steps=max_num_of_steps,
-                    discount_intermediate_reward=0.3,
-                    verbosity=2,
-                    p_msmt=p_msmt,
-                    p_err=p_err,
-                    code_size=code_size,
-                    stack_depth=stack_depth,
-                )
+        old_model_path = os.path.join(
+            run.model_location,
+            str(run.code_size),
+            str(run.job_id),
+            f"{run.model_name}_{run.code_size}_{run.job_id}.pt",
+        )
 
-                result_dict["jobid"] = jid
-                result_dict["code_size"] = code_size
-                result_dict["stack_depth"] = stack_depth
-                result_dict["p_err_train"] = p_err_train
-                result_dict["p_err"] = p_err
-                result_dict["avg_steps"] = result_dict["n_steps_arr"].mean()
-                result_dict.pop("n_steps_arr")
+        with open(model_config_path, "r") as yaml_file:
+            general_config = yaml.load(yaml_file)
+            model_config = general_config["network"]
+            model_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+            p_err_train = general_config["global"]["env"]["p_error"]
+        # load model
+        logger.info("Load Model")
+        try:
+            if int(run.job_id) < 70000:
+                model = choose_old_model(run.model_name, model_config)
+            else:
+                model = choose_model(run.model_name, model_config)
 
-                # save relevant eval stats to dataframe
-                df_all_stats = df_all_stats.append(result_dict, ignore_index=True)
-            print()
-            print()
+            model, _, _ = load_model(model, old_model_path, model_device=eval_device)
+        except Exception as err:
+            error_traceback = traceback.format_exc()
+            logger.error("An error occurred!")
+            logger.error(error_traceback)
 
-    print("Saving dataframe...")
+            continue
+        p_error_list = np.arange(start=0.0001, stop=0.0160, step=0.0005)
+        logger.info(f"Code size = {run.code_size}, Job ID: {run.job_id}, Iterate over p_err...")
+        for p_idx, p_err in enumerate(p_error_list):
+            sys.stdout.write(f"\r{p_idx + 1:02d} / {len(p_error_list):02d}")
+            p_msmt = p_err
+            # batch_evaluation(..., p_error, p_msmt)
+
+            result_dict: Dict = analyze_succesful_episodes(
+                model,
+                "",
+                device=eval_device,
+                total_n_episodes=n_episodes,
+                max_num_of_steps=max_num_of_steps,
+                discount_intermediate_reward=0.3,
+                verbosity=2,
+                p_msmt=p_msmt,
+                p_err=p_err,
+                code_size=run.code_size,
+                stack_depth=run.stack_depth,
+            )
+
+            result_dict["jobid"] = run.job_id
+            result_dict["code_size"] = run.code_size
+            result_dict["stack_depth"] = run.stack_depth
+            result_dict["p_err_train"] = p_err_train
+            result_dict["p_err"] = p_err
+            result_dict["avg_steps"] = result_dict["n_steps_arr"].mean()
+            result_dict.pop("n_steps_arr")
+
+            # save relevant eval stats to dataframe
+            df_all_stats = df_all_stats.append(result_dict, ignore_index=True)
+
+    logger.info("Saving dataframe...")
     if os.path.exists(csv_file_path):
         df_all_stats.to_csv(csv_file_path, mode="a", header=False)
     else:
@@ -163,23 +241,32 @@ if run_evaluation:
 
 if load_eval_results:
     # migt need to fix indices and so on
-    # df_all_stats = pd.read_csv("analysis/analysis_results2.csv")
-    print("Load Data File")
-    df_all_stats = pd.read_csv(csv_file_path, index_col=0)
-    print(f"{df_all_stats=}")
+
+    if merge_dfs:
+        logger.info("Load multiple data files and merge them")
+        df_path_list = glob(result_path + "threshold_analysis_results*")
+        df_list = [pd.read_csv(df_path, index_col=0) for df_path in df_path_list]
+        df_all_stats = pd.concat(df_list, ignore_index=True)
+    else:
+        logger.info("Load data file")
+        df_all_stats = pd.read_csv(csv_file_path, index_col=0)
+
+    logger.debug(f"{df_all_stats=}")
 
 if not produce_plots:
-    print("Not producing result plot. Exiting...")
+    logger.info("Not producing result plot. Exiting...")
     sys.exit()
-print(f"{df_all_stats=}")
+logger.debug(f"{df_all_stats=}")
 # split df into sensible groups
 
 dfs: List[pd.DataFrame] = [
     df_all_stats.loc[
-        (df_all_stats["jobid"] == jid) | (df_all_stats["jobid"] == str(jid))
+        (df_all_stats["jobid"] == run.job_id)
+        | (df_all_stats["jobid"] == str(run.job_id))
     ].copy(deep=True)
-    for jid in job_ids
+    for run in training_runs
 ]
+
 new_dfs = []
 # TODO aggregate stats from different analysis runs
 eval_key_list = [
@@ -199,16 +286,7 @@ eval_key_list = [
 agg_key_list = [key for key in eval_key_list]
 
 for df in dfs:
-    try:
-        if int(df["jobid"].iloc[0]) in omit_job_ids:
-            continue
-    except:
-        continue
-    print(f"{df['jobid'].iloc[0]}, {df=}")
-    # if int(df["jobid"].iloc[0]) == 69308:
-    #     continue
-    # if int(df["jobid"].iloc[0]) == 71571:
-    #     continue
+    logger.debug(f"{df['jobid'].iloc[0]}, {df=}")
 
     df = df.sort_values(by="n_ground_states", ascending=True)
 
@@ -237,7 +315,7 @@ for df in dfs:
 
     agg_groups.columns = agg_groups.columns.droplevel(1)
 
-    print(f"{agg_groups=}")
+    logger.debug(f"{agg_groups=}")
 
     agg_groups["logical_err_rate"] = (
         agg_groups["n_ep_w_loops"] / agg_groups["total_n_episodes"]
@@ -269,10 +347,7 @@ for df in dfs:
 
     agg_groups["valid_avg_lifetime"] = 1.0 / agg_groups["valid_fail_rate_per_cycle"]
     agg_groups["overall_avg_lifetime"] = 1.0 / agg_groups["overall_fail_rate_per_cycle"]
-    agg_groups["logical_avg_lifetime"] = 2.0 / agg_groups["logical_err_rate_per_cycle"]
-
-    # agg_groups["fail_rate"] = 1 - agg_groups["weighted_success_rate"]
-    # agg_groups["scaled_fail_rate"] = agg_groups["fail_rate"] / agg_groups["stack_depth"]
+    agg_groups["logical_avg_lifetime"] = 1.0 / agg_groups["logical_err_rate_per_cycle"]
 
     new_dfs.append(agg_groups)
 
@@ -306,9 +381,6 @@ title_logical_err_rate = "Logical Error Rate"
 key_logical_lifetime = "logical_avg_lifetime"
 title_logical_lifetime = "Average Lifetime"
 
-
-for o_jid in omit_job_ids:
-    job_ids.remove(o_jid)
 
 plot_colors = ["#404E5C", "#F76C5E", "#E9B44C", "#7F95D1", "#CF1259"]
 markers = ["o", "v", "^", "X", "d"]
@@ -485,7 +557,7 @@ if True:
     ax = axes[0]
     ax1 = axes[1]
 
-    for i, jid in enumerate(job_ids):
+    for i, run in enumerate(training_runs):
         code_size = new_dfs[i]["code_size"].iloc[0]
         stack_depth = new_dfs[i]["stack_depth"].iloc[0]
         # print(new_dfs[i])
@@ -535,7 +607,7 @@ if True:
         title="Threshold Analysis",
         # xlabel=r"$p_\mathrm{err}$",
         ylabel=title_valid_fail_rate,
-        ylim=(1e-4, 1e-2),
+        ylim=(1e-4, 1e-1),
         yscale="log",
     )
     ax.text(0.001, 0.004, "Single Qubit", rotation=10)
@@ -543,8 +615,8 @@ if True:
     ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
     ax1.text(0, 32, "Remaining Syndromes")
 
-    ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
-    ax.set_xticks(np.arange(0.0, 0.013, 0.003))
+    ax1.set_xticks(np.arange(0.0, 0.016, 0.003))
+    ax.set_xticks(np.arange(0.0, 0.016, 0.003))
 
     # plt.legend()
     ax.legend()
@@ -784,92 +856,3 @@ if False:
     plt.show()
 
 sys.exit()
-
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=1.0 / new_dfs[i][key_scaled_fail_rate],
-        label=f"d={code_size}, h={stack_depth}",
-    )
-ax.plot(
-    np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    1.0
-    / np.linspace(
-        new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-    ),
-    "k",
-    label="One Qubit",
-)
-ax.set(title="Average Qubit Lifetime")
-ax.set(xlabel=r"$p_\mathrm{err}$", ylabel="Lifetime / Cycles", ylim=(0, 1000))
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_qubit_lifetime.pdf")
-plt.show()
-
-
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err"],
-        y=new_dfs[i][key_success_rate],
-        label=f"d={code_size}, h={stack_depth}",
-    )
-
-ax.set(title=title_succes_rate)
-ax.set(xlabel=r"$p_\mathrm{err}$")
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_p_err.pdf")
-plt.show()
-
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["expected_n_err"],
-        y=new_dfs[i][key_success_rate],
-        label=f"d={code_size}, h={stack_depth}",
-    )
-ax.set(title=title_succes_rate)
-ax.set(xlabel=r"$\overline{n_\mathrm{err}}$")
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_expected_n_err.pdf")
-plt.show()
-
-fig, ax = plt.subplots(1, 1, sharex=True)
-
-for i, jid in enumerate(job_ids):
-    code_size = new_dfs[i]["code_size"].iloc[0]
-    stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-    # print(new_dfs[i])
-    ax.scatter(
-        x=new_dfs[i]["p_err_one_layer"],
-        y=new_dfs[i][key_success_rate],
-        label=f"d={code_size}, h={stack_depth}",
-    )
-ax.set(title=title_succes_rate)
-ax.set(xlabel=r"$p_\mathrm{err}^\mathrm{one \; layer}$")
-
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/threshold_p_err_one_layer.pdf")
-plt.show()

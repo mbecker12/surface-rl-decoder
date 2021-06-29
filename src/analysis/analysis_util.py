@@ -125,7 +125,6 @@ def analyze_succesful_episodes(
                 )
 
                 if env_set.environments[i].current_action_index >= max_num_of_steps - 1:
-                    print("line 110: failed episode; too many steps")
                     n_too_long += 1
                     if n_syndromes > 0:
                         n_too_long_w_syndromes += 1
