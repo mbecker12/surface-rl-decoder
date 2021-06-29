@@ -156,7 +156,9 @@ if torch.cuda.is_available():
     LOCAL_NETWORK_PATH = "/surface-rl-decoder/networks"
 
 if evaluation_job_id is not None:
-    csv_file_path = os.path.join(result_path, f"threshold_analysis_results_{evaluation_job_id}.csv")
+    csv_file_path = os.path.join(
+        result_path, f"threshold_analysis_results_{evaluation_job_id}.csv"
+    )
 else:
     csv_file_path = os.path.join(result_path, "threshold_analysis_results.csv")
 
@@ -202,7 +204,9 @@ if run_evaluation:
 
             continue
         p_error_list = np.arange(start=0.0001, stop=0.0160, step=0.0005)
-        logger.info(f"Code size = {run.code_size}, Job ID: {run.job_id}, Iterate over p_err...")
+        logger.info(
+            f"Code size = {run.code_size}, Job ID: {run.job_id}, Iterate over p_err..."
+        )
         for p_idx, p_err in enumerate(p_error_list):
             sys.stdout.write(f"\r{p_idx + 1:02d} / {len(p_error_list):02d}")
             p_msmt = p_err
