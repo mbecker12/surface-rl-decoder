@@ -239,7 +239,12 @@ def batch_evaluation(
                 torch_states, model, code_size, epsilon=epsilon
             )
         elif "v" in rl_type.lower():
-            tmp_actions, tmp_q_values = select_actions_value_network(
+            (
+                tmp_actions,
+                tmp_q_values,
+                optimal_actions,
+                optimal_values,
+            ) = select_actions_value_network(
                 torch_states,
                 model,
                 code_size,

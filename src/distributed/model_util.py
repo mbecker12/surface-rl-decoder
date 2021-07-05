@@ -17,10 +17,14 @@ import json
 from agents.base_agent import BaseAgent
 from agents.conv_2d_agent import Conv2dAgent
 from agents.conv_2d_agent_ppo import Conv2dAgentPPO
+from agents.conv_2d_agent_vnet import Conv2dAgentValueNet
 from agents.conv_3d_agent import Conv3dAgent
 from agents.old_conv_3d_agent import Conv3dAgent as OldConv3dAgent
 from agents.old_conv_2d_agent import SimpleConv2D as OldConv2dAgent
 from agents.dummy_agent import DummyModel
+import logging
+
+logger = logging.getLogger(name="model_util")
 
 
 def choose_old_model(model_name, model_config):
@@ -84,14 +88,21 @@ def choose_model(
                 model_class_base=OldConv2dAgent,
                 model_class_top=model_class_top,
             )
-            print("Prepare Conv2dAgent and OldConv2dAgent using transfer learning.")
+            logger.debug(
+                "Prepare Conv2dAgent and OldConv2dAgent using transfer learning."
+            )
         else:
-            if rl_type in ("q", "v"):
+            if rl_type == "q":
                 model = Conv2dAgent(model_config)
-                print("Prepare Q Learning Conv2dAgent w/o transfer learning")
+                logger.debug("Prepare Q Learning Conv2dAgent w/o transfer learning")
+            elif rl_type == "v":
+                model = Conv2dAgentValueNet(model_config)
+                logger.debug(
+                    "Prepare Value Network Learning Conv2dAgent w/o transfer learning"
+                )
             elif rl_type == "ppo":
                 model = Conv2dAgentPPO(model_config)
-                print("Prepare PPO Conv2dAgent w/o transfer learning")
+                logger.debug("Prepare PPO Conv2dAgent w/o transfer learning")
             else:
                 raise Exception(f"Error! RL type {rl_type} is not supported.")
     elif "conv3d" in model_name.lower():

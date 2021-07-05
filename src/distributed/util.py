@@ -3,23 +3,25 @@ General utility functions for the distributed program setup.
 Contains many of the actor utilities.
 """
 from time import time
-from typing import List, Tuple, Union
-from numpy.lib.function_base import select
+from typing import Dict, List, Tuple, Union
 import torch
 import numpy as np
-from torch.tensor import Tensor
-from surface_rl_decoder.surface_code_util import TERMINAL_ACTION
-
-# from iniparser import Config
-
-# c = Config()
-# _config = c.scan(".", True).read()
-# config = c.config_rendered
-
-# env_config = config.get("config").get("env")
-# learner_config = config.get("config").get("learner")
-# device = learner_config.get("device")
-# d = int(env_config.get("size"))
+from surface_rl_decoder.surface_code import SurfaceCode
+from surface_rl_decoder.surface_code_util import (
+    NON_TRIVIAL_LOOP_REWARD,
+    PREMATURE_ENDING_REWARD,
+    REPEATING_ACTION_REWARD,
+    SOLVED_EPISODE_REWARD,
+    STATE_MULTIPLIER,
+    SYNDROME_LEFT_REWARD,
+    TERMINAL_ACTION,
+    check_final_state,
+    check_repeating_action,
+    compute_intermediate_reward,
+    copy_array_values,
+    create_syndrome_output_stack,
+    perform_action,
+)
 
 # pylint: disable=not-callable
 LOCAL_X_DELTA = torch.tensor([[0, 1], [1, 0]], dtype=torch.int8)
@@ -448,25 +450,18 @@ def select_actions_value_network(
             l_actions = len(possible_actions) + 1
 
             # get operators corresponding to the above filtered actions
-            operators = create_possible_operators(
+
+            new_states = get_successor_states(
+                state,
                 possible_actions,
-                code_size + 1,
+                l_actions,
+                code_size,
                 stack_depth,
                 combined_mask,
                 local_deltas,
-                max_l=l_actions,
+                device,
             )
 
-            stacked_state = torch.tile(
-                state,
-                (l_actions, 1, 1, 1),
-            )
-
-            # apply operators to the state to create successor states
-            operators = operators.to(device)
-            stacked_state = stacked_state.to(device)
-            new_states = torch.logical_xor(stacked_state, operators)
-            new_states = new_states.to(device=device, dtype=torch.float32)
             assert new_states.shape == (
                 l_actions,
                 stack_depth,
@@ -535,8 +530,6 @@ def select_actions_value_network(
             batch_selected_values[i] = selected_value.squeeze().cpu().numpy()
             batch_optimal_actions[i] = optimal_action.squeeze().cpu().numpy()
             batch_optimal_values[i] = optimal_value.squeeze().cpu().numpy()
-            # TODO: need to select optimal new state
-            # batch_optimal_new_state[i] = 
 
     selected_actions = np.stack(batch_selected_actions)
     selected_values = np.stack(batch_selected_values)
@@ -681,3 +674,225 @@ def determine_possible_actions(
         ]
     )
     return possible_actions
+
+
+def independent_step(
+    state,
+    qubits,
+    action,
+    vertex_mask,
+    plaquette_mask,
+    syndrome_errors,
+    actual_errors,
+    action_history,
+    current_action_index=255,
+    max_actions=256,
+    discount_intermediate_reward=0.3,
+    annealing_intermediate_reward=1.0,
+    punish_repeating_actions=0,
+    punish_early_termination=True,
+):
+    """
+    Perform a step independent of an environment container class.
+    Apply a pauli operator to a qubit on the surface code with code distance d.
+
+    Parameters
+    ==========
+    action: tuple containing (None, x-coordinate, y-coordinate, pauli operator),
+        defining x- & y-coordinates and operator type
+    discount_intermediate_reward: (optional) discount factor determining how much
+        early layers should be discounted when calculating the intermediate reward
+    annealing_intermediate_reward: (optional) variable that should decrease over time during
+        a training run to decrease the effect of the intermediate reward
+    punish_repeating_actions: (optional) (1 or 0) flag acting as multiplier to
+        enable punishment for repeating actions that already exist in the action history
+
+    Returns
+    =======
+    state: (d+1, d+1) stacked syndrome arrays
+    reward: int, reward for given action
+    terminal: bool, determines if it is terminal state or not
+    {}: empty dictionary, for conformity reasons; supposed to be used for info
+    """
+    terminal = action[-1] == TERMINAL_ACTION
+
+    # TODO: restructure reward
+    if terminal:
+        reward = get_independent_reward(
+            action,
+            action_history,
+            actual_errors,
+            vertex_mask,
+            plaquette_mask,
+            current_action_index=current_action_index,
+            punish_early_termination=False,
+        )
+        return state, reward, terminal, {}
+
+    # reward = n_repeating_actions * REPEATING_ACTION_REWARD * punish_repeating_actions
+    # execute operation throughout the stack
+    qubits = perform_action(qubits, action)
+    stack_depth = qubits.shape[0]
+
+    syndrome = create_syndrome_output_stack(qubits, vertex_mask, plaquette_mask)
+
+    next_state = np.logical_xor(syndrome, syndrome_errors) * STATE_MULTIPLIER
+
+    intermediate_reward = compute_intermediate_reward(
+        state,
+        next_state,
+        stack_depth,
+        discount_factor=discount_intermediate_reward,
+        annealing_factor=annealing_intermediate_reward,
+    )
+
+    reward = intermediate_reward
+    state = next_state
+
+    # if we reach the action history limit
+    # force the episode to be over and determine
+    # the reward based on the state after the latest action
+    # if current_action_index >= max_actions:
+    #     reward = SurfaceCode.get_reward(action=(-1, -1, TERMINAL_ACTION))
+    #     terminal = True
+
+    return state, reward, terminal, {}
+
+
+def multiple_independent_steps(
+    states: Union[np.ndarray, torch.Tensor],
+    qubits: Union[np.ndarray, torch.Tensor],
+    actions: List,
+    vertex_mask: Union[np.ndarray, torch.Tensor],
+    plaquette_mask: Union[np.ndarray, torch.Tensor],
+    syndrome_errors: Union[np.ndarray, torch.Tensor],
+    actual_errors: Union[np.ndarray, torch.Tensor],
+    action_histories,
+    discount_intermediate_reward=0.3,
+    annealing_intermediate_reward=1.0,
+    punish_repeating_actions=1,
+    punish_early_termination=False,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
+    """
+    Perform a step in multiple episodes
+    independent of an environment container class.
+
+    Note, the step() function [to step through all environments in this
+    environment set] does not affect the member self.states, but rather
+    calculates and returns a separate _states entity. Doing otherwise results
+    in faulty behavior.
+
+    Parameters
+    ==========
+    actions: list of action-defining tuples,
+        required shape either (# environments, 3) or (# environments, 4)
+    discount_intermediate_reward: (optional) discount factor determining how much
+        early layers should be discounted when calculating the intermediate reward
+    annealing_intermediate_reward: (optional) variable that should decrease over time during
+        a training run to decrease the effect of the intermediate reward
+
+    Returns
+    =======
+    states: list of states for all environments
+    rewards: list of rewards obtained in this step for all environments
+    terminals: list of terminal flags
+    infos: list of dictionaries containing additional information about an environment
+    """
+
+    _states = np.empty_like(states)
+    num_environments = states.shape[0]
+    rewards = np.empty(num_environments)
+    terminals = np.empty(num_environments)
+    infos: Union[List[Dict], None] = [None] * num_environments
+
+    for i in range(num_environments):
+        next_state, reward, terminal, info = independent_step(
+            states[i],
+            qubits[i],
+            actions[i],
+            vertex_mask,
+            plaquette_mask,
+            syndrome_errors[i],
+            actual_errors[i],
+            action_histories[i],
+            discount_intermediate_reward=discount_intermediate_reward,
+            annealing_intermediate_reward=annealing_intermediate_reward,
+            punish_repeating_actions=punish_repeating_actions,
+            punish_early_termination=punish_early_termination,
+        )
+        _states[i] = next_state
+        rewards[i] = reward
+        terminals[i] = terminal
+        infos[i] = info
+
+    return _states, rewards, terminals, infos
+
+
+def get_successor_states(
+    state,
+    possible_actions,
+    l_actions,
+    code_size,
+    stack_depth,
+    combined_mask,
+    local_deltas,
+    device,
+):
+    """
+    Wrapper function to obtain all reasonable possible successor states
+    to a syndrome.
+    """
+    operators = create_possible_operators(
+        possible_actions,
+        code_size + 1,
+        stack_depth,
+        combined_mask,
+        local_deltas,
+        max_l=l_actions,
+    )
+
+    stacked_state = torch.tile(
+        state,
+        (l_actions, 1, 1, 1),
+    )
+
+    # apply operators to the state to create successor states
+    operators = operators.to(device)
+    stacked_state = stacked_state.to(device)
+    new_states = torch.logical_xor(stacked_state, operators)
+    new_states = new_states.to(device=device, dtype=torch.float32)
+
+    return new_states
+
+
+def get_independent_reward(
+    action,
+    actions,
+    actual_errors,
+    vertex_mask,
+    plaquette_mask,
+    current_action_index=255,
+    punish_early_termination=False,
+):
+    _, _, operator = action[-3:]
+
+    if operator in (1, 2, 3):
+        return 0
+
+    # assume action "terminal" was chosen
+    actual_errors = copy_array_values(actual_errors)
+
+    _, ground_state, (n_syndromes, n_loops) = check_final_state(
+        actual_errors, actions, vertex_mask, plaquette_mask
+    )
+
+    if ground_state:
+        return SOLVED_EPISODE_REWARD
+
+    if current_action_index <= 1 and punish_early_termination:
+        # this means that the agent ended the episode immediately withou a good reason
+        return PREMATURE_ENDING_REWARD
+
+    # not in the ground state; meaning the agent
+    # performed a logical operation by accident
+    return n_loops * NON_TRIVIAL_LOOP_REWARD + n_syndromes * SYNDROME_LEFT_REWARD

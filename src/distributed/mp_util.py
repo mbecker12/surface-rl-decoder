@@ -36,6 +36,10 @@ def configure_processes(rl_type="q_learning"):
     env_config = global_config.get("env")
     p_error = float(env_config.get("p_error", 0.01))
     p_msmt = float(env_config.get("p_msmt", 0.01))
+    p_error_start = float(env_config.get("p_error_start", 0.001))
+    p_msmt_start = float(env_config.get("p_msmt_start", 0.001))
+    p_error_anneal = float(env_config.get("p_error_anneal", 1.0001))
+    p_msmt_anneal = float(env_config.get("p_msmt_anneal", p_error_anneal))
     size_action_history = int(env_config.get("max_actions", "256"))
     code_size = int(env_config["size"])
     syndrome_size = code_size + 1
@@ -97,6 +101,7 @@ def configure_processes(rl_type="q_learning"):
     base_model_config_path = learner_config["base_model_config_path"]
     base_model_path = learner_config["base_model_path"]
     use_transfer_learning = int(learner_config["transfer_learning"])
+    reevaluate_all = int(learner_config.get("reevaluate_all", "0"))
 
     # initialize communication queues
     logger.info("Initialize queues")
@@ -154,6 +159,12 @@ def configure_processes(rl_type="q_learning"):
     }
 
     actor_args = {
+        "p_error": p_error,
+        "p_msmt": p_msmt,
+        "p_error_start": p_error_start,
+        "p_msmt_start": p_msmt_start,
+        "p_error_anneal": p_error_anneal,
+        "p_msmt_anneal": p_msmt_anneal,
         "num_environments": num_environments,
         "size_action_history": size_action_history,
         "size_local_memory_buffer": size_local_memory_buffer,
@@ -208,11 +219,16 @@ def configure_processes(rl_type="q_learning"):
         "base_model_path": base_model_path,
         "use_transfer_learning": use_transfer_learning,
         "rl_type": rl_type,
+        "reevaluate_all": reevaluate_all,
     }
 
     env_args = {
         "p_error": p_error,
         "p_msmt": p_msmt,
+        "p_error_start": p_error_start,
+        "p_msmt_start": p_msmt_start,
+        "p_error_anneal": p_error_anneal,
+        "p_msmt_anneal": p_msmt_anneal,
         "size_action_history": size_action_history,
         "code_size": code_size,
         "syndrome_size": syndrome_size,

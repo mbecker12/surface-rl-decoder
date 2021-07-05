@@ -8,11 +8,16 @@ import torch
 # pylint: disable=no-name-in-module
 from torch import from_numpy
 from torch.utils.tensorboard import SummaryWriter
-from distributed.util import action_to_q_value_index
+from distributed.util import (
+    LOCAL_DELTAS,
+    action_to_q_value_index,
+    determine_possible_actions,
+    get_successor_states,
+)
 
 
 def data_to_batch(
-    data: Tuple, device: torch.device, batch_size: int
+    data: Tuple, device: torch.device, batch_size: int, rl_type: str = "q"
 ) -> Tuple[List, List, List, List, List, List, List]:
     """
     Transform the data received from the io-learner-queue to data forms
@@ -74,9 +79,22 @@ def data_to_batch(
 
     # pylint: disable=bare-except
     try:
-        list_state, list_action, list_reward, list_next_state, list_terminal = zip(
-            *batch
-        )
+        if rl_type == "v":
+            (
+                list_state,
+                list_action,
+                list_reward,
+                list_next_state,
+                list_terminal,
+                list_optimal_action,
+                list_optimal_reward,
+                list_optimal_next_state,
+                list_optimal_terminal,
+            ) = zip(*batch)
+        else:
+            list_state, list_action, list_reward, list_next_state, list_terminal = zip(
+                *batch
+            )
     except:
         print(f"{list(zip(*batch))=}")
 
@@ -87,15 +105,39 @@ def data_to_batch(
     batch_terminal = from_numpy(np.array(list_terminal)).to(device)
     batch_reward = from_numpy(np.array(list_reward)).type("torch.Tensor").to(device)
 
-    return (
-        batch_state,
-        batch_action,
-        batch_reward,
-        batch_next_state,
-        batch_terminal,
-        memory_weights,
-        indices,
-    )
+    if rl_type == "v":
+        batch_optimal_next_state = to_network_input(list_optimal_next_state)
+        batch_optimal_action = torch.tensor(
+            list_optimal_action, dtype=torch.int64, device=device
+        )
+        batch_optimal_terminal = from_numpy(np.array(list_optimal_terminal)).to(device)
+        batch_optimal_reward = (
+            from_numpy(np.array(list_optimal_reward)).type("torch.Tensor").to(device)
+        )
+
+        return (
+            batch_state,
+            batch_action,
+            batch_reward,
+            batch_next_state,
+            batch_terminal,
+            batch_optimal_action,
+            batch_optimal_reward,
+            batch_optimal_next_state,
+            batch_optimal_terminal,
+            memory_weights,
+            indices,
+        )
+    else:
+        return (
+            batch_state,
+            batch_action,
+            batch_reward,
+            batch_next_state,
+            batch_terminal,
+            memory_weights,
+            indices,
+        )
 
 
 # pylint: disable=too-many-locals, too-many-statements, too-many-arguments
@@ -294,7 +336,10 @@ def perform_value_network_learning_step(
     code_size,
     batch_size,
     discount_factor,
+    combined_mask,
+    coordinate_shifts,
     policy_model_max_grad_norm=100,
+    reevaluate_all=False,
 ):
     """
     Perform the actual stochastic gradient descent step.
@@ -324,9 +369,13 @@ def perform_value_network_learning_step(
         batch_reward,
         batch_next_state,
         batch_terminal,
+        batch_optimal_actions,
+        batch_optimal_reward,
+        batch_optimal_next_state,
+        batch_optimal_terminal,
         weights,
         indices,
-    ) = data_to_batch(input_data, device, batch_size)
+    ) = data_to_batch(input_data, device, batch_size, rl_type="v")
 
     # pylint: disable=not-callable
     batch_action_indices = torch.tensor(
@@ -347,19 +396,51 @@ def perform_value_network_learning_step(
 
     # compute target network output
     with torch.no_grad():
-        target_output = target_network(batch_next_state)
-        target_output = target_output.squeeze()
-        # target_output = target_output.max(1)[0].detach()
+        # TODO: Do we need to run through all possible successor states here again?
+        if reevaluate_all:
+            print("Reevaluate all successor states")
+            target_output = torch.empty_like(policy_output, device=device)
+            stack_depth = batch_state.shape[1]
+
+            for i, state in enumerate(batch_state):
+                possible_actions = determine_possible_actions(
+                    state, code_size, coordinate_shifts=coordinate_shifts, device=device
+                )
+                l_actions = len(possible_actions) + 1
+
+                successor_states = get_successor_states(
+                    state,
+                    possible_actions,
+                    l_actions,
+                    code_size,
+                    stack_depth,
+                    combined_mask,
+                    LOCAL_DELTAS,
+                    device,
+                )
+
+                successor_values = target_network(successor_states)
+                optimal_value_idx = torch.argmax(successor_values)
+                # optimal_next_state = successor_states[optimal_value_idx]
+                optimal_value = successor_values[optimal_value_idx]
+                target_output[i] = optimal_value
+
+            target_output = target_output.squeeze()
+
+        else:
+            # TODO: next state should still be the optimal chosen action at the
+            # time when the transition tuple was created in the actor process
+            target_output = target_network(batch_optimal_next_state)
+            target_output = target_output.squeeze()
+            # target_output = target_output.max(1)[0].detach()
 
     # compute loss and update replay memory
     expected_q_values = (
-        target_output * (~batch_terminal).type(torch.float32) * discount_factor
+        target_output * (~batch_optimal_terminal).type(torch.float32) * discount_factor
     )
-
-    target_q_values = expected_q_values + batch_reward
+    target_q_values = expected_q_values + batch_optimal_reward
     target_q_values = target_q_values.view(-1, 1)
     target_q_values = target_q_values.clamp(-200, 200)
-
     loss = criterion(target_q_values, policy_output)
 
     optimizer.zero_grad()

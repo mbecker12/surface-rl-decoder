@@ -1,0 +1,31 @@
+{
+    "conv2d": {
+        "use_lstm": 0,
+        "use_rnn": 1,
+        "use_transformer": 0,
+        "use_all_rnn_layers": 0,
+        "use_batch_norm": 0,
+        "split_input_toggle": 0,
+        "input_channels": 1,
+        "kernel_size": 3,
+        "padding_size": 1,
+        "channel_list": [16, 32, 64, 16],
+        "lstm_num_layers": 2,
+        "lstm_num_directions": 1,
+        "lstm_output_size": 256,
+        "gtrxl_heads": 4,
+        "gtrxl_layers": 1,
+        "gtrxl_hidden_dims": 512,
+        "gtrxl_rnn_layers": 1,
+        "neuron_list": [512, 128]
+    },
+    "conv3d": {
+        "split_input_toggle": 0,
+        "input_channels": 1,
+        "kernel_size": 3,
+        "kernel_depth": 3,
+        "padding_size": 1,
+        "channel_list": [32, 64, 32, 16, 8],
+        "neuron_list": [512, 256]
+    }
+}

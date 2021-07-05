@@ -8,6 +8,7 @@ from time import time
 import traceback
 from typing import Dict
 import logging
+import torch
 import yaml
 import numpy as np
 from torch.optim import Adam
@@ -28,10 +29,11 @@ from distributed.model_util import (
     load_model,
     save_model,
 )
-from distributed.util import time_tb
+from distributed.util import COORDINATE_SHIFTS, format_torch, time_tb
+from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
 
-# pylint: disable=too-many-locals, too-many-statements, too-many-branches
+# pylint: disable=too-many-locals, too-many-statements, too-many-branches, too-many-nested-blocks
 def learner(args: Dict):
     """
     Start the learner process. Here, the key learning is performed:
@@ -101,6 +103,7 @@ def learner(args: Dict):
     p_msmt_list = args["learner_eval_p_msmt"]
     learner_epsilon = args["learner_epsilon"]
     count_to_eval = 0
+    reevaluate_all = args["reevaluate_all"]
 
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("learner")
@@ -207,6 +210,13 @@ def learner(args: Dict):
     t = 0  # no worries, t gets incremented at the end of the while loop
     performance_start = time()
     eval_step = 0
+
+    if rl_type == "v":
+        vertex_mask = get_vertex_mask(code_size)
+        plaquette_mask = get_plaquette_mask(code_size)
+        combined_mask = np.logical_or(vertex_mask, plaquette_mask, dtype=np.int8)
+        combined_mask = format_torch(combined_mask, device=device, dtype=torch.int8)
+
     while t < timesteps:
         current_time = time()
         current_time_tb = time_tb()
@@ -283,6 +293,9 @@ def learner(args: Dict):
                         code_size,
                         batch_size,
                         discount_factor,
+                        combined_mask,
+                        COORDINATE_SHIFTS,
+                        reevaluate_all=reevaluate_all,
                     )
 
                 if benchmarking and t % eval_frequency == 0:
