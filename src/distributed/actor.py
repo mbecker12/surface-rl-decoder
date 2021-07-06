@@ -549,7 +549,6 @@ def actor(args):
         if np.any(terminals) or np.any(too_many_steps):
             # find terminal envs
             indices = np.argwhere(np.logical_or(terminals, too_many_steps)).flatten()
-            print(f"{current_p_error=}, {current_p_msmt=}")
             p_error_list = np.repeat(current_p_error, num_environments)
             p_msmt_list = np.repeat(current_p_msmt, num_environments)
 
