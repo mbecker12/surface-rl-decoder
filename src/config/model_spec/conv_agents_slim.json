@@ -4,7 +4,7 @@
         "use_rnn": 0,
         "use_transformer": 0,
         "use_all_rnn_layers": 0,
-        "use_batch_norm": 0,
+        "use_batch_norm": 1,
         "split_input_toggle": 0,
         "input_channels": 1,
         "kernel_size": 3,
@@ -17,7 +17,7 @@
         "gtrxl_layers": 1,
         "gtrxl_hidden_dims": 512,
         "gtrxl_rnn_layers": 1,
-        "neuron_list": [512, 128]
+        "neuron_list": [512, 256]
     },
     "conv3d": {
         "split_input_toggle": 0,

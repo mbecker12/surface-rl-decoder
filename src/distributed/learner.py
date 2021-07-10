@@ -29,7 +29,7 @@ from distributed.model_util import (
     load_model,
     save_model,
 )
-from distributed.util import COORDINATE_SHIFTS, format_torch, time_tb
+from distributed.util import COORDINATE_SHIFTS, anneal_factor, format_torch, time_tb
 from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
 
@@ -97,6 +97,8 @@ def learner(args: Dict):
     stack_depth = args["stack_depth"]
     target_update_steps = args["target_update_steps"]
     discount_factor = args["discount_factor"]
+    discount_factor_anneal = args["discount_factor_anneal"]
+    discount_factor_start = args["discount_factor_start"]
     batch_size = args["batch_size"]
     eval_frequency = args["eval_frequency"]
     p_error_list = args["learner_eval_p_error"]
@@ -222,6 +224,14 @@ def learner(args: Dict):
         current_time_tb = time_tb()
         delta_t = current_time - performance_start
 
+        current_discount_factor = anneal_factor(
+            delta_t,
+            decay_factor=discount_factor_anneal,
+            min_value=discount_factor_start,
+            max_value=discount_factor,
+            base_factor=discount_factor_start
+        )
+
         if time() - start_time > max_time:
             logger.warning("Learner: time exceeded, aborting...")
             break
@@ -266,6 +276,13 @@ def learner(args: Dict):
                 )
                 tensorboard_step += 1
 
+                tensorboard.add_scalar(
+                    "learner/discount_factor",
+                    current_discount_factor,
+                    delta_t,
+                    walltime=current_time_tb
+                )
+
             # perform the actual learning
             try:
                 learning_step_start = time()
@@ -280,7 +297,7 @@ def learner(args: Dict):
                         data,
                         code_size,
                         batch_size,
-                        discount_factor,
+                        current_discount_factor,
                     )
                 elif rl_type == "v":
                     indices, priorities = perform_value_network_learning_step(
@@ -292,7 +309,7 @@ def learner(args: Dict):
                         data,
                         code_size,
                         batch_size,
-                        discount_factor,
+                        current_discount_factor,
                         combined_mask,
                         COORDINATE_SHIFTS,
                         reevaluate_all=reevaluate_all,

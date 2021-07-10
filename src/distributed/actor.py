@@ -28,6 +28,7 @@ from distributed.util import (
     select_actions_value_network,
     time_tb,
 )
+from surface_rl_decoder.surface_code_util import SOLVED_EPISODE_REWARD
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
@@ -111,6 +112,8 @@ def actor(args):
     load_model_flag = args["load_model"]
     old_model_path = args["old_model_path"]
     discount_factor = args["discount_factor"]
+    discount_factor_anneal = args["discount_factor_anneal"]
+    discount_factor_start = args["discount_factor_start"]
     rl_type = args["rl_type"]
     p_error = args["p_error"]
     p_msmt = args["p_msmt"]
@@ -309,6 +312,14 @@ def actor(args):
             base_factor=p_msmt_start,
         )
 
+        current_discount_factor = anneal_factor(
+            delta_t,
+            decay_factor=discount_factor_anneal,
+            min_value=discount_factor_start,
+            max_value=discount_factor,
+            base_factor=discount_factor_start
+        )
+
         if rl_type == "q":
             actions, q_values = select_actions(
                 _states, model, state_size - 1, epsilon=annealed_epsilon
@@ -344,22 +355,13 @@ def actor(args):
 
         if verbosity >= 2:
             tensorboard.add_scalars(
-                "actor/epsilon",
-                {"annealed_epsilon": annealed_epsilon},
-                delta_t,
-                walltime=current_time_tb,
-            )
-
-            tensorboard.add_scalars(
-                "actor/p_error",
-                {"annealed_p_error": current_p_error},
-                delta_t,
-                walltime=current_time_tb,
-            )
-
-            tensorboard.add_scalars(
-                "actor/p_msmt",
-                {"annealed_p_msmt": current_p_msmt},
+                "actor/parameters",
+                {
+                    "annealed_epsilon": annealed_epsilon, 
+                    "annealed_p_error": current_p_error, 
+                    "annealed_p_msmt": current_p_msmt,
+                    "annealed_discount_factor": current_discount_factor
+                },
                 delta_t,
                 walltime=current_time_tb,
             )
@@ -405,6 +407,9 @@ def actor(args):
                 syndrome_errors,
                 actual_errors,
                 action_histories,
+                discount_intermediate_reward=discount_intermediate_reward,
+                annealing_intermediate_reward=annealing_intermediate_reward,
+                punish_repeating_actions=0,
             )
 
         next_states, rewards, terminals, _ = environments.step(
@@ -487,7 +492,6 @@ def actor(args):
                     (num_environments, -1)
                 )
 
-            # TODO: one of those lines seems redundant
             new_local_qvalues = np.roll(local_buffer_qvalues, -1, axis=1)
 
             if rl_type == "v":
@@ -502,7 +506,7 @@ def actor(args):
                 local_buffer_rewards[:, :-1],
                 local_buffer_qvalues[:, :-1],
                 new_local_qvalues[:, :-1],
-                discount_factor,
+                current_discount_factor,
                 code_size,
                 rl_type=rl_type,
             )

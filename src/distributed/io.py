@@ -180,7 +180,7 @@ def io_replay_memory(args):
                         verbosity,
                         tensorboard_step,
                         current_time_tb,
-                        TERMINAL_ACTION,
+                        TERMINAL_ACTION
                     )
                     tensorboard_step += 1
 

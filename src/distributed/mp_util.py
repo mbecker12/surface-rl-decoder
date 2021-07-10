@@ -90,6 +90,8 @@ def configure_processes(rl_type="q_learning"):
     batch_size = int(learner_config["batch_size"])
     target_update_steps = int(learner_config["target_update_steps"])
     discount_factor = float(learner_config["discount_factor"])
+    discount_factor_anneal = float(learner_config["discount_factor_annealing"])
+    discount_factor_start = float(learner_config["discount_factor_start"])
     eval_frequency = int(learner_config["eval_frequency"])
     max_timesteps = int(learner_config["max_timesteps"])
     learner_epsilon = float(learner_config["learner_epsilon"])
@@ -179,6 +181,8 @@ def configure_processes(rl_type="q_learning"):
         "load_model": actor_load_model,
         "old_model_path": old_model_path,
         "discount_factor": discount_factor,
+        "discount_factor_anneal": discount_factor_anneal,
+        "discount_factor_start": discount_factor_start,
         "discount_intermediate_reward": discount_intermediate_reward,
         "min_value_factor_intermediate_reward": min_value_factor_intermediate_reward,
         "decay_factor_intermediate_reward": decay_factor_intermediate_reward,
@@ -204,6 +208,8 @@ def configure_processes(rl_type="q_learning"):
         "device": learner_device,
         "target_update_steps": target_update_steps,
         "discount_factor": discount_factor,
+        "discount_factor_anneal": discount_factor_anneal,
+        "discount_factor_start": discount_factor_start,
         "batch_size": batch_size,
         "eval_frequency": eval_frequency,
         "learner_eval_p_error": learner_eval_p_errors,

@@ -12,6 +12,7 @@ from distributed.util import (
     LOCAL_DELTAS,
     action_to_q_value_index,
     determine_possible_actions,
+    format_torch,
     get_successor_states,
 )
 
@@ -338,7 +339,7 @@ def perform_value_network_learning_step(
     discount_factor,
     combined_mask,
     coordinate_shifts,
-    policy_model_max_grad_norm=100,
+    policy_model_max_grad_norm=10,
     reevaluate_all=False,
 ):
     """
@@ -398,7 +399,7 @@ def perform_value_network_learning_step(
     with torch.no_grad():
         # TODO: Do we need to run through all possible successor states here again?
         if reevaluate_all:
-            print("Reevaluate all successor states")
+            # print("Reevaluate all successor states")
             target_output = torch.empty_like(policy_output, device=device)
             stack_depth = batch_state.shape[1]
 
@@ -440,7 +441,7 @@ def perform_value_network_learning_step(
     )
     target_q_values = expected_q_values + batch_optimal_reward
     target_q_values = target_q_values.view(-1, 1)
-    target_q_values = target_q_values.clamp(-200, 200)
+    target_q_values = target_q_values.clamp(-120, 120)
     loss = criterion(target_q_values, policy_output)
 
     optimizer.zero_grad()

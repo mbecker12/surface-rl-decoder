@@ -158,15 +158,19 @@ def handle_transition_monitoring(
     verbosity,
     tensorboard_step,
     current_time_tb,
-    terminal_action,
+    terminal_action
 ):
     """
     Output information about a transition set, made up of
     (state, action, reward, next_state, is_terminal)
     """
+    reward_dict = {"reward": transition[2]}
+    if len(transition) >= 7:
+        reward_dict["optimal_reward"] = transition[6]
+
     tensorboard.add_scalars(
         "transition/reward",
-        {"reward": transition[2]},
+        reward_dict,
         tensorboard_step,
         walltime=current_time_tb,
     )

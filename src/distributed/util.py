@@ -513,7 +513,7 @@ def select_actions_value_network(
 
             if action_idx == l_actions - 1:
                 selected_action = torch.tensor(
-                    [[0, 0, TERMINAL_ACTION]], dtype=torch.int8, device=device
+                    [[0, 0, TERMINAL_ACTION]], dtype=possible_actions.dtype, device=device
                 )
             else:
                 selected_action = possible_actions[action_idx]
@@ -536,6 +536,11 @@ def select_actions_value_network(
 
     optimal_actions = np.stack(batch_optimal_actions)
     optimal_values = np.stack(batch_optimal_values)
+
+    # if np.any(selected_actions[:, -1] == TERMINAL_ACTION):
+    #     print("selected terminal")
+    # if np.any(optimal_actions[:, -1] == TERMINAL_ACTION):
+    #     print("optimal terminal")
 
     return selected_actions, selected_values, optimal_actions, optimal_values
 
@@ -576,6 +581,11 @@ def create_possible_operators(
     stacked_combined_mask = torch.tile(
         combined_mask[None, None, :, :], (max_l, stack_depth, 1, 1)
     )
+
+    # TODO: assure that a length of 1 corresponds to only the terminal action
+    if len(possible_action_list) == 1:
+        operators = torch.zeros((1, stack_depth, state_size, state_size))
+        return operators
 
     # collect local syndrome delta matrices
     operators = torch.stack(
@@ -648,8 +658,10 @@ def determine_possible_actions(
     syndrome_coordinates = syndrome_coordinates[:, 1:]
     syndrome_coordinates = torch.unique(syndrome_coordinates, dim=0)
 
+    # TODO: what shall we do with the empty state?
     if len(syndrome_coordinates) == 0:
-        syndrome_coordinates = torch.randint(0, code_size, size=(2, 2))
+        return torch.tensor([[0, 0, TERMINAL_ACTION]])
+        syndrome_coordinates = torch.randint(0, code_size, size=(1, 2))
 
     syndrome_coordinates = syndrome_coordinates.to(device)
 
