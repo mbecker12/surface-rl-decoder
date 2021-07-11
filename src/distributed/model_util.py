@@ -19,6 +19,7 @@ from agents.conv_2d_agent import Conv2dAgent
 from agents.conv_2d_agent_ppo import Conv2dAgentPPO
 from agents.conv_2d_agent_vnet import Conv2dAgentValueNet
 from agents.conv_3d_agent import Conv3dAgent
+from agents.conv_3d_agent_vnet import Conv3dAgentValueNet
 from agents.old_conv_3d_agent import Conv3dAgent as OldConv3dAgent
 from agents.old_conv_2d_agent import SimpleConv2D as OldConv2dAgent
 from agents.dummy_agent import DummyModel
@@ -106,7 +107,10 @@ def choose_model(
             else:
                 raise Exception(f"Error! RL type {rl_type} is not supported.")
     elif "conv3d" in model_name.lower():
-        model = Conv3dAgent(model_config)
+        if rl_type == "v":
+            model = Conv3dAgentValueNet(model_config)
+        else:
+            model = Conv3dAgent(model_config)
     else:
         raise Exception(f"Error! Model '{model_name}' not supported or not recognized.")
 
