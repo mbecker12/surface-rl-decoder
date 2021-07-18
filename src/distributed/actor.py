@@ -22,10 +22,13 @@ from distributed.util import (
     anneal_factor,
     compute_priorities,
     format_torch,
+    independent_step,
+    multiple_independent_steps,
     select_actions,
     select_actions_value_network,
     time_tb,
 )
+from surface_rl_decoder.surface_code_util import SOLVED_EPISODE_REWARD
 from surface_rl_decoder.surface_code import SurfaceCode
 from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
@@ -33,6 +36,20 @@ from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mas
 
 Transition = namedtuple(
     "Transition", ["state", "action", "reward", "next_state", "terminal"]
+)
+VTransition = namedtuple(
+    "VTransition",
+    [
+        "state",
+        "action",
+        "reward",
+        "next_state",
+        "terminal",
+        "optimal_action",
+        "optimal_reward",
+        "optimal_next_state",
+        "optimal_terminal",
+    ],
 )
 
 
@@ -95,7 +112,15 @@ def actor(args):
     load_model_flag = args["load_model"]
     old_model_path = args["old_model_path"]
     discount_factor = args["discount_factor"]
+    discount_factor_anneal = args["discount_factor_anneal"]
+    discount_factor_start = args["discount_factor_start"]
     rl_type = args["rl_type"]
+    p_error = args["p_error"]
+    p_msmt = args["p_msmt"]
+    p_error_start = args["p_error_start"]
+    p_msmt_start = args["p_msmt_start"]
+    p_error_anneal = args["p_error_anneal"]
+    p_msmt_anneal = args["p_msmt_anneal"]
     discount_intermediate_reward = float(args.get("discount_intermediate_reward", 0.75))
     min_value_factor_intermediate_reward = float(
         args.get("min_value_intermediate_reward", 0.0)
@@ -128,19 +153,40 @@ def actor(args):
 
     # create a collection of independent environments
     environments = EnvironmentSet(env, num_environments)
-
-    transition_type = np.dtype(
-        [
-            ("state", (np.uint8, (stack_depth, state_size, state_size))),
-            ("action", (np.uint8, 3)),
-            ("reward", float),
-            ("next_state", (np.uint8, (stack_depth, state_size, state_size))),
-            ("terminal", bool),
-        ]
-    )
+    if rl_type == "v":
+        transition_type = np.dtype(
+            [
+                ("state", (np.uint8, (stack_depth, state_size, state_size))),
+                ("action", (np.uint8, 3)),
+                ("reward", float),
+                ("next_state", (np.uint8, (stack_depth, state_size, state_size))),
+                ("terminal", bool),
+                ("optimal_action", (np.uint8, 3)),
+                ("optimal_reward", float),
+                (
+                    "optimal_next_state",
+                    (np.uint8, (stack_depth, state_size, state_size)),
+                ),
+                ("optimal_terminal", bool),
+            ]
+        )
+    else:
+        transition_type = np.dtype(
+            [
+                ("state", (np.uint8, (stack_depth, state_size, state_size))),
+                ("action", (np.uint8, 3)),
+                ("reward", float),
+                ("next_state", (np.uint8, (stack_depth, state_size, state_size))),
+                ("terminal", bool),
+            ]
+        )
 
     # initialize all states
-    states = environments.reset_all()
+    p_error_start_list = np.repeat(p_error_start, num_environments)
+    p_msmt_start_list = np.repeat(p_msmt_start, num_environments)
+    states = environments.reset_all(
+        p_error=p_error_start_list, p_msmt=p_msmt_start_list
+    )
     steps_per_episode = np.zeros(num_environments)
 
     # initialize local memory buffers
@@ -250,6 +296,30 @@ def actor(args):
             base_factor=epsilon,
         )
 
+        current_p_error = anneal_factor(
+            delta_t,
+            decay_factor=p_error_anneal,
+            min_value=p_error_start,
+            max_value=p_error,
+            base_factor=p_error_start,
+        )
+
+        current_p_msmt = anneal_factor(
+            delta_t,
+            decay_factor=p_msmt_anneal,
+            min_value=p_msmt_start,
+            max_value=p_msmt,
+            base_factor=p_msmt_start,
+        )
+
+        current_discount_factor = anneal_factor(
+            delta_t,
+            decay_factor=discount_factor_anneal,
+            min_value=discount_factor_start,
+            max_value=discount_factor,
+            base_factor=discount_factor_start,
+        )
+
         if rl_type == "q":
             actions, q_values = select_actions(
                 _states, model, state_size - 1, epsilon=annealed_epsilon
@@ -257,7 +327,12 @@ def actor(args):
         elif rl_type == "v":
             # call values here the same as q values, although they are actually
             # plain values
-            actions, q_values = select_actions_value_network(
+            (
+                actions,
+                q_values,
+                optimal_actions,
+                optimal_q_values,
+            ) = select_actions_value_network(
                 _states,
                 model,
                 code_size,
@@ -270,6 +345,7 @@ def actor(args):
             )
 
             q_values = np.squeeze(q_values)
+            optimal_q_values = np.squeeze(optimal_q_values)
 
         if benchmarking and steps_to_benchmark % benchmark_frequency == 0:
             select_action_stop = time()
@@ -279,8 +355,13 @@ def actor(args):
 
         if verbosity >= 2:
             tensorboard.add_scalars(
-                "actor/epsilon",
-                {"annealed_epsilon": annealed_epsilon},
+                "actor/parameters",
+                {
+                    "annealed_epsilon": annealed_epsilon,
+                    "annealed_p_error": current_p_error,
+                    "annealed_p_msmt": current_p_msmt,
+                    "annealed_discount_factor": current_discount_factor,
+                },
                 delta_t,
                 walltime=current_time_tb,
             )
@@ -293,6 +374,44 @@ def actor(args):
             decay_factor=decay_factor_intermediate_reward,
             min_value=min_value_factor_intermediate_reward,
         )
+
+        if rl_type == "v":
+            qubits = [
+                deepcopy(environments.environments[i].qubits)
+                for i in range(num_environments)
+            ]
+            syndrome_errors = [
+                deepcopy(environments.environments[i].syndrome_errors)
+                for i in range(num_environments)
+            ]
+            actual_errors = [
+                deepcopy(environments.environments[i].actual_errors)
+                for i in range(num_environments)
+            ]
+            action_histories = [
+                deepcopy(environments.environments[i].actions)
+                for i in range(num_environments)
+            ]
+
+            (
+                optimal_next_states,
+                optimal_rewards,
+                optimal_terminals,
+                _,
+            ) = multiple_independent_steps(
+                states,
+                qubits,
+                optimal_actions,
+                vertex_mask,
+                plaquette_mask,
+                syndrome_errors,
+                actual_errors,
+                action_histories,
+                discount_intermediate_reward=discount_intermediate_reward,
+                annealing_intermediate_reward=annealing_intermediate_reward,
+                punish_repeating_actions=0,
+            )
+
         next_states, rewards, terminals, _ = environments.step(
             actions,
             discount_intermediate_reward=discount_intermediate_reward,
@@ -316,15 +435,34 @@ def actor(args):
             )
 
         # save transitions to local buffer
-        transitions = np.asarray(
-            [
-                Transition(
-                    states[i], actions[i], rewards[i], next_states[i], terminals[i]
-                )
-                for i in range(num_environments)
-            ],
-            dtype=transition_type,
-        )
+        if rl_type == "v":
+            transitions = np.asarray(
+                [
+                    VTransition(
+                        states[i],
+                        actions[i],
+                        rewards[i],
+                        next_states[i],
+                        terminals[i],
+                        optimal_actions[i],
+                        optimal_rewards[i],
+                        optimal_next_states[i],
+                        optimal_terminals[i],
+                    )
+                    for i in range(num_environments)
+                ],
+                dtype=transition_type,
+            )
+        else:
+            transitions = np.asarray(
+                [
+                    Transition(
+                        states[i], actions[i], rewards[i], next_states[i], terminals[i]
+                    )
+                    for i in range(num_environments)
+                ],
+                dtype=transition_type,
+            )
 
         local_buffer_transitions[:, buffer_idx] = transitions
         local_buffer_actions[:, buffer_idx] = actions
@@ -368,7 +506,7 @@ def actor(args):
                 local_buffer_rewards[:, :-1],
                 local_buffer_qvalues[:, :-1],
                 new_local_qvalues[:, :-1],
-                discount_factor,
+                current_discount_factor,
                 code_size,
                 rl_type=rl_type,
             )
@@ -383,6 +521,7 @@ def actor(args):
                 *zip(local_buffer_transitions[:, :-1].flatten(), priorities.flatten())
             ]
 
+            # TODO: this was purely for debugging. Can remove
             for elements in to_send:
                 for anything in elements:
                     # pylint: disable=bare-except
@@ -414,8 +553,12 @@ def actor(args):
         if np.any(terminals) or np.any(too_many_steps):
             # find terminal envs
             indices = np.argwhere(np.logical_or(terminals, too_many_steps)).flatten()
+            p_error_list = np.repeat(current_p_error, num_environments)
+            p_msmt_list = np.repeat(current_p_msmt, num_environments)
 
-            reset_states = environments.reset_terminal_environments(indices=indices)
+            reset_states = environments.reset_terminal_environments(
+                indices=indices, p_error=p_error_list, p_msmt=p_msmt_list
+            )
             next_states[indices] = reset_states[indices]
             steps_per_episode[indices] = 0
 

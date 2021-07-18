@@ -8,6 +8,7 @@ from time import time
 import traceback
 from typing import Dict
 import logging
+import torch
 import yaml
 import numpy as np
 from torch.optim import Adam
@@ -28,10 +29,11 @@ from distributed.model_util import (
     load_model,
     save_model,
 )
-from distributed.util import time_tb
+from distributed.util import COORDINATE_SHIFTS, anneal_factor, format_torch, time_tb
+from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
 
-# pylint: disable=too-many-locals, too-many-statements, too-many-branches
+# pylint: disable=too-many-locals, too-many-statements, too-many-branches, too-many-nested-blocks
 def learner(args: Dict):
     """
     Start the learner process. Here, the key learning is performed:
@@ -95,12 +97,15 @@ def learner(args: Dict):
     stack_depth = args["stack_depth"]
     target_update_steps = args["target_update_steps"]
     discount_factor = args["discount_factor"]
+    discount_factor_anneal = args["discount_factor_anneal"]
+    discount_factor_start = args["discount_factor_start"]
     batch_size = args["batch_size"]
     eval_frequency = args["eval_frequency"]
     p_error_list = args["learner_eval_p_error"]
     p_msmt_list = args["learner_eval_p_msmt"]
     learner_epsilon = args["learner_epsilon"]
     count_to_eval = 0
+    reevaluate_all = args["reevaluate_all"]
 
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("learner")
@@ -207,10 +212,25 @@ def learner(args: Dict):
     t = 0  # no worries, t gets incremented at the end of the while loop
     performance_start = time()
     eval_step = 0
+
+    if rl_type == "v":
+        vertex_mask = get_vertex_mask(code_size)
+        plaquette_mask = get_plaquette_mask(code_size)
+        combined_mask = np.logical_or(vertex_mask, plaquette_mask, dtype=np.int8)
+        combined_mask = format_torch(combined_mask, device=device, dtype=torch.int8)
+
     while t < timesteps:
         current_time = time()
         current_time_tb = time_tb()
         delta_t = current_time - performance_start
+
+        current_discount_factor = anneal_factor(
+            delta_t,
+            decay_factor=discount_factor_anneal,
+            min_value=discount_factor_start,
+            max_value=discount_factor,
+            base_factor=discount_factor_start,
+        )
 
         if time() - start_time > max_time:
             logger.warning("Learner: time exceeded, aborting...")
@@ -256,6 +276,13 @@ def learner(args: Dict):
                 )
                 tensorboard_step += 1
 
+                tensorboard.add_scalar(
+                    "learner/discount_factor",
+                    current_discount_factor,
+                    delta_t,
+                    walltime=current_time_tb,
+                )
+
             # perform the actual learning
             try:
                 learning_step_start = time()
@@ -270,7 +297,7 @@ def learner(args: Dict):
                         data,
                         code_size,
                         batch_size,
-                        discount_factor,
+                        current_discount_factor,
                     )
                 elif rl_type == "v":
                     indices, priorities = perform_value_network_learning_step(
@@ -282,7 +309,10 @@ def learner(args: Dict):
                         data,
                         code_size,
                         batch_size,
-                        discount_factor,
+                        current_discount_factor,
+                        combined_mask,
+                        COORDINATE_SHIFTS,
+                        reevaluate_all=reevaluate_all,
                     )
 
                 if benchmarking and t % eval_frequency == 0:

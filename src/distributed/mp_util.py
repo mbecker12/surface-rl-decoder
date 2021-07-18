@@ -19,10 +19,6 @@ def configure_processes(rl_type="q_learning"):
     cfg.scan(".", True).read()
     global_config = cfg.config_rendered.get("config")
 
-    logger.info(
-        "\nQEC Config: \n\n" f"{yaml.dump(global_config, default_flow_style=False)}"
-    )
-
     actor_config = global_config.get("actor")
     memory_config = global_config.get("replay_memory")
     learner_config = global_config.get("learner")
@@ -36,6 +32,10 @@ def configure_processes(rl_type="q_learning"):
     env_config = global_config.get("env")
     p_error = float(env_config.get("p_error", 0.01))
     p_msmt = float(env_config.get("p_msmt", 0.01))
+    p_error_start = float(env_config.get("p_error_start", 0.001))
+    p_msmt_start = float(env_config.get("p_msmt_start", 0.001))
+    p_error_anneal = float(env_config.get("p_error_anneal", 1.0001))
+    p_msmt_anneal = float(env_config.get("p_msmt_anneal", p_error_anneal))
     size_action_history = int(env_config.get("max_actions", "256"))
     code_size = int(env_config["size"])
     syndrome_size = code_size + 1
@@ -86,6 +86,8 @@ def configure_processes(rl_type="q_learning"):
     batch_size = int(learner_config["batch_size"])
     target_update_steps = int(learner_config["target_update_steps"])
     discount_factor = float(learner_config["discount_factor"])
+    discount_factor_anneal = float(learner_config["discount_factor_annealing"])
+    discount_factor_start = float(learner_config["discount_factor_start"])
     eval_frequency = int(learner_config["eval_frequency"])
     max_timesteps = int(learner_config["max_timesteps"])
     learner_epsilon = float(learner_config["learner_epsilon"])
@@ -97,6 +99,7 @@ def configure_processes(rl_type="q_learning"):
     base_model_config_path = learner_config["base_model_config_path"]
     base_model_path = learner_config["base_model_path"]
     use_transfer_learning = int(learner_config["transfer_learning"])
+    reevaluate_all = int(learner_config.get("reevaluate_all", "0"))
 
     # initialize communication queues
     logger.info("Initialize queues")
@@ -132,7 +135,9 @@ def configure_processes(rl_type="q_learning"):
 
     # select the specification of the right model from the json
     model_config = model_config[model_name]
+
     model_config = add_model_size(model_config, model_config_file)
+    model_config["rl_type"] = rl_type
 
     print(model_config)
     # configure processes
@@ -154,6 +159,12 @@ def configure_processes(rl_type="q_learning"):
     }
 
     actor_args = {
+        "p_error": p_error,
+        "p_msmt": p_msmt,
+        "p_error_start": p_error_start,
+        "p_msmt_start": p_msmt_start,
+        "p_error_anneal": p_error_anneal,
+        "p_msmt_anneal": p_msmt_anneal,
         "num_environments": num_environments,
         "size_action_history": size_action_history,
         "size_local_memory_buffer": size_local_memory_buffer,
@@ -168,6 +179,8 @@ def configure_processes(rl_type="q_learning"):
         "load_model": actor_load_model,
         "old_model_path": old_model_path,
         "discount_factor": discount_factor,
+        "discount_factor_anneal": discount_factor_anneal,
+        "discount_factor_start": discount_factor_start,
         "discount_intermediate_reward": discount_intermediate_reward,
         "min_value_factor_intermediate_reward": min_value_factor_intermediate_reward,
         "decay_factor_intermediate_reward": decay_factor_intermediate_reward,
@@ -193,6 +206,8 @@ def configure_processes(rl_type="q_learning"):
         "device": learner_device,
         "target_update_steps": target_update_steps,
         "discount_factor": discount_factor,
+        "discount_factor_anneal": discount_factor_anneal,
+        "discount_factor_start": discount_factor_start,
         "batch_size": batch_size,
         "eval_frequency": eval_frequency,
         "learner_eval_p_error": learner_eval_p_errors,
@@ -208,11 +223,16 @@ def configure_processes(rl_type="q_learning"):
         "base_model_path": base_model_path,
         "use_transfer_learning": use_transfer_learning,
         "rl_type": rl_type,
+        "reevaluate_all": reevaluate_all,
     }
 
     env_args = {
         "p_error": p_error,
         "p_msmt": p_msmt,
+        "p_error_start": p_error_start,
+        "p_msmt_start": p_msmt_start,
+        "p_error_anneal": p_error_anneal,
+        "p_msmt_anneal": p_msmt_anneal,
         "size_action_history": size_action_history,
         "code_size": code_size,
         "syndrome_size": syndrome_size,
@@ -275,6 +295,13 @@ def configure_processes(rl_type="q_learning"):
         learner_args["learner_io_queue"] = learner_io_queue
         learner_args["io_learner_queue"] = io_learner_queue
         learner_args["learner_actor_queues"] = learner_actor_queues
+
+    global_config["evaluation"] = {}
+    global_config["evaluation"]["learner_eval_p_errors"] = learner_eval_p_errors
+    global_config["evaluation"]["learner_eval_p_msmt"] = learner_eval_p_msmt
+    logger.info(
+        "\nQEC Config: \n\n" f"{yaml.dump(global_config, default_flow_style=False)}"
+    )
 
     return actor_args, mem_args, learner_args, env_args, global_config, queues
 
