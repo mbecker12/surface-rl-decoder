@@ -16,8 +16,12 @@ import yaml
 import json
 from agents.base_agent import BaseAgent
 from agents.conv_2d_agent import Conv2dAgent
+from agents.conv_2d_agent_fully_conv import Conv2dAgentFullyConv
 from agents.conv_2d_agent_ppo import Conv2dAgentPPO
+from agents.conv_2d_agent_subsample import Conv2dAgentSubsample
 from agents.conv_2d_agent_vnet import Conv2dAgentValueNet
+from agents.conv_2d_agent_vnet_deep import Conv2dAgentValueNetDeep
+from agents.conv_2d_agent_vnet_subsample import Conv2dAgentValueNetSubsample
 from agents.conv_3d_agent import Conv3dAgent
 from agents.conv_3d_agent_vnet import Conv3dAgentValueNet
 from agents.old_conv_3d_agent import Conv3dAgent as OldConv3dAgent
@@ -66,7 +70,7 @@ def choose_model(
     print(f"{model_config=}")
     if "dummy" in model_name:
         model = DummyModel(model_config)
-    elif model_name.lower() == "conv2d":
+    elif "conv2d" in model_name.lower():
 
         if transfer_learning:
             if rl_type == "q":
@@ -94,10 +98,24 @@ def choose_model(
             )
         else:
             if rl_type == "q":
-                model = Conv2dAgent(model_config)
+                if "subsample" in model_name.lower():
+                    model = Conv2dAgentSubsample(model_config)
+                    logger.debug("Subsample model for Q learning")
+                elif "full" in model_name.lower():
+                    model = Conv2dAgentFullyConv(model_config)
+                    logger.debug("Fully-convolutional model for Q learning")
+                else:
+                    model = Conv2dAgent(model_config)
                 logger.debug("Prepare Q Learning Conv2dAgent w/o transfer learning")
             elif rl_type == "v":
-                model = Conv2dAgentValueNet(model_config)
+                if "deep" in model_name.lower():
+                    model = Conv2dAgentValueNetDeep(model_config)
+                    logger.info("Chose deep 2D Conv network.")
+                elif "subsample" in model_name.lower():
+                    model = Conv2dAgentValueNetSubsample(model_config)
+                    logger.info("Chose subsampling 2D Conv network.")
+                else:
+                    model = Conv2dAgentValueNet(model_config)
                 logger.debug(
                     "Prepare Value Network Learning Conv2dAgent w/o transfer learning"
                 )

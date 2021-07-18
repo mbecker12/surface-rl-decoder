@@ -11,9 +11,10 @@ import logging
 logger = logging.getLogger(name="MODEL")
 
 
-class Conv2dAgentValueNet(BaseAgent):
+class Conv2dAgentValueNetSubsample(BaseAgent):
     def __init__(self, config):
         super().__init__()
+        # logger.info("Conv2dAgentValueNetSubsample")
         self.device = config.get("device")
         assert self.device is not None
         self.size = int(config.get("code_size"))
@@ -27,7 +28,7 @@ class Conv2dAgentValueNet(BaseAgent):
         self.stack_depth = int(config.get("stack_depth"))
         self.split_input_toggle = int(config.get("split_input_toggle", 1))
 
-        self.input_channels = int(config.get("input_channels"))
+        # self.input_channels = int(config.get("input_channels"))
         self.input_channels = self.stack_depth
         self.kernel_size = int(config.get("kernel_size"))
         self.padding_size = int(config.get("padding_size"))
@@ -103,7 +104,18 @@ class Conv2dAgentValueNet(BaseAgent):
         if self.use_batch_norm:
             self.norm4 = nn.BatchNorm2d(input_channel_list[layer_count])
 
-        self.output_channels = input_channel_list[-1]
+        self.conv5 = nn.Conv2d(
+            input_channel_list[layer_count],
+            1,
+            kernel_size=(1, 1),
+            padding=(0, 0),
+        )
+
+        if self.use_batch_norm:
+            self.norm5 = nn.BatchNorm2d(1)
+
+        # self.output_channels = input_channel_list[-1]
+        self.output_channels = 1
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
         self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.output_channels
 
@@ -157,6 +169,11 @@ class Conv2dAgentValueNet(BaseAgent):
         both = self.conv4(both)
         if self.use_batch_norm:
             both = self.norm4(both)
+        both = self.activation_fn(both)
+
+        both = self.conv5(both)
+        if self.use_batch_norm:
+            both = self.norm5(both)
         both = self.activation_fn(both)
 
         output = both.reshape(batch_size, -1)

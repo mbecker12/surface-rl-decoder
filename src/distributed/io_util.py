@@ -158,7 +158,7 @@ def handle_transition_monitoring(
     verbosity,
     tensorboard_step,
     current_time_tb,
-    terminal_action
+    terminal_action,
 ):
     """
     Output information about a transition set, made up of

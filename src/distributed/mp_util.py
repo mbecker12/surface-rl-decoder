@@ -19,10 +19,6 @@ def configure_processes(rl_type="q_learning"):
     cfg.scan(".", True).read()
     global_config = cfg.config_rendered.get("config")
 
-    logger.info(
-        "\nQEC Config: \n\n" f"{yaml.dump(global_config, default_flow_style=False)}"
-    )
-
     actor_config = global_config.get("actor")
     memory_config = global_config.get("replay_memory")
     learner_config = global_config.get("learner")
@@ -139,7 +135,9 @@ def configure_processes(rl_type="q_learning"):
 
     # select the specification of the right model from the json
     model_config = model_config[model_name]
+
     model_config = add_model_size(model_config, model_config_file)
+    model_config["rl_type"] = rl_type
 
     print(model_config)
     # configure processes
@@ -297,6 +295,13 @@ def configure_processes(rl_type="q_learning"):
         learner_args["learner_io_queue"] = learner_io_queue
         learner_args["io_learner_queue"] = io_learner_queue
         learner_args["learner_actor_queues"] = learner_actor_queues
+
+    global_config["evaluation"] = {}
+    global_config["evaluation"]["learner_eval_p_errors"] = learner_eval_p_errors
+    global_config["evaluation"]["learner_eval_p_msmt"] = learner_eval_p_msmt
+    logger.info(
+        "\nQEC Config: \n\n" f"{yaml.dump(global_config, default_flow_style=False)}"
+    )
 
     return actor_args, mem_args, learner_args, env_args, global_config, queues
 

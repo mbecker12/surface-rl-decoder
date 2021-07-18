@@ -1,10 +1,11 @@
 {
-    "conv2d": {
+    "conv2d_deep": {
         "use_lstm": 0,
         "use_rnn": 0,
-        "use_transformer": 1,
+        "use_transformer": 0,
         "use_all_rnn_layers": 0,
         "split_input_toggle": 0,
+        "use_batch_norm": 0,
         "input_channels": 1,
         "kernel_size": 3,
         "padding_size": 1,

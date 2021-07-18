@@ -317,7 +317,7 @@ def actor(args):
             decay_factor=discount_factor_anneal,
             min_value=discount_factor_start,
             max_value=discount_factor,
-            base_factor=discount_factor_start
+            base_factor=discount_factor_start,
         )
 
         if rl_type == "q":
@@ -357,10 +357,10 @@ def actor(args):
             tensorboard.add_scalars(
                 "actor/parameters",
                 {
-                    "annealed_epsilon": annealed_epsilon, 
-                    "annealed_p_error": current_p_error, 
+                    "annealed_epsilon": annealed_epsilon,
+                    "annealed_p_error": current_p_error,
                     "annealed_p_msmt": current_p_msmt,
-                    "annealed_discount_factor": current_discount_factor
+                    "annealed_discount_factor": current_discount_factor,
                 },
                 delta_t,
                 walltime=current_time_tb,

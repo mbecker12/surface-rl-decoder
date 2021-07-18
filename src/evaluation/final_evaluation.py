@@ -22,7 +22,14 @@ from distributed.learner_util import (
     safe_append_in_dict,
     transform_list_dict,
 )
-from distributed.util import COORDINATE_SHIFTS, LOCAL_DELTAS, format_torch, q_value_index_to_action, select_actions, select_actions_value_network
+from distributed.util import (
+    COORDINATE_SHIFTS,
+    LOCAL_DELTAS,
+    format_torch,
+    q_value_index_to_action,
+    select_actions,
+    select_actions_value_network,
+)
 from surface_rl_decoder.surface_code_util import (
     STATE_MULTIPLIER,
     TERMINAL_ACTION,
@@ -135,7 +142,10 @@ def main_evaluation(
             combined_mask = np.logical_or(plaquette_mask, vertex_mask)
             combined_mask = format_torch(combined_mask)
             (
-                actions, selected_values, optimal_actions, optimal_values
+                actions,
+                selected_values,
+                optimal_actions,
+                optimal_values,
             ) = select_actions_value_network(
                 torch_states,
                 model,
@@ -144,7 +154,7 @@ def main_evaluation(
                 combined_mask,
                 COORDINATE_SHIFTS,
                 LOCAL_DELTAS,
-                device
+                device,
             )
             if verbosity:
                 print(f"{selected_values[0]}")
@@ -396,7 +406,11 @@ if __name__ == "__main__":
         for i in range(n_episodes):
             sys.stdout.write(f"\r{i+1:05d} / {n_episodes:05d}")
             is_ground_state, n_syndromes, n_loops = main_evaluation(
-                model, eval_device, code_size=code_size, stack_depth=stack_depth, rl_type=rl_type
+                model,
+                eval_device,
+                code_size=code_size,
+                stack_depth=stack_depth,
+                rl_type=rl_type,
             )
             if n_syndromes == 0:
                 n_valid_episodes += 1

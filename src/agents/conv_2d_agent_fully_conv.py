@@ -11,9 +11,10 @@ import logging
 logger = logging.getLogger(name="MODEL")
 
 
-class Conv2dAgentValueNet(BaseAgent):
+class Conv2dAgentFullyConv(BaseAgent):
     def __init__(self, config):
         super().__init__()
+        # logger.info("Conv2dAgentValueNetSubsample")
         self.device = config.get("device")
         assert self.device is not None
         self.size = int(config.get("code_size"))
@@ -27,35 +28,22 @@ class Conv2dAgentValueNet(BaseAgent):
         self.stack_depth = int(config.get("stack_depth"))
         self.split_input_toggle = int(config.get("split_input_toggle", 1))
 
-        self.input_channels = int(config.get("input_channels"))
+        # self.input_channels = int(config.get("input_channels"))
         self.input_channels = self.stack_depth
         self.kernel_size = int(config.get("kernel_size"))
         self.padding_size = int(config.get("padding_size"))
-        self.rl_type = str(config.get("rl_type", "q"))
-        assert self.rl_type == "v"
+        self.rl_type = str(config.get("rl_type", "v"))
+        assert self.rl_type == "q"
 
         self.use_batch_norm = int(config.get("use_batch_norm"))
 
-        self.use_lstm = int(config.get("use_lstm", 0))
-        self.use_rnn = int(config.get("use_rnn", 0))
-        self.use_transformer = int(config.get("use_gtrxl", 0))
-        self.use_transformer += int(config.get("use_transformer", 0))
-        self.use_gru = int(config.get("use_gru", 0))
-        self.use_gru += self.use_rnn
-        self.use_all_rnn_layers = int(config.get("use_all_rnn_layers", 0))
+        self.output_neurons = 3 * self.size * self.size + 1
 
         self.activation_function_string = config.get("activation_function", "relu")
         if self.activation_function_string == "relu":
             self.activation_fn = F.relu
         elif self.activation_function_string == "silu":
             self.activation_fn = F.silu
-
-        if self.use_lstm or self.use_rnn:
-            self.lstm_num_layers = int(config.get("lstm_num_layers"))
-            self.lstm_num_directions = int(config.get("lstm_num_directions"))
-            assert self.lstm_num_directions in (1, 2)
-            self.lstm_is_bidirectional = bool(self.lstm_num_directions - 1)
-            self.lstm_output_size = int(config.get("lstm_output_size"))
 
         input_channel_list: List = deepcopy(config.get("channel_list"))
         input_channel_list.insert(0, self.input_channels)
@@ -103,29 +91,40 @@ class Conv2dAgentValueNet(BaseAgent):
         if self.use_batch_norm:
             self.norm4 = nn.BatchNorm2d(input_channel_list[layer_count])
 
-        self.output_channels = input_channel_list[-1]
+        self.conv5 = nn.Conv2d(
+            input_channel_list[layer_count],
+            input_channel_list[layer_count + 1],
+            kernel_size=(1, 1),
+            padding=(0, 0),
+        )
+
+        layer_count += 1
+        if self.use_batch_norm:
+            self.norm5 = nn.BatchNorm2d(input_channel_list[layer_count])
+
+        self.conv6 = nn.Conv2d(
+            input_channel_list[layer_count],
+            input_channel_list[layer_count + 1],
+            kernel_size=(1, 1),
+            padding=(0, 0),
+        )
+
+        layer_count += 1
+
+        # TODO: could also try this here with (3, 3) kernel w/o padding
+        # instead of pooling [for operator channels]
+        self.action_conv = nn.Conv2d(
+            input_channel_list[layer_count], 4, kernel_size=(3, 3), padding=(1, 1)
+        )
+
+        self.operator_pool = nn.AdaptiveAvgPool2d(output_size=(self.size, self.size))
+
+        self.terminal_pool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
+
+        # self.output_channels = input_channel_list[-1]
+        self.output_channels = 4
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
         self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.output_channels
-
-        input_neuron_numbers = config["neuron_list"]
-
-        print("Not using any recurrent module")
-        lin_layer_count = 0
-        self.lin0 = nn.Linear(self.cnn_dimension, int(input_neuron_numbers[0]))
-
-        if self.use_batch_norm:
-            self.norm5 = nn.BatchNorm1d(int(input_neuron_numbers[0]))
-
-        self.lin1 = nn.Linear(
-            input_neuron_numbers[lin_layer_count],
-            input_neuron_numbers[lin_layer_count + 1],
-        )
-        lin_layer_count += 1
-
-        if self.use_batch_norm:
-            self.norm6 = nn.BatchNorm1d(input_neuron_numbers[lin_layer_count])
-
-        self.output_layer = nn.Linear(int(input_neuron_numbers[-1]), 1)
 
     def forward(self, state: torch.Tensor):
         state = self._format(state)
@@ -159,18 +158,36 @@ class Conv2dAgentValueNet(BaseAgent):
             both = self.norm4(both)
         both = self.activation_fn(both)
 
-        output = both.reshape(batch_size, -1)
-        complete = self.lin0(output)
-
+        both = self.conv5(both)
         if self.use_batch_norm:
-            complete = self.activation_fn(self.norm5(complete))
-        else:
-            complete = self.activation_fn(complete)
+            both = self.norm5(both)
+        both = self.activation_fn(both)
 
-        complete = self.lin1(complete)
+        both = self.conv6(both)
         if self.use_batch_norm:
-            complete = self.norm6(complete)
-        complete = self.activation_fn(complete)
+            both = self.norm6(both)
+        both = self.activation_fn(both)
 
-        final_output = self.output_layer(complete)
-        return final_output
+        both = self.action_conv(both)
+
+        pooled_operators = self.operator_pool(both[:, :3, :, :])
+        pooled_operators_permuted = pooled_operators.permute(0, 3, 2, 1).contiguous()
+        final_operators = pooled_operators_permuted.view(batch_size, -1)
+
+        tmp_terminal = both[:, -1, ::].unsqueeze(1)
+        pooled_terminal = self.terminal_pool(tmp_terminal)
+        final_terminal = pooled_terminal.reshape(batch_size, 1)
+
+        final_tensor = torch.cat((final_operators, final_terminal), dim=1)
+
+        # for channel in range(batch_size):
+        #     for x in range(5):
+        #         for y in range(5):
+        #             for ac in range(3):
+        #                 index = x * 3 + y * self.size * 3 + ac
+        #                 assert (
+        #                     pooled_operators[channel, ac, x, y]
+        #                     == final_tensor[channel, index]
+        #                 ), f"\n{index=}, {pooled_operators[channel, x, y, ac]=}, {final_tensor[channel, index]=}\n\n{final_tensor[channel]=}\n\n{pooled_operators[channel]=}\n\n{pooled_operators_permuted[channel]=}"
+
+        return final_tensor

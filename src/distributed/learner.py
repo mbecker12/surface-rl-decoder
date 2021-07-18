@@ -229,7 +229,7 @@ def learner(args: Dict):
             decay_factor=discount_factor_anneal,
             min_value=discount_factor_start,
             max_value=discount_factor,
-            base_factor=discount_factor_start
+            base_factor=discount_factor_start,
         )
 
         if time() - start_time > max_time:
@@ -280,7 +280,7 @@ def learner(args: Dict):
                     "learner/discount_factor",
                     current_discount_factor,
                     delta_t,
-                    walltime=current_time_tb
+                    walltime=current_time_tb,
                 )
 
             # perform the actual learning

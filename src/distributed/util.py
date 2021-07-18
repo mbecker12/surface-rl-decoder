@@ -513,7 +513,9 @@ def select_actions_value_network(
 
             if action_idx == l_actions - 1:
                 selected_action = torch.tensor(
-                    [[0, 0, TERMINAL_ACTION]], dtype=possible_actions.dtype, device=device
+                    [[0, 0, TERMINAL_ACTION]],
+                    dtype=possible_actions.dtype,
+                    device=device,
                 )
             else:
                 selected_action = possible_actions[action_idx]
@@ -536,11 +538,6 @@ def select_actions_value_network(
 
     optimal_actions = np.stack(batch_optimal_actions)
     optimal_values = np.stack(batch_optimal_values)
-
-    # if np.any(selected_actions[:, -1] == TERMINAL_ACTION):
-    #     print("selected terminal")
-    # if np.any(optimal_actions[:, -1] == TERMINAL_ACTION):
-    #     print("optimal terminal")
 
     return selected_actions, selected_values, optimal_actions, optimal_values
 

@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(name="MODEL")
 
 
-class Conv2dAgentValueNet(BaseAgent):
+class Conv2dAgentValueNetDeep(BaseAgent):
     def __init__(self, config):
         super().__init__()
         self.device = config.get("device")
@@ -28,7 +28,6 @@ class Conv2dAgentValueNet(BaseAgent):
         self.split_input_toggle = int(config.get("split_input_toggle", 1))
 
         self.input_channels = int(config.get("input_channels"))
-        self.input_channels = self.stack_depth
         self.kernel_size = int(config.get("kernel_size"))
         self.padding_size = int(config.get("padding_size"))
         self.rl_type = str(config.get("rl_type", "q"))
@@ -49,13 +48,6 @@ class Conv2dAgentValueNet(BaseAgent):
             self.activation_fn = F.relu
         elif self.activation_function_string == "silu":
             self.activation_fn = F.silu
-
-        if self.use_lstm or self.use_rnn:
-            self.lstm_num_layers = int(config.get("lstm_num_layers"))
-            self.lstm_num_directions = int(config.get("lstm_num_directions"))
-            assert self.lstm_num_directions in (1, 2)
-            self.lstm_is_bidirectional = bool(self.lstm_num_directions - 1)
-            self.lstm_output_size = int(config.get("lstm_output_size"))
 
         input_channel_list: List = deepcopy(config.get("channel_list"))
         input_channel_list.insert(0, self.input_channels)
@@ -103,6 +95,36 @@ class Conv2dAgentValueNet(BaseAgent):
         if self.use_batch_norm:
             self.norm4 = nn.BatchNorm2d(input_channel_list[layer_count])
 
+        self.conv5 = nn.Conv2d(
+            input_channel_list[layer_count],
+            input_channel_list[layer_count + 1],
+            kernel_size=self.kernel_size,
+            padding=self.padding_size,
+        )
+        layer_count += 1
+        if self.use_batch_norm:
+            self.norm5 = nn.BatchNorm2d(input_channel_list[layer_count])
+
+        self.conv6 = nn.Conv2d(
+            input_channel_list[layer_count],
+            input_channel_list[layer_count + 1],
+            kernel_size=self.kernel_size,
+            padding=self.padding_size,
+        )
+        layer_count += 1
+        if self.use_batch_norm:
+            self.norm6 = nn.BatchNorm2d(input_channel_list[layer_count])
+
+        self.conv7 = nn.Conv2d(
+            input_channel_list[layer_count],
+            input_channel_list[layer_count + 1],
+            kernel_size=self.kernel_size,
+            padding=self.padding_size,
+        )
+        layer_count += 1
+        if self.use_batch_norm:
+            self.norm7 = nn.BatchNorm2d(input_channel_list[layer_count])
+
         self.output_channels = input_channel_list[-1]
         self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
         self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.output_channels
@@ -111,10 +133,12 @@ class Conv2dAgentValueNet(BaseAgent):
 
         print("Not using any recurrent module")
         lin_layer_count = 0
-        self.lin0 = nn.Linear(self.cnn_dimension, int(input_neuron_numbers[0]))
+        self.lin0 = nn.Linear(
+            self.cnn_dimension * self.stack_depth, int(input_neuron_numbers[0])
+        )
 
         if self.use_batch_norm:
-            self.norm5 = nn.BatchNorm1d(int(input_neuron_numbers[0]))
+            self.norm8 = nn.BatchNorm1d(int(input_neuron_numbers[0]))
 
         self.lin1 = nn.Linear(
             input_neuron_numbers[lin_layer_count],
@@ -123,7 +147,7 @@ class Conv2dAgentValueNet(BaseAgent):
         lin_layer_count += 1
 
         if self.use_batch_norm:
-            self.norm6 = nn.BatchNorm1d(input_neuron_numbers[lin_layer_count])
+            self.norm9 = nn.BatchNorm1d(input_neuron_numbers[lin_layer_count])
 
         self.output_layer = nn.Linear(int(input_neuron_numbers[-1]), 1)
 
@@ -142,8 +166,6 @@ class Conv2dAgentValueNet(BaseAgent):
             both = self.norm1(both)
         both = self.activation_fn(both)
 
-        assert both.shape == (batch_size, 16, (self.size + 1), (self.size + 1))
-
         both = self.conv2(both)
         if self.use_batch_norm:
             both = self.norm2(both)
@@ -159,17 +181,36 @@ class Conv2dAgentValueNet(BaseAgent):
             both = self.norm4(both)
         both = self.activation_fn(both)
 
+        both = self.conv5(both)
+        if self.use_batch_norm:
+            both = self.norm5(both)
+        both = self.activation_fn(both)
+
+        both = self.conv6(both)
+        if self.use_batch_norm:
+            both = self.norm6(both)
+        both = self.activation_fn(both)
+
+        both = self.conv7(both)
+        if self.use_batch_norm:
+            both = self.norm7(both)
+        both = self.activation_fn(both)
+
+        # convert the data back to <batch_size> samples of syndrome volumes
+        # with <stack_depth> layers
+        # complete = both.view(batch_size, self.stack_depth, self.cnn_dimension)
+
         output = both.reshape(batch_size, -1)
         complete = self.lin0(output)
 
         if self.use_batch_norm:
-            complete = self.activation_fn(self.norm5(complete))
+            complete = self.activation_fn(self.norm8(complete))
         else:
             complete = self.activation_fn(complete)
 
         complete = self.lin1(complete)
         if self.use_batch_norm:
-            complete = self.norm6(complete)
+            complete = self.norm9(complete)
         complete = self.activation_fn(complete)
 
         final_output = self.output_layer(complete)

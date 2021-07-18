@@ -10,6 +10,7 @@ import logging
 
 logger = logging.getLogger(name="MODEL")
 
+
 class Conv3dAgentValueNet(BaseAgent):
     def __init__(self, config):
         super().__init__()
@@ -32,6 +33,8 @@ class Conv3dAgentValueNet(BaseAgent):
         self.padding_size = int(config.get("padding_size"))
         self.rl_type = str(config.get("rl_type", "q"))
         assert self.rl_type == "v"
+        self.subsampling_kernel_size = int(config.get("subsample_kernel"))
+        self.subsampling_padding = int(config.get("subsample_padding"))
 
         self.use_batch_norm = int(config.get("use_batch_norm"))
 
@@ -60,8 +63,7 @@ class Conv3dAgentValueNet(BaseAgent):
         input_channel_list: List = deepcopy(config.get("channel_list"))
         input_channel_list.insert(0, self.input_channels)
         layer_count = 0
-        
-        # TODO: continue
+
         self.conv1 = nn.Conv3d(
             in_channels=input_channel_list[layer_count],
             out_channels=input_channel_list[layer_count + 1],
@@ -105,34 +107,51 @@ class Conv3dAgentValueNet(BaseAgent):
         if self.use_batch_norm:
             self.norm4 = nn.BatchNorm3d(input_channel_list[layer_count])
 
-        self.conv5 = nn.Conv3d(
-            input_channel_list[layer_count],
-            input_channel_list[layer_count + 1],
-            kernel_size=self.kernel_size,
-            padding=self.padding_size,
-        )
-        layer_count += 1
-        if self.use_batch_norm:
-            self.norm5 = nn.BatchNorm3d(input_channel_list[layer_count])
+        # self.conv5 = nn.Conv3d(
+        #     input_channel_list[layer_count],
+        #     input_channel_list[layer_count + 1],
+        #     kernel_size=self.kernel_size,
+        #     padding=self.padding_size,
+        # )
+        # layer_count += 1
+        # if self.use_batch_norm:
+        #     self.norm5 = nn.BatchNorm3d(input_channel_list[layer_count])
 
         if self.use_subsampling:
-            logger.info("USE SUBSAMPLING")
             self.conv_subsample = nn.Conv3d(
                 input_channel_list[layer_count],
                 1,
-                kernel_size=(1, 1, 1),
-                padding=(0, 0, 0)
+                kernel_size=(
+                    self.subsampling_kernel_size,
+                    self.subsampling_kernel_size,
+                    self.subsampling_kernel_size,
+                ),
+                padding=(
+                    self.subsampling_padding,
+                    self.subsampling_padding,
+                    self.subsampling_padding,
+                ),
             )
             if self.use_batch_norm:
                 self.norm_subsample = nn.BatchNorm3d(1)
 
             self.output_channels = 1
             self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
-            self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.stack_depth * self.output_channels
+            self.cnn_dimension = (
+                (self.size + 1)
+                * (self.size + 1)
+                * self.stack_depth
+                * self.output_channels
+            )
         else:
             self.output_channels = input_channel_list[-1]
             self.neurons_output = self.nr_actions_per_qubit * self.size * self.size + 1
-            self.cnn_dimension = (self.size + 1) * (self.size + 1) * self.stack_depth * self.output_channels
+            self.cnn_dimension = (
+                (self.size + 1)
+                * (self.size + 1)
+                * self.stack_depth
+                * self.output_channels
+            )
 
         input_neuron_numbers = config["neuron_list"]
 
@@ -140,9 +159,7 @@ class Conv3dAgentValueNet(BaseAgent):
         # method to reduce the number of parameters in the fully-connected layer
         # or maybe convolution with filter size (1, 1, 1)
         lin_layer_count = 0
-        self.lin0 = nn.Linear(
-            self.cnn_dimension, int(input_neuron_numbers[0])
-        )
+        self.lin0 = nn.Linear(self.cnn_dimension, int(input_neuron_numbers[0]))
 
         if self.use_batch_norm:
             self.norm6 = nn.BatchNorm1d(int(input_neuron_numbers[0]))
@@ -165,7 +182,7 @@ class Conv3dAgentValueNet(BaseAgent):
         batch_size, _, _, _ = state.size()
 
         both = state.view(
-            -1, 1, self.input_channels, (self.size + 1), (self.size + 1)
+            -1, self.input_channels, self.stack_depth, (self.size + 1), (self.size + 1)
         )  # convolve both
 
         both = self.conv1(both)
@@ -188,10 +205,10 @@ class Conv3dAgentValueNet(BaseAgent):
             both = self.norm4(both)
         both = self.activation_fn(both)
 
-        both = self.conv5(both)
-        if self.use_batch_norm:
-            both = self.norm5(both)
-        both = self.activation_fn(both)
+        # both = self.conv5(both)
+        # if self.use_batch_norm:
+        #     both = self.norm5(both)
+        # both = self.activation_fn(both)
 
         if self.use_subsampling:
             both = self.conv_subsample(both)
