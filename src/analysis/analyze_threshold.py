@@ -42,6 +42,7 @@ parser.add_argument("--run_evaluation", action="store_true")
 parser.add_argument("--load_eval_results", action="store_true")
 parser.add_argument("--produce_plots", action="store_true")
 parser.add_argument("--n_episodes", default=256, nargs="?")
+parser.add_argument("--max_recursion", default=20, nargs="?")
 parser.add_argument("--max_steps", default=40, nargs="?")
 parser.add_argument("--runs_config", default="", nargs="?")
 parser.add_argument("--eval_job_id", default=None, nargs="?")
@@ -61,6 +62,7 @@ max_num_of_steps = int(args.max_steps)
 runs_config = args.runs_config
 evaluation_job_id = args.eval_job_id
 merge_dfs = args.merge_dfs
+max_recursion = args.max_recursion
 
 # define list of runs to analyze
 # define default case
@@ -203,7 +205,7 @@ if run_evaluation:
             logger.error(error_traceback)
 
             continue
-        p_error_list = np.arange(start=0.0001, stop=0.0160, step=0.0005)
+        p_error_list = np.arange(start=0.0001, stop=0.02, step=0.0005)
         logger.info(
             f"Code size = {run.code_size}, Job ID: {run.job_id}, Iterate over p_err..."
         )
@@ -224,7 +226,19 @@ if run_evaluation:
                 p_err=p_err,
                 code_size=run.code_size,
                 stack_depth=run.stack_depth,
+                max_recursion=max_recursion,
             )
+
+            assert (
+                result_dict["total_n_episodes"] == n_episodes
+            ), f"{result_dict['total_n_episodes']=}"
+            assert (
+                result_dict["n_ground_states"] + result_dict["n_ep_w_loops"]
+                == n_episodes
+            ), f"{result_dict['n_ground_states']=}, {result_dict['n_ep_w_loops']=}"
+            assert (
+                result_dict["n_valid_episodes"] == n_episodes
+            ), f"{result_dict['n_valid_episodes']}"
 
             result_dict["jobid"] = run.job_id
             result_dict["code_size"] = run.code_size
@@ -272,7 +286,7 @@ dfs: List[pd.DataFrame] = [
 ]
 
 new_dfs = []
-# TODO aggregate stats from different analysis runs
+
 eval_key_list = [
     "total_n_episodes",
     "n_ground_states",
@@ -294,7 +308,6 @@ for df in dfs:
 
     df = df.sort_values(by="n_ground_states", ascending=True)
 
-    # TODO: aggregate / sum values first
     df["expected_n_err"] = (
         df["p_err"] * df["code_size"] * df["code_size"] * df["stack_depth"]
     )

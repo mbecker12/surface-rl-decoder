@@ -409,7 +409,7 @@ class SurfaceCode(gym.Env):
         error_stack[0, :, :] = base_error
         for height in range(1, self.stack_depth):
             # don't use min_n_errors here;
-            # at this point, we merely want to build on top of the fround layer
+            # at this point, we merely want to build on top of the ground layer
             new_error = self.generate_qubit_error(error_channel=error_channel)
 
             # filter where errors have actually occured with np.where()

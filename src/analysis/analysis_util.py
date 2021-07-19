@@ -16,7 +16,13 @@ from distributed.model_util import (
     load_model,
 )
 from surface_rl_decoder.surface_code import SurfaceCode
-from surface_rl_decoder.surface_code_util import TERMINAL_ACTION, check_final_state
+from surface_rl_decoder.surface_code_util import (
+    TERMINAL_ACTION,
+    check_final_state,
+    create_syndrome_output_stack,
+    perform_all_actions,
+)
+from surface_rl_decoder.syndrome_masks import get_plaquette_mask, get_vertex_mask
 
 CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
@@ -24,6 +30,8 @@ CLUSTER_NETWORK_PATH = "networks"
 LOCAL_NETWORK_PATH = "threshold_networks"
 BASE_MODEL_CONFIG_PATH = "src/config/model_spec/old_conv_agents.json"
 BASE_MODEL_PATH = "remote_networks/5/65280/simple_conv_5_65280.pt"
+
+MAX_RECURSION = 20
 
 
 def analyze_succesful_episodes(
@@ -43,7 +51,15 @@ def analyze_succesful_episodes(
     code_size=None,
     stack_depth=None,
     device="cpu",
+    previous_rerun_list=None,
+    iteration=0,
+    max_recursion=MAX_RECURSION,
 ) -> Dict:
+
+    if iteration >= 1:
+        assert (
+            previous_rerun_list is not None
+        ), "Need to provide a list with previous runs to create follow-up episodes!"
 
     model.eval()
 
@@ -58,9 +74,46 @@ def analyze_succesful_episodes(
     env_set = EnvironmentSet(environment_def, total_n_episodes)
     code_size = env_set.code_size
     stack_depth = env_set.stack_depth
-    states = env_set.reset_all(
-        np.repeat(p_err, total_n_episodes), np.repeat(p_msmt, total_n_episodes)
-    )
+
+    if previous_rerun_list is None:
+        states = env_set.reset_all(
+            np.repeat(p_err, total_n_episodes), np.repeat(p_msmt, total_n_episodes)
+        )
+    else:
+        total_n_episodes = len(previous_rerun_list)
+        env_set = EnvironmentSet(environment_def, total_n_episodes)
+
+        states = np.empty(
+            (
+                total_n_episodes,
+                stack_depth,
+                code_size + 1,
+                code_size + 1,
+            ),
+            dtype=np.uint8,
+        )
+
+        for i, env in enumerate(env_set.environments):
+            assert isinstance(env, SurfaceCode)
+            env.reset()
+
+            (
+                rerun_state,
+                rerun_actual_errors,
+                rerun_syndrome_errors,
+            ) = create_follow_up_state(
+                previous_rerun_list[i]["actual_errors"],
+                previous_rerun_list[i]["actions"],
+                previous_rerun_list[i]["syndrome_errors"],
+                p_error=p_err,
+                p_msmt=p_msmt,
+            )
+            env.state = deepcopy(rerun_state)
+            env.actual_errors = deepcopy(rerun_actual_errors)
+            env.qubits = deepcopy(rerun_actual_errors)
+            env.syndrome_errors = deepcopy(rerun_syndrome_errors)
+
+            states[i] = deepcopy(rerun_state)
 
     global_episode_steps = 0
 
@@ -76,6 +129,9 @@ def analyze_succesful_episodes(
 
     ignore_episodes = set()
     n_steps = np.zeros(total_n_episodes)
+
+    rerun_list = []
+
     while global_episode_steps <= max_num_of_steps:
         global_episode_steps += 1
         for i in range(total_n_episodes):
@@ -128,6 +184,17 @@ def analyze_succesful_episodes(
                     n_too_long += 1
                     if n_syndromes > 0:
                         n_too_long_w_syndromes += 1
+                        rerun_list.append(
+                            {
+                                "code_size": code_size,
+                                "stack_depth": stack_depth,
+                                "actual_errors": env_set.environments[i].actual_errors,
+                                "actions": env_set.environments[i].actions,
+                                "syndrome_errors": env_set.environments[
+                                    i
+                                ].syndrome_errors,
+                            }
+                        )
                     if n_loops > 0:
                         n_too_long_w_loops += 1
 
@@ -142,6 +209,16 @@ def analyze_succesful_episodes(
                     n_ground_states += 1
                 if n_syndromes > 0:
                     n_ep_w_syndromes += 1
+                    rerun_list.append(
+                        {
+                            "code_size": code_size,
+                            "stack_depth": stack_depth,
+                            "actual_errors": env_set.environments[i].actual_errors,
+                            "actions": env_set.environments[i].actions,
+                            "syndrome_errors": env_set.environments[i].syndrome_errors,
+                        }
+                    )
+
                 if int(n_loops) > 0:
                     n_ep_w_loops += 1
                     if _ground_state:
@@ -165,10 +242,19 @@ def analyze_succesful_episodes(
         )
 
         if env_set.environments[i].current_action_index >= max_num_of_steps - 1:
-            print("line 110: failed episode; too many steps")
+            print("line 170: failed episode; too many steps")
             n_too_long += 1
             if n_syndromes > 0:
                 n_too_long_w_syndromes += 1
+                rerun_list.append(
+                    {
+                        "code_size": code_size,
+                        "stack_depth": stack_depth,
+                        "actual_errors": env_set.environments[i].actual_errors,
+                        "actions": env_set.environments[i].actions,
+                        "syndrome_errors": env_set.environments[i].syndrome_errors,
+                    }
+                )
             if n_loops > 0:
                 n_too_long_w_loops += 1
 
@@ -183,6 +269,15 @@ def analyze_succesful_episodes(
             n_ground_states += 1
         if n_syndromes > 0:
             n_ep_w_syndromes += 1
+            rerun_list.append(
+                {
+                    "code_size": code_size,
+                    "stack_depth": stack_depth,
+                    "actual_errors": env_set.environments[i].actual_errors,
+                    "actions": env_set.environments[i].actions,
+                    "syndrome_errors": env_set.environments[i].syndrome_errors,
+                }
+            )
         if int(n_loops) > 0:
             n_ep_w_loops += 1
             if _ground_state:
@@ -201,6 +296,53 @@ def analyze_succesful_episodes(
         "n_too_long_w_syndromes": n_too_long_w_syndromes,
         "n_steps_arr": n_steps,
     }
+
+    if len(rerun_list) > 0:
+        if iteration < max_recursion:
+            rerun_result_dict = analyze_succesful_episodes(
+                model,
+                environment_def,
+                max_num_of_steps=max_num_of_steps,
+                discount_factor_gamma=discount_factor_gamma,
+                annealing_intermediate_reward=annealing_intermediate_reward,
+                discount_intermediate_reward=discount_intermediate_reward,
+                p_err=p_err,
+                p_msmt=p_msmt,
+                rl_type=rl_type,
+                code_size=code_size,
+                stack_depth=stack_depth,
+                previous_rerun_list=rerun_list,
+                iteration=iteration + 1,
+            )
+
+            result_dict["total_n_episodes"] = max(
+                result_dict["total_n_episodes"], rerun_result_dict["total_n_episodes"]
+            )
+            result_dict["n_ground_states"] += rerun_result_dict["n_ground_states"]
+            result_dict["n_valid_episodes"] = max(
+                result_dict["total_n_episodes"],
+                result_dict["n_valid_episodes"] + rerun_result_dict["n_valid_episodes"],
+            )
+            result_dict["n_valid_ground_states"] += rerun_result_dict[
+                "n_valid_ground_states"
+            ]
+            result_dict["n_valid_non_trivial_loops"] += rerun_result_dict[
+                "n_valid_non_trivial_loops"
+            ]
+            result_dict["n_ep_w_syndromes"] += rerun_result_dict["n_ep_w_syndromes"]
+            result_dict["n_ep_w_loops"] += rerun_result_dict["n_ep_w_loops"]
+            result_dict["n_too_long"] += rerun_result_dict["n_too_long"]
+            result_dict["n_too_long_w_loops"] += rerun_result_dict["n_too_long_w_loops"]
+            result_dict["n_too_long_w_syndromes"] += rerun_result_dict[
+                "n_too_long_w_syndromes"
+            ]
+
+        else:
+            result_dict["n_valid_episodes"] += n_ep_w_syndromes
+            result_dict["n_valid_non_trivial_loops"] += n_ep_w_syndromes
+            result_dict["n_ep_w_loops"] += n_ep_w_syndromes
+            result_dict["n_too_long_w_loops"] += n_too_long_w_syndromes
+
     return result_dict
 
 
@@ -287,3 +429,78 @@ def load_analysis_model(
     model, _, _ = load_model(model, old_model_path, model_device=eval_device)
 
     return model
+
+
+def create_follow_up_state(
+    old_qubit_errors, old_actions, old_syndrome_errors, p_error, p_msmt
+):
+    """
+    Based on an old, unsolved episodes where syndromes were still remaining,
+    create a new syndrome state with the previous correction chain now
+    acting as the bottom layer of the syndrome stack.
+    Supports only the 'depolarizing / dp' error channel.
+    """
+    stack_depth = old_qubit_errors.shape[0]
+    code_size = old_qubit_errors.shape[1]
+
+    qubits = perform_all_actions(old_qubit_errors, old_actions)
+    actual_errors = np.zeros((stack_depth, code_size, code_size), dtype=np.uint8)
+
+    base_error = qubits[-1, :, :]
+    actual_errors[0, :, :] = base_error
+
+    for height in range(1, stack_depth):
+        new_error = generate_qubit_error(code_size, p_error)
+
+        # filter where errors have actually occured
+        nonzero_idx = np.nonzero(np.logical_or(new_error, base_error))
+        for row, col in zip(*nonzero_idx):
+            old_operator = base_error[row, col]
+            # bitwise xor to get the new operator
+            new_error[row, col] = old_operator ^ new_error[row, col]
+
+            actual_errors[height, :, :] = new_error
+            base_error = new_error
+
+    vertex_mask = get_vertex_mask(code_size)
+    plaquette_mask = get_plaquette_mask(code_size)
+    clean_state = create_syndrome_output_stack(
+        actual_errors, vertex_mask=vertex_mask, plaquette_mask=plaquette_mask
+    )
+    state = generate_measurement_error(clean_state, vertex_mask, plaquette_mask, p_msmt)
+
+    # apply old syndrome errors
+    state[0, :, :] = np.logical_xor(state[0, :, :], old_syndrome_errors[-1, :, :])
+    syndrome_errors = np.logical_xor(state, clean_state)
+
+    return state, actual_errors, syndrome_errors
+
+
+def generate_qubit_error(code_size, p_error):
+    """
+    Generate qubit errors on one layer
+    """
+    shape = (code_size, code_size)
+    uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
+    error_mask = (uniform_random_vector < p_error).astype(np.uint8)
+
+    error_operation = np.random.randint(1, 4, shape, dtype=np.uint8)
+    error = np.multiply(error_mask, error_operation)
+    error = error.astype(np.uint8)
+
+    return error
+
+
+def generate_measurement_error(clean_syndrome, vertex_mask, plaquette_mask, p_msmt):
+    shape = clean_syndrome.shape
+
+    uniform_random_vector = np.random.uniform(0.0, 1.0, shape)
+    error_mask = (uniform_random_vector < p_msmt).astype(np.uint8)
+
+    # take into account positions of vertices and plaquettes
+    error_mask = np.multiply(error_mask, np.add(plaquette_mask, vertex_mask))
+
+    # where an error occurs, flip the true syndrome measurement
+    faulty_syndrome = np.where(error_mask > 0, 1 - clean_syndrome, clean_syndrome)
+
+    return faulty_syndrome

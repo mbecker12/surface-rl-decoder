@@ -223,7 +223,6 @@ for df in dfs:
 
     df = df.sort_values(by="n_ground_states", ascending=True)
 
-    # TODO: aggregate / sum values first
     df["expected_n_err"] = (
         df["p_err"] * df["code_size"] * df["code_size"] * df["stack_depth"]
     )

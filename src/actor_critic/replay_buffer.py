@@ -46,7 +46,6 @@ class EpisodeBuffer:
 
         self.all_worker_idx = np.arange(self.num_workers)
 
-        # TODO: what does this do?
         self._truncated_fn = np.vectorize(
             lambda x: "TimeLimit.truncated" in x and x["TimeLimit.truncated"]
         )

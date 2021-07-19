@@ -47,6 +47,7 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
     """
 
     final_qubit_configuration = perform_all_actions(actual_errors, actions)
+    # TODO: need to take into account syndrome errors when evaluating performance
     final_state = create_syndrome_output(
         final_qubit_configuration[-1],
         vertex_mask=vertex_mask,
