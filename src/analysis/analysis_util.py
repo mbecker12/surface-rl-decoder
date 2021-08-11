@@ -1,3 +1,10 @@
+"""
+Define the central function to run analysis episodes with a preloaded
+and pretrained model.
+
+Besides, some other utility functions for this purpose are defined.
+"""
+
 import json
 from analysis.analyze_general_training import TrainingRun
 from copy import deepcopy
@@ -68,8 +75,11 @@ def analyze_succesful_episodes(
     if stack_depth is not None:
         os.environ["CONFIG_ENV_STACK_DEPTH"] = str(stack_depth)
 
+
     if environment_def is None or environment_def == "":
         environment_def = SurfaceCode(code_size=code_size, stack_depth=stack_depth)
+    assert environment_def.code_size == code_size
+    assert environment_def.stack_depth == stack_depth
 
     env_set = EnvironmentSet(environment_def, total_n_episodes)
     code_size = env_set.code_size
@@ -180,12 +190,20 @@ def analyze_succesful_episodes(
                     env_set.environments[i].plaquette_mask,
                 )
 
-                if env_set.environments[i].current_action_index >= max_num_of_steps - 1:
+                # TODO: figure out a way to properly obtain statistics
+                # Count syndromes first?
+                # Handle too_long episodes differently from regular episodes
+                if env_set.environments[i].current_action_index >= max_num_of_steps:
+
                     n_too_long += 1
+                    
                     if n_syndromes > 0:
                         n_too_long_w_syndromes += 1
+                        n_ep_w_syndromes += 1
+                        # TODO: maybe don't enable recursion here?
                         rerun_list.append(
                             {
+                                "ep_index": i,
                                 "code_size": code_size,
                                 "stack_depth": stack_depth,
                                 "actual_errors": env_set.environments[i].actual_errors,
@@ -195,22 +213,23 @@ def analyze_succesful_episodes(
                                 ].syndrome_errors,
                             }
                         )
-                    if n_loops > 0:
+                    elif n_loops > 0:
                         n_too_long_w_loops += 1
-
-                if n_syndromes == 0:
-                    n_valid_episodes += 1
-                    if _ground_state:
-                        n_valid_ground_states += 1
-                    else:
+                        n_ep_w_loops += 1
                         n_valid_non_trivial_loops += 1
+                        n_valid_episodes += 1
 
-                if _ground_state:
-                    n_ground_states += 1
-                if n_syndromes > 0:
+                    else:
+                        n_valid_episodes += 1
+                        assert _ground_state, f"{_ground_state=}, {n_syndromes=}, {n_loops=}"
+                        if _ground_state:
+                            n_valid_ground_states += 1
+                elif n_syndromes > 0:
                     n_ep_w_syndromes += 1
+                    # assert int(n_loops) == 0, f"{_ground_state=}, {n_syndromes=}, {n_loops=}"
                     rerun_list.append(
                         {
+                            "ep_index": i,
                             "code_size": code_size,
                             "stack_depth": stack_depth,
                             "actual_errors": env_set.environments[i].actual_errors,
@@ -219,10 +238,21 @@ def analyze_succesful_episodes(
                         }
                     )
 
-                if int(n_loops) > 0:
+                elif int(n_loops) > 0:
                     n_ep_w_loops += 1
+                    n_valid_episodes += 1
+                    n_valid_non_trivial_loops += 1
                     if _ground_state:
                         print("Something's wrong, I can feel it.")
+
+                elif n_syndromes == 0:
+                    n_valid_episodes += 1
+                    if _ground_state:
+                        n_valid_ground_states += 1
+                    else:
+                        n_valid_non_trivial_loops += 1
+
+                
 
         if np.all(terminals):
             break
@@ -241,11 +271,13 @@ def analyze_succesful_episodes(
             env_set.environments[i].plaquette_mask,
         )
 
+        # TODO: redo event counting!
         if env_set.environments[i].current_action_index >= max_num_of_steps - 1:
-            print("line 170: failed episode; too many steps")
             n_too_long += 1
+            
             if n_syndromes > 0:
                 n_too_long_w_syndromes += 1
+                n_ep_w_syndromes += 1
                 rerun_list.append(
                     {
                         "code_size": code_size,
@@ -255,20 +287,22 @@ def analyze_succesful_episodes(
                         "syndrome_errors": env_set.environments[i].syndrome_errors,
                     }
                 )
-            if n_loops > 0:
+
+            elif n_loops > 0:
                 n_too_long_w_loops += 1
-
-        if n_syndromes == 0:
-            n_valid_episodes += 1
-            if _ground_state:
-                n_valid_ground_states += 1
-            else:
+                n_ep_w_loops += 1
                 n_valid_non_trivial_loops += 1
+                n_valid_episodes += 1
 
-        if _ground_state:
-            n_ground_states += 1
-        if n_syndromes > 0:
+            else:
+                n_valid_episodes += 1
+                assert _ground_state, f"{_ground_state=}, {n_syndromes=}, {n_loops=}"
+                if _ground_state:
+                    n_valid_ground_states += 1
+            
+        elif n_syndromes > 0:
             n_ep_w_syndromes += 1
+            # assert int(n_loops) == 0, f"{_ground_state=}, {n_syndromes=}, {n_loops=}"
             rerun_list.append(
                 {
                     "code_size": code_size,
@@ -278,10 +312,21 @@ def analyze_succesful_episodes(
                     "syndrome_errors": env_set.environments[i].syndrome_errors,
                 }
             )
-        if int(n_loops) > 0:
+
+        elif int(n_loops) > 0:
             n_ep_w_loops += 1
+            n_valid_episodes += 1
+            n_valid_non_trivial_loops += 1
             if _ground_state:
                 print("Something's wrong, I can feel it.")
+
+        elif n_syndromes == 0:
+            n_valid_episodes += 1
+            if _ground_state:
+                n_valid_ground_states += 1
+            else:
+                n_valid_non_trivial_loops += 1
+
 
     result_dict = {
         "total_n_episodes": total_n_episodes,
@@ -296,6 +341,12 @@ def analyze_succesful_episodes(
         "n_too_long_w_syndromes": n_too_long_w_syndromes,
         "n_steps_arr": n_steps,
     }
+
+
+    # print(f"\niter {iteration}")
+    # print(f"total: {result_dict['total_n_episodes']}, ground state: {result_dict['n_ground_states']}, loops: {result_dict['n_ep_w_loops']}, w/ syndromes: {result_dict['n_ep_w_syndromes']}")
+    # print(f"too long: {result_dict['n_too_long']}, w/ loops: {result_dict['n_too_long_w_loops']}, w/ syndromes: {result_dict['n_too_long_w_syndromes']}")
+    # print(f"valid: {result_dict['n_valid_episodes']}, w/ ground state: {result_dict['n_valid_ground_states']}, w/ loops: {result_dict['n_valid_non_trivial_loops']}\n")
 
     if len(rerun_list) > 0:
         if iteration < max_recursion:
@@ -313,11 +364,12 @@ def analyze_succesful_episodes(
                 stack_depth=stack_depth,
                 previous_rerun_list=rerun_list,
                 iteration=iteration + 1,
+                device=device
             )
 
-            result_dict["total_n_episodes"] = max(
-                result_dict["total_n_episodes"], rerun_result_dict["total_n_episodes"]
-            )
+            # result_dict["total_n_episodes"] = max(
+            #     result_dict["total_n_episodes"], rerun_result_dict["total_n_episodes"]
+            # )
             result_dict["n_ground_states"] += rerun_result_dict["n_ground_states"]
             result_dict["n_valid_episodes"] = max(
                 result_dict["total_n_episodes"],
@@ -332,6 +384,8 @@ def analyze_succesful_episodes(
             result_dict["n_ep_w_syndromes"] += rerun_result_dict["n_ep_w_syndromes"]
             result_dict["n_ep_w_loops"] += rerun_result_dict["n_ep_w_loops"]
             result_dict["n_too_long"] += rerun_result_dict["n_too_long"]
+            # TODO: too many steps seems to cause errors in counting
+            # TODO: error in counting 'too_long_w_syndromes'
             result_dict["n_too_long_w_loops"] += rerun_result_dict["n_too_long_w_loops"]
             result_dict["n_too_long_w_syndromes"] += rerun_result_dict[
                 "n_too_long_w_syndromes"

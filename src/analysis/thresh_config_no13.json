@@ -1,0 +1,43 @@
+[
+    {
+        "job_id": 86243,
+        "code_size": 3,
+        "stack_depth": 3,
+        "p_err": 0.03,
+        "p_msmt": 0.03,
+        "rl_type": "q",
+        "model_type": "2D Conv",
+        "model_name": "conv2d_fully"
+    },
+    {
+        "job_id": 85953,
+        "code_size": 5,
+        "stack_depth": 5,
+        "p_err": 0.012,
+        "p_msmt": 0.012,
+        "rl_type": "q",
+        "model_type": "2D Conv",
+        "model_name": "conv2d_fully"
+    },
+    {
+        "job_id": 86240,
+        "code_size": 7,
+        "stack_depth": 7,
+        "p_err": 0.01,
+        "p_msmt": 0.01,
+        "rl_type": "q",
+        "model_type": "2D Conv",
+        "model_name": "conv2d_fully"
+    },
+    {
+        "job_id": 86241,
+        "code_size": 9,
+        "stack_depth": 9,
+        "p_err": 0.008,
+        "p_msmt": 0.008,
+        "rl_type": "q",
+        "model_type": "2D Conv",
+        "model_name": "conv2d_fully"
+   }
+]
+

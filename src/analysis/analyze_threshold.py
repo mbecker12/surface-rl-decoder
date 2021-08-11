@@ -1,5 +1,11 @@
-# theoretically, we have all the runs for d=3,5,7
-# Still some uncertainties in error rate (p_{err} or p_{err}^{one_layer})
+"""
+Simple script to perform analysis on already-trained models.
+
+This script is divided into different parts which can be triggered by
+passing the correct flag upon runtime [--run_evaluation, --produce_plots, etc.]
+
+Run 'python analyze_threshold.py --help' for more information about available flags and parameters.
+"""
 from glob import glob
 from typing import Dict, List
 from analysis.analysis_util import analyze_succesful_episodes
@@ -47,6 +53,9 @@ parser.add_argument("--max_steps", default=40, nargs="?")
 parser.add_argument("--runs_config", default="", nargs="?")
 parser.add_argument("--eval_job_id", default=None, nargs="?")
 parser.add_argument("--merge_dfs", action="store_true")
+parser.add_argument("--p_start", default=0.0001, nargs="?")
+parser.add_argument("--p_stop", default=0.016, nargs="?")
+parser.add_argument("--p_step", default=0.0005, nargs="?")
 
 args = parser.parse_args()
 
@@ -62,11 +71,14 @@ max_num_of_steps = int(args.max_steps)
 runs_config = args.runs_config
 evaluation_job_id = args.eval_job_id
 merge_dfs = args.merge_dfs
-max_recursion = args.max_recursion
+max_recursion = int(args.max_recursion)
+p_start = float(args.p_start)
+p_stop = float(args.p_stop)
+p_step = float(args.p_step)
 
 # define list of runs to analyze
-# define default case
 if runs_config == "":
+# define default case
     training_runs = [
         TrainingRun(
             69366,
@@ -114,6 +126,7 @@ if runs_config == "":
         ),
     ]
 else:
+    # read configuration file to define trained models to be loaded
     with open(runs_config, "r") as jsonfile:
         analysis_runs = json.load(jsonfile)
         training_runs = []
@@ -133,6 +146,8 @@ else:
             )
 
 if do_copy:
+    # If models aren't available locally, copy them from the cluster.
+    # Careful: hard-coded
     logger.info("Copy Data from Cluster")
 
     for run in training_runs:
@@ -151,7 +166,6 @@ df_all_stats = pd.DataFrame(
     columns=["jobid", "code_size", "stack_depth", "p_err_train", "p_err"]
 )
 
-# TODO: look at job arrays
 all_results_counter = 0
 eval_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 if torch.cuda.is_available():
@@ -165,7 +179,11 @@ else:
     csv_file_path = os.path.join(result_path, "threshold_analysis_results.csv")
 
 if run_evaluation:
+    # Run the actual evaluation.
+    # generate multiple random episodes at increasing error rates
+    # for the agent to solve
     logger.info("Proceed to Evaluation")
+    p_error_list = np.arange(start=p_start, stop=p_stop, step=p_step)
 
     for run in training_runs:
         os.environ["CONFIG_ENV_SIZE"] = str(run.code_size)
@@ -196,23 +214,23 @@ if run_evaluation:
             if int(run.job_id) < 70000:
                 model = choose_old_model(run.model_name, model_config)
             else:
-                model = choose_model(run.model_name, model_config)
+                model = choose_model(run.model_name, model_config, rl_type=run.rl_type)
 
             model, _, _ = load_model(model, old_model_path, model_device=eval_device)
+
         except Exception as err:
             error_traceback = traceback.format_exc()
             logger.error("An error occurred!")
             logger.error(error_traceback)
 
             continue
-        p_error_list = np.arange(start=0.0001, stop=0.02, step=0.0005)
+        
         logger.info(
             f"Code size = {run.code_size}, Job ID: {run.job_id}, Iterate over p_err..."
         )
         for p_idx, p_err in enumerate(p_error_list):
             sys.stdout.write(f"\r{p_idx + 1:02d} / {len(p_error_list):02d}")
             p_msmt = p_err
-            # batch_evaluation(..., p_error, p_msmt)
 
             result_dict: Dict = analyze_succesful_episodes(
                 model,
@@ -226,19 +244,27 @@ if run_evaluation:
                 p_err=p_err,
                 code_size=run.code_size,
                 stack_depth=run.stack_depth,
-                max_recursion=max_recursion,
+                max_recursion=max_recursion
             )
+
+            result_dict["n_ground_states"] = result_dict["n_valid_ground_states"]
+            assert result_dict["n_ep_w_loops"] == result_dict["n_valid_non_trivial_loops"], f'{result_dict["n_ep_w_loops"]=}, {result_dict["n_valid_non_trivial_loops"]=}, {result_dict=}'
+            result_dict["n_valid_non_trivial_loops"] = result_dict["n_ep_w_loops"]
+
+            if result_dict['n_too_long'] > 0:
+                logger.info(f"{result_dict['n_too_long']=}")
+            assert (
+                result_dict["n_valid_episodes"] == n_episodes
+            ), f"{result_dict['n_valid_episodes']}, {result_dict}"
+
 
             assert (
                 result_dict["total_n_episodes"] == n_episodes
             ), f"{result_dict['total_n_episodes']=}"
             assert (
-                result_dict["n_ground_states"] + result_dict["n_ep_w_loops"]
+                result_dict["n_valid_ground_states"] + result_dict["n_valid_non_trivial_loops"]
                 == n_episodes
-            ), f"{result_dict['n_ground_states']=}, {result_dict['n_ep_w_loops']=}"
-            assert (
-                result_dict["n_valid_episodes"] == n_episodes
-            ), f"{result_dict['n_valid_episodes']}"
+            ), f"{result_dict['n_valid_ground_states']=}, {result_dict['n_valid_non_trivial_loops']=}, {result_dict['n_too_long']=}, {result_dict['n_ep_w_loops']=}\n{result_dict}"
 
             result_dict["jobid"] = run.job_id
             result_dict["code_size"] = run.code_size
@@ -258,11 +284,11 @@ if run_evaluation:
         df_all_stats.to_csv(csv_file_path)
 
 if load_eval_results:
-    # migt need to fix indices and so on
-
+# load pre-existing evaluation results
     if merge_dfs:
         logger.info("Load multiple data files and merge them")
-        df_path_list = glob(result_path + "threshold_analysis_results*")
+        df_path_list = glob(result_path + "threshold_analysis_results_*")
+        print(f"{result_path=}, {df_path_list=}")
         df_list = [pd.read_csv(df_path, index_col=0) for df_path in df_path_list]
         df_all_stats = pd.concat(df_list, ignore_index=True)
     else:
@@ -304,6 +330,9 @@ eval_key_list = [
 agg_key_list = [key for key in eval_key_list]
 
 for df in dfs:
+    print(df)
+    if df.shape[0] == 0 or df.shape[1] == 0:
+        continue
     logger.debug(f"{df['jobid'].iloc[0]}, {df=}")
 
     df = df.sort_values(by="n_ground_states", ascending=True)
@@ -338,6 +367,7 @@ for df in dfs:
         agg_groups["n_ep_w_loops"] / agg_groups["total_n_episodes"]
     )
 
+
     agg_groups["valid_success_rate"] = (
         agg_groups["n_valid_ground_states"] / agg_groups["n_valid_episodes"]
     )
@@ -366,11 +396,18 @@ for df in dfs:
     agg_groups["overall_avg_lifetime"] = 1.0 / agg_groups["overall_fail_rate_per_cycle"]
     agg_groups["logical_avg_lifetime"] = 1.0 / agg_groups["logical_err_rate_per_cycle"]
 
+    agg_groups["total_nominal_episodes"] = agg_groups["total_n_episodes"] - agg_groups["n_ep_w_syndromes"]
+    assert np.all(agg_groups["total_nominal_episodes"] >= 0), f'{agg_groups["total_nominal_episodes"]=}, {agg_groups["total_n_episodes"]=}, {agg_groups["n_too_long_w_syndromes"]=}, {agg_groups["n_ep_w_syndromes"]}'
+    agg_groups["successful_nominal_episodes"] = agg_groups["n_valid_ground_states"] / agg_groups["total_nominal_episodes"]
+    agg_groups["nominal_fail_rate_per_cycle"] = (1.0 - agg_groups["successful_nominal_episodes"]) / agg_groups["stack_depth"]
+
     new_dfs.append(agg_groups)
 
 df_all = pd.concat(new_dfs)
 
-# df_all.to_csv("analysis/threshold_summary.csv")
+df_all.to_csv("test_results_combined.csv")
+
+# load data from previous paper for comparison
 sweke_data = pd.read_csv(
     "plots/sweke_lifetime_datapoints.csv", index_col=None, header=0
 )
@@ -384,6 +421,7 @@ key_scaled_fail_rate = "overall_fail_rate_per_cycle"
 title_scaled_fail_rate = "Overall Fail Rate Per Cycle"
 
 key_valid_fail_rate = "valid_fail_rate_per_cycle"
+key_valid_fail_rate = "nominal_fail_rate_per_cycle"
 title_valid_fail_rate = "Fail Rate Per Cycle"
 
 key_valid_avg_life = "valid_avg_lifetime"
@@ -420,149 +458,8 @@ def set_text_log(axis):
 def set_text_log_split(axis):
     axis.text(0.0015, 100, "Single Qubit", rotation=-15)
 
-
-if False:
-    ################## Plot Logical Error Rate per Cycle ##################
-    fig, ax = plt.subplots(1, 1, sharex=True)
-
-    for i, jid in enumerate(job_ids):
-        if jid in omit_job_ids:
-            continue
-
-        code_size = new_dfs[i]["code_size"].iloc[0]
-        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-        # print(new_dfs[i])
-        y_error = np.sqrt(
-            new_dfs[i][key_logical_err_rate]
-            * (1.0 - new_dfs[i][key_logical_err_rate])
-            / new_dfs[i]["total_n_episodes"]
-        )
-        ax.errorbar(
-            x=new_dfs[i]["p_err"],
-            y=new_dfs[i][key_logical_err_rate],
-            yerr=y_error,
-            fmt="o",
-            label=r"$d=h=$" + f"{code_size}",
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-    ax.plot(
-        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        "k",
-        # label="One Qubit"
-    )
-    set_text_lin(ax)
-
-    ax.set(title=title_logical_err_rate)
-    ax.set(
-        xlabel=r"$p_\mathrm{err}$", ylabel=title_logical_err_rate, ylim=ylim_lin_plot
-    )
-
-    plt.legend()
-    plt.savefig("plots/threshold_logical_err_rate_p_err.pdf", bbox_inches="tight")
-    plt.show()
-
-if False:
-    ################## Plot Logical Error Rate Lifetime ##################
-    fig, ax = plt.subplots(1, 1, sharex=True)
-
-    for i, jid in enumerate(job_ids):
-        code_size = new_dfs[i]["code_size"].iloc[0]
-        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-        # print(new_dfs[i])
-        y_error = 1.0 / (
-            new_dfs[i][key_logical_err_rate] * new_dfs[i][key_logical_err_rate]
-        )
-        # propagate the error from the valid fail rate
-        y_error *= np.sqrt(
-            new_dfs[i][key_logical_err_rate]
-            * (1.0 - new_dfs[i][key_logical_err_rate])
-            / new_dfs[i]["total_n_episodes"]
-        )
-        # calculate the log y error, according to this:
-        # https://faculty.washington.edu/stuve/log_error.pdf
-        log_y_error = 0.434 * y_error
-
-        ax.errorbar(
-            x=new_dfs[i]["p_err"]
-            + np.random.normal(loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])),
-            y=new_dfs[i][key_logical_lifetime],
-            yerr=log_y_error,
-            label=r"$d=h=$" + f"{code_size}",
-            fmt="o",
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-    ax.scatter(
-        sweke_data["p_err"],
-        sweke_data["Lifetime"],
-        label="Sweke et al.",
-        c=plot_colors[-1],
-        marker=markers[-1],
-    )
-    ax.plot(
-        sweke_data["p_err"],
-        sweke_data["Lifetime"],
-        c=plot_colors[-1],
-        marker=markers[-1],
-    )
-
-    set_text_log(ax)
-    ax.plot(
-        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        1.0 / np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        "k",
-        # label="One Qubit"
-    )
-    ax.set(title=title_logical_lifetime)
-    ax.set(
-        xlabel=r"$p_\mathrm{err}$",
-        ylabel=title_logical_lifetime,
-        xlim=(1e-3, max_x),
-        yscale="log",
-        ylim=ylim_log_plot,
-    )
-
-    plt.legend()
-    plt.savefig("plots/threshold_logical_lifetime_p_err_log.pdf", bbox_inches="tight")
-    plt.show()
-
-if False:
-    ################## Plot Overall Fail Rate per Cycle ##################
-    fig, ax = plt.subplots(1, 1, sharex=True)
-
-    for i, jid in enumerate(job_ids):
-        if jid in omit_job_ids:
-            continue
-
-        code_size = new_dfs[i]["code_size"].iloc[0]
-        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-        # print(new_dfs[i])
-
-        ax.scatter(
-            x=new_dfs[i]["p_err"],
-            y=new_dfs[i][key_scaled_fail_rate],
-            label=r"$d=h=$" + f"{code_size}",
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-    ax.plot(
-        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        "k",
-        # label="One Qubit"
-    )
-
-    set_text_lin(ax)
-    ax.set(title=title_scaled_fail_rate)
-    ax.set(
-        xlabel=r"$p_\mathrm{err}$", ylabel=title_scaled_fail_rate, ylim=ylim_lin_plot
-    )
-
-    plt.legend()
-    plt.savefig("plots/threshold_overall_fail_rate_p_err.pdf", bbox_inches="tight")
-    plt.show()
+# do the actual plotting
+# further below, saving can be enabled and the path can be defined; also hard-coded
 if True:
     ################## Plot Valid Fail Rate per Cycle Log Scale ##################
     fig, axes = plt.subplots(
@@ -571,10 +468,12 @@ if True:
         sharex=True,
         gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
     )
+    # ax = axes
     ax = axes[0]
     ax1 = axes[1]
 
     for i, run in enumerate(training_runs):
+        # if run.code_size == 13: continue
         code_size = new_dfs[i]["code_size"].iloc[0]
         stack_depth = new_dfs[i]["stack_depth"].iloc[0]
         # print(new_dfs[i])
@@ -592,8 +491,8 @@ if True:
             fmt=".",
             linewidth=1.5,
             markersize=0,
-            c=plot_colors[i],
-            marker=markers[i],
+            # c=plot_colors[i],
+            # marker=markers[i],
         )
 
         ax.scatter(
@@ -602,17 +501,17 @@ if True:
             label=r"$d=h=$" + f"{code_size}",
             # s=100
             # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
-            c=plot_colors[i],
-            marker=markers[i],
+            # c=plot_colors[i],
+            # marker=markers[i],
         )
 
         # plot disregard-fraction
         ax1.scatter(
             x=new_dfs[i]["p_err"],
-            y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
+            y=(1.0 - (new_dfs[i]["total_nominal_episodes"] / new_dfs[i]["total_n_episodes"]))
             * 100,
-            c=plot_colors[i],
-            marker=markers[i],
+            # c=plot_colors[i],
+            # marker=markers[i],
         )
     ax.plot(
         np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
@@ -632,244 +531,11 @@ if True:
     ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
     ax1.text(0, 32, "Remaining Syndromes")
 
-    ax1.set_xticks(np.arange(0.0, 0.016, 0.003))
-    ax.set_xticks(np.arange(0.0, 0.016, 0.003))
+    ax1.set_xticks(np.arange(0.0, 0.025, 0.003))
+    ax.set_xticks(np.arange(0.0, 0.025, 0.003))
 
     # plt.legend()
     ax.legend()
-    if True:
+    if False:
         plt.savefig("plots/thresh_valid_fail_rate_p_err_log.pdf", bbox_inches="tight")
     plt.show()
-
-if False:
-    ################## Plot Valid Fail Rate per Cycle ##################
-    fig, axes = plt.subplots(
-        2,
-        1,
-        sharex=True,
-        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
-    )
-    ax = axes[0]
-    ax1 = axes[1]
-
-    for i, jid in enumerate(job_ids):
-        code_size = new_dfs[i]["code_size"].iloc[0]
-        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-        # print(new_dfs[i])
-        y_error = np.sqrt(
-            new_dfs[i][key_valid_fail_rate]
-            * (1.0 - new_dfs[i][key_valid_fail_rate])
-            / new_dfs[i]["n_valid_episodes"]
-        )
-        ax.errorbar(
-            x=new_dfs[i]["p_err"]
-            + np.random.normal(loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])),
-            y=new_dfs[i][key_valid_fail_rate],
-            yerr=y_error,
-            fmt=".",
-            linewidth=1.5,
-            markersize=0,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-
-        ax.scatter(
-            x=new_dfs[i]["p_err"],
-            y=new_dfs[i][key_valid_fail_rate],
-            label=r"$d=h=$" + f"{code_size}",
-            # s=100
-            # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-
-        # plot disregard-fraction
-        ax1.scatter(
-            x=new_dfs[i]["p_err"],
-            y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
-            * 100,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-    ax.plot(
-        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        "k",
-    )
-
-    set_text_lin_split(ax)
-    ax.set(
-        title="Fail Rate Analysis",
-        # xlabel=r"$p_\mathrm{err}$",
-        ylabel=title_valid_fail_rate,
-        ylim=np.array(ylim_lin_plot) + (0, 0.001),
-    )
-    ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
-
-    ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
-    ax.set_xticks(np.arange(0.0, 0.013, 0.003))
-
-    ax.set_yticks(np.arange(0.0, 0.0081, 0.002))
-    ax1.text(0, 32, "Remaining Syndromes")
-    ax.legend()
-    # plt.legend()
-    plt.savefig("plots/thresh_valid_fail_rate_p_err.pdf", bbox_inches="tight")
-    plt.show()
-
-if False:
-    ################## Plot Valid Average Lifetime ##################
-    # plt.figure(figsize=(800, 800))
-    fig, axes = plt.subplots(
-        2,
-        1,
-        sharex=True,
-        gridspec_kw={"height_ratios": [4, 1], "wspace": 0, "hspace": 0.05},
-    )
-    ax = axes[0]
-    ax1 = axes[1]
-
-    for i, jid in enumerate(job_ids):
-        code_size = new_dfs[i]["code_size"].iloc[0]
-        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-        # print(new_dfs[i])
-        y_error = 1.0 / (
-            new_dfs[i][key_valid_fail_rate] * new_dfs[i][key_valid_fail_rate]
-        )
-        # propagate the error from the valid fail rate
-        y_error *= np.sqrt(
-            new_dfs[i][key_valid_fail_rate]
-            * (1.0 - new_dfs[i][key_valid_fail_rate])
-            / new_dfs[i]["n_valid_episodes"]
-        )
-        # calculate the log y error, according to this:
-        # https://faculty.washington.edu/stuve/log_error.pdf
-        log_y_error = 0.434 * y_error  # / new_dfs[i][key_valid_avg_life]
-        ax.errorbar(
-            x=new_dfs[i]["p_err"]
-            + np.random.normal(loc=0, scale=1.5e-5, size=len(new_dfs[i]["p_err"])),
-            y=new_dfs[i][key_valid_avg_life],
-            yerr=log_y_error,
-            fmt=".",
-            linewidth=1.5,
-            markersize=0,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-        ax.scatter(
-            x=new_dfs[i]["p_err"],
-            y=new_dfs[i][key_valid_avg_life],
-            label=r"$d=h=$" + f"{code_size}",
-            # s=100
-            # * (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]) ** 1.2,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-
-        # plot disregard-fraction
-        ax1.scatter(
-            x=new_dfs[i]["p_err"],
-            y=(1.0 - (new_dfs[i]["n_valid_episodes"] / new_dfs[i]["total_n_episodes"]))
-            * 100,
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-    ax.scatter(
-        sweke_data["p_err"],
-        sweke_data["Lifetime"],
-        # label="Sweke et al.",
-        c=plot_colors[-1],
-        marker=markers[-1],
-    )
-    ax.plot(
-        sweke_data["p_err"],
-        sweke_data["Lifetime"],
-        c=plot_colors[-1],
-        marker=markers[-1],
-    )
-
-    ax.text(0.0014, 4e4, "Sweke et al.", color=plot_colors[-1])
-    ax.plot(
-        np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        1.0 / np.linspace(new_dfs[0]["p_err"].min(), max_x, 100, endpoint=True),
-        "k",
-    )
-
-    set_text_log_split(ax)
-    ax.set()
-    ax.set(
-        title="Qubit Lifetime Analysis",
-        # xlabel=r"$p_\mathrm{err}$",
-        ylabel="Measurement Cycles",
-        xlim=(1e-3, max_x),
-        yscale="log",
-        ylim=ylim_log_plot,
-    )
-
-    ax1.set(xlabel=r"$p_\mathrm{err}$", ylabel="%")
-
-    # ax1.set_xticks(np.arange(0.0, 0.013, 0.003))
-    # ax.set_xticks(np.arange(0.0, 0.013, 0.003))
-
-    # ax.set_yticks(np.arange(0.0, 0.0081, 0.002))
-    ax1.text(0.0011, 32, "Remaining Syndromes")
-
-    # plt.legend()
-    ax.legend()
-    plt.savefig("plots/thresh_valid_lifetime_p_err_log.pdf", bbox_inches="tight")
-    plt.show()
-
-if False:
-    ################## Plot Overall Average Lifetime ##################
-    fig, ax = plt.subplots(1, 1, sharex=True)
-
-    for i, jid in enumerate(job_ids):
-        code_size = new_dfs[i]["code_size"].iloc[0]
-        stack_depth = new_dfs[i]["stack_depth"].iloc[0]
-        # print(new_dfs[i])
-        ax.scatter(
-            x=new_dfs[i]["p_err"],
-            y=new_dfs[i][key_overall_avg_life],
-            label=r"$d=h=$" + f"{code_size}",
-            c=plot_colors[i],
-            marker=markers[i],
-        )
-    ax.plot(
-        np.linspace(
-            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-        ),
-        1.0
-        / np.linspace(
-            new_dfs[0]["p_err"].min(), new_dfs[0]["p_err"].max(), 100, endpoint=True
-        ),
-        "k",
-        # label="One Qubit"
-    )
-
-    set_text_log(ax)
-    ax.scatter(
-        sweke_data["p_err"],
-        sweke_data["Lifetime"],
-        label="Sweke et al.",
-        c=plot_colors[-1],
-        marker=markers[-1],
-    )
-    ax.plot(
-        sweke_data["p_err"],
-        sweke_data["Lifetime"],
-        c=plot_colors[-1],
-        marker=markers[-1],
-    )
-    ax.set(title=title_overall_avg_life)
-    ax.set(
-        xlabel=r"$p_\mathrm{err}$",
-        ylabel=title_overall_avg_life,
-        xlim=(1e-3, new_dfs[0]["p_err"].max()),
-        yscale="log",
-        ylim=ylim_log_plot,
-    )
-
-    plt.legend()
-    plt.savefig("plots/threshold_overall_lifetime_p_err_log.pdf", bbox_inches="tight")
-    plt.show()
-
-sys.exit()
