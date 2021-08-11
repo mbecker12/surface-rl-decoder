@@ -67,6 +67,21 @@ The input arguments allow you for example to define the path to an environment-c
 to change the configuration of the run and specify things like system size, network architecture, path to network configuration, etc.
 The configuration variables are described in a later section.
 
+Learning Methods
+================
+
+During this project, different learning methods have been explored:
+The most promising one in our endeavor so far was Deep Q Learning. Besides that, also PPO learning and a Value Network approach have been tested.
+The latter two methods seem promising and while they did not yield the results we have hoped for, it might be worth it to give them another shot
+with more focus on their correct implementation.
+
+Deploying the training is described in the Deployment section above.
+The python program running Deep Q Learning can be found at ``src/distributed/start_distributed_mp.py``.
+Similar for the Value Network approach: ``src/distributed/start_distributed_vnet.py``.
+PPO training can be started with ``src/actor_critic/start_ppo.py``
+
+The respective subdirectories contain further information about the general program structure.
+
 Logging
 =======
 
@@ -100,6 +115,8 @@ This package will look for a ``.ini`` file in the ``src`` directory (and its sub
 If a parameter exists as an environment variable, the environment variable has higher priority
 and its value will be used.
 
+Below is a non-exhaustive extract showing examples for the syntax in both ``.ini`` files and the corresponding environment variables.
+
 +---------------------------------------+--------------------------+---------------+
 | Configuration dict from .ini file     | Environment variable     | Default value |
 +=======================================+==========================+===============+
@@ -114,6 +131,8 @@ and its value will be used.
 | cfg["config"]["env"]["stack_depth"]   | CONFIG_ENV_STACK_DEPTH   | 8             |
 +---------------------------------------+--------------------------+---------------+
 | cfg["config"]["env"]["error_channel"] | CONFIG_ENV_ERROR_CHANNEL | "dp"          |
++---------------------------------------+--------------------------+---------------+
+| cfg["config"]["learner"]["batch_size"]| CONFIG_LEARNER_BATCH_SIZE| 128           |
 +---------------------------------------+--------------------------+---------------+
 
 Note: The config variable `CONFIG_GENERAL_SUMMARY_DATE` for setting the subdirectory
