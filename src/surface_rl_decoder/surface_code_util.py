@@ -47,7 +47,7 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
     """
 
     final_qubit_configuration = perform_all_actions(actual_errors, actions)
-    # TODO: need to take into account syndrome errors when evaluating performance
+
     final_state = create_syndrome_output(
         final_qubit_configuration[-1],
         vertex_mask=vertex_mask,
@@ -56,8 +56,9 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
     final_state = final_state.reshape(1, final_state.shape[-2], final_state.shape[-1])
 
     # look for uncorrected syndromes
-    if (n_syndromes := final_state[-1].astype(np.uint8).sum()) != 0:
-        return final_state, False, (n_syndromes, 0)
+    n_syndromes = final_state[-1].astype(np.uint8).sum()
+    # if (n_syndromes := final_state[-1].astype(np.uint8).sum()) != 0:
+    #     return final_state, False, (n_syndromes, 0)
 
     # no syndromes left
     # check for non-trivial loops
@@ -76,8 +77,10 @@ def check_final_state(actual_errors, actions, vertex_mask, plaquette_mask):
 
     if n_loops > 0:
         is_ground_state = False
+    if n_syndromes > 0:
+        is_ground_state = False
 
-    return final_state, is_ground_state, (0, n_loops)
+    return final_state, is_ground_state, (n_syndromes, n_loops)
 
 
 def perform_all_actions(qubits, actions):

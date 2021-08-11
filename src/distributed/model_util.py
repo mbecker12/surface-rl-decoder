@@ -7,7 +7,6 @@ learning model
 
 import os
 from typing import Tuple, Union
-from numpy import add
 import torch
 from torch.nn.modules.loss import MSELoss
 from torch.optim import Adam
@@ -67,7 +66,7 @@ def choose_model(
     =======
     model: The desired neural network object, subclass of torch.nn.Module
     """
-    print(f"{model_config=}")
+    logger.info(f"{model_config=}")
     if "dummy" in model_name:
         model = DummyModel(model_config)
     elif "conv2d" in model_name.lower():
